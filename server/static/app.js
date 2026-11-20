@@ -77,6 +77,18 @@ const I18N = {
     'page.reports.title': 'Reports', 'page.reports.sub': "Export your scope's data — CSV opens in Excel, the HTML view prints to PDF",
     'page.images.title': 'Image repository', 'page.images.sub': 'Golden OS images referenced by location + checksum, and the image each lab should run.',
     'page.images.note': 'Distribution & reimaging need boot media and are not built yet.',
+    'inc.scan': '⟳ Scan now', 'inc.new': '＋ New incident',
+    'inc.seg.unresolved': 'Unresolved', 'inc.seg.open': 'Open', 'inc.seg.acknowledged': 'Acknowledged', 'inc.seg.resolved': 'Resolved', 'inc.seg.all': 'All',
+    'inc.col.severity': 'Severity', 'inc.col.issue': 'Issue', 'inc.col.device': 'Device / lab', 'inc.col.status': 'Status', 'inc.col.assignee': 'Assignee', 'inc.col.opened': 'Opened',
+    'sev.critical': 'Critical', 'sev.warning': 'Warning', 'sev.info': 'Info',
+    'ist.open': 'Open', 'ist.acknowledged': 'Acknowledged', 'ist.resolved': 'Resolved',
+    'inc.auto': 'auto-detected', 'inc.autores': 'auto',
+    'inc.ack': 'Ack', 'inc.resolve': 'Resolve', 'inc.reopen': 'Reopen', 'inc.assignnote': 'Assign / note',
+    'inc.empty': 'Nothing here.', 'inc.none': '—',
+    'inc.edit.title': 'Assign / add a note', 'inc.assignee': 'Assignee', 'inc.note': 'Note', 'inc.assignee.ph': 'who owns this',
+    'inc.new.title': 'New incident', 'inc.create': 'Create incident', 'inc.title': 'Title', 'inc.severity': 'Severity', 'inc.device': 'Device', 'inc.detail': 'Detail',
+    'inc.t.created': 'Incident created', 'inc.t.updated': 'Incident updated', 'inc.t.acknowledged': 'Incident acknowledged', 'inc.t.resolved': 'Incident resolved', 'inc.t.reopened': 'Incident reopened', 'inc.t.scanned': 'Scan complete',
+    'common.save': 'Save', 'common.delete': 'Delete', 'common.notied': '— Not tied to a device —',
   },
   he: {
     'app.title': 'KEM · ניהול עמדות',
@@ -111,6 +123,18 @@ const I18N = {
     'page.reports.title': 'דוחות', 'page.reports.sub': 'ייצוא נתוני ההרשאה שלך — CSV נפתח ב‑Excel ותצוגת ה‑HTML מודפסת ל‑PDF',
     'page.images.title': 'מאגר תמונות מערכת', 'page.images.sub': 'תמונות מערכת זהב לפי מיקום + סכום ביקורת, והתמונה שכל מעבדה אמורה להריץ.',
     'page.images.note': 'ההפצה והדמיית מחדש דורשות מדיית אתחול ועדיין לא מומשו.',
+    'inc.scan': '⟳ סרוק עכשיו', 'inc.new': '＋ תקרית חדשה',
+    'inc.seg.unresolved': 'לא פתורות', 'inc.seg.open': 'פתוחות', 'inc.seg.acknowledged': 'טופלו', 'inc.seg.resolved': 'נפתרו', 'inc.seg.all': 'הכול',
+    'inc.col.severity': 'חומרה', 'inc.col.issue': 'תקלה', 'inc.col.device': 'עמדה / מעבדה', 'inc.col.status': 'מצב', 'inc.col.assignee': 'אחראי', 'inc.col.opened': 'נפתחה',
+    'sev.critical': 'קריטי', 'sev.warning': 'אזהרה', 'sev.info': 'מידע',
+    'ist.open': 'פתוחה', 'ist.acknowledged': 'טופלה', 'ist.resolved': 'נפתרה',
+    'inc.auto': 'זוהתה אוטומטית', 'inc.autores': 'אוטומטי',
+    'inc.ack': 'אישור', 'inc.resolve': 'פתירה', 'inc.reopen': 'פתיחה מחדש', 'inc.assignnote': 'שיוך / הערה',
+    'inc.empty': 'אין כאן תקריות.', 'inc.none': '—',
+    'inc.edit.title': 'שיוך / הוספת הערה', 'inc.assignee': 'אחראי', 'inc.note': 'הערה', 'inc.assignee.ph': 'מי מטפל בזה',
+    'inc.new.title': 'תקרית חדשה', 'inc.create': 'צור תקרית', 'inc.title': 'כותרת', 'inc.severity': 'חומרה', 'inc.device': 'עמדה', 'inc.detail': 'פירוט',
+    'inc.t.created': 'התקרית נוצרה', 'inc.t.updated': 'התקרית עודכנה', 'inc.t.acknowledged': 'התקרית אושרה', 'inc.t.resolved': 'התקרית נפתרה', 'inc.t.reopened': 'התקרית נפתחה מחדש', 'inc.t.scanned': 'הסריקה הושלמה',
+    'common.save': 'שמירה', 'common.delete': 'מחיקה', 'common.notied': '— לא משויך לעמדה —',
   },
 };
 let LANG = (() => { try { return localStorage.getItem('kem.lang') === 'he' ? 'he' : 'en'; } catch { return 'en'; } })();
@@ -1505,28 +1529,28 @@ $('#login-form').onsubmit = async (e) => {
 $('#logout').onclick = async () => { await api('/api/logout', { method: 'POST' }).catch(() => {}); showLogin(); };
 
 // ------------------------------------------------------------------ incidents
-const INC_SEV = { critical: ['crit', 'Critical'], warning: ['warn', 'Warning'], info: ['info', 'Info'] };
-const INC_STATUS = { open: ['crit', 'Open'], acknowledged: ['blue', 'Acknowledged'], resolved: ['ok', 'Resolved'] };
-const INC_SEG = { unresolved: 'Unresolved', open: 'Open', acknowledged: 'Acknowledged', resolved: 'Resolved', '': 'All' };
+const INC_SEV = { critical: 'crit', warning: 'warn', info: 'info' };
+const INC_STATUS = { open: 'crit', acknowledged: 'blue', resolved: 'ok' };
+const INC_SEGS = ['unresolved', 'open', 'acknowledged', 'resolved', ''];
 
 async function viewIncidents() {
   const manage = cap('manage_incidents');
   if (state.incFilter == null) state.incFilter = 'unresolved';
   view.innerHTML = `
     <div class="page-head"><div><h1>${t('page.incidents.title')}</h1><p class="sub">${t('page.incidents.sub')}${state.me.scope_label && state.me.role !== 'superadmin' ? ' · ' + esc(state.me.scope_label) : ''}</p></div>
-      <div class="row">${manage ? '<button class="btn" id="incscan">⟳ Scan now</button> <button class="btn primary" id="incnew">＋ New incident</button>' : ''}</div></div>
+      <div class="row">${manage ? `<button class="btn" id="incscan">${t('inc.scan')}</button> <button class="btn primary" id="incnew">${t('inc.new')}</button>` : ''}</div></div>
     <div class="toolbar"><div class="seg" id="incseg" style="max-width:520px">
-      ${Object.entries(INC_SEG).map(([s, l]) => `<button data-s="${s}" class="${state.incFilter === s ? 'on' : ''}">${l}</button>`).join('')}
+      ${INC_SEGS.map((s) => `<button data-s="${s}" class="${state.incFilter === s ? 'on' : ''}">${t('inc.seg.' + (s || 'all'))}</button>`).join('')}
     </div></div>
     <div class="card table-wrap"><table class="grid">
-      <thead><tr><th>Severity</th><th>Issue</th><th>Device / lab</th><th>Status</th><th>Assignee</th><th class="nowrap">Opened</th>${manage ? '<th></th>' : ''}</tr></thead>
-      <tbody id="incrows"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody></table></div>`;
+      <thead><tr><th>${t('inc.col.severity')}</th><th>${t('inc.col.issue')}</th><th>${t('inc.col.device')}</th><th>${t('inc.col.status')}</th><th>${t('inc.col.assignee')}</th><th class="nowrap">${t('inc.col.opened')}</th>${manage ? '<th></th>' : ''}</tr></thead>
+      <tbody id="incrows"><tr><td colspan="7" class="empty">${t('common.loading')}</td></tr></tbody></table></div>`;
 
   const load = async () => {
     let rows;
     try { rows = await api(`/api/incidents?status=${encodeURIComponent(state.incFilter)}`); } catch (e) { toast(e.message, true); return; }
     const body = $('#incrows');
-    if (!rows.length) { body.innerHTML = `<tr><td colspan="7" class="empty">Nothing here — no ${state.incFilter ? esc(INC_SEG[state.incFilter].toLowerCase()) : ''} incidents.</td></tr>`; refreshIncidentBadge(); return; }
+    if (!rows.length) { body.innerHTML = `<tr><td colspan="7" class="empty">${t('inc.empty')}</td></tr>`; refreshIncidentBadge(); return; }
     body.innerHTML = rows.map(renderIncRow).join('');
     if (manage) {
       body.querySelectorAll('[data-act]').forEach((b) => (b.onclick = () => incAction(b.dataset.id, b.dataset.act, load)));
@@ -1536,7 +1560,7 @@ async function viewIncidents() {
   };
   $$('#incseg button').forEach((b) => (b.onclick = () => { state.incFilter = b.dataset.s; $$('#incseg button').forEach((x) => x.classList.toggle('on', x === b)); load(); }));
   if (manage) {
-    $('#incscan').onclick = async () => { try { const s = await api('/api/incidents/scan', { method: 'POST' }); toast(`Scanned · ${s.total} unresolved`); load(); } catch (e) { toast(e.message, true); } };
+    $('#incscan').onclick = async () => { try { const s = await api('/api/incidents/scan', { method: 'POST' }); toast(`${t('inc.t.scanned')} · ${s.total}`); load(); } catch (e) { toast(e.message, true); } };
     $('#incnew').onclick = () => incForm(load);
   }
   every(load, 15000);
@@ -1545,37 +1569,39 @@ async function viewIncidents() {
 
 function renderIncRow(i) {
   const manage = cap('manage_incidents');
-  const [sc, sl] = INC_SEV[i.severity] || ['', i.severity];
-  const [stc, stl] = INC_STATUS[i.status] || ['', i.status];
+  const sc = INC_SEV[i.severity] || '';
+  const stc = INC_STATUS[i.status] || '';
+  const none = `<span class="muted">${t('inc.none')}</span>`;
   const acts = [];
   if (manage) {
-    if (i.status === 'open') acts.push(`<button class="btn small" data-act="acknowledge" data-id="${i.id}">Ack</button>`);
-    if (i.status !== 'resolved') acts.push(`<button class="btn small" data-act="resolve" data-id="${i.id}">Resolve</button>`);
-    if (i.status === 'resolved') acts.push(`<button class="btn small" data-act="reopen" data-id="${i.id}">Reopen</button>`);
-    acts.push(`<button class="link small" data-edit="${i.id}">Assign / note</button>`);
+    if (i.status === 'open') acts.push(`<button class="btn small" data-act="acknowledge" data-id="${i.id}">${t('inc.ack')}</button>`);
+    if (i.status !== 'resolved') acts.push(`<button class="btn small" data-act="resolve" data-id="${i.id}">${t('inc.resolve')}</button>`);
+    if (i.status === 'resolved') acts.push(`<button class="btn small" data-act="reopen" data-id="${i.id}">${t('inc.reopen')}</button>`);
+    acts.push(`<button class="link small" data-edit="${i.id}">${t('inc.assignnote')}</button>`);
   }
   return `<tr>
-    <td><span class="pill ${sc}">${esc(sl)}</span></td>
+    <td><span class="pill ${sc}">${esc(t('sev.' + i.severity))}</span></td>
     <td><b>${esc(i.title)}</b>${i.detail ? `<br><small class="muted">${esc(i.detail)}</small>` : ''}${i.note ? `<br><small class="muted">📝 ${esc(i.note)}</small>` : ''}</td>
-    <td class="small">${i.device_hostname ? esc(i.device_hostname) : '<span class="muted">—</span>'}${i.lab_name ? `<br><span class="muted">${esc(i.lab_name)}</span>` : ''}</td>
-    <td><span class="pill ${stc}">${esc(stl)}</span>${i.auto_resolved ? ' <small class="muted">auto</small>' : ''}</td>
-    <td class="small">${i.assignee ? esc(i.assignee) : '<span class="muted">—</span>'}</td>
+    <td class="small">${i.device_hostname ? esc(i.device_hostname) : none}${i.lab_name ? `<br><span class="muted">${esc(i.lab_name)}</span>` : ''}</td>
+    <td><span class="pill ${stc}">${esc(t('ist.' + i.status))}</span>${i.auto_resolved ? ` <small class="muted">${t('inc.autores')}</small>` : ''}</td>
+    <td class="small">${i.assignee ? esc(i.assignee) : none}</td>
     <td class="nowrap small muted">${ago(i.created)}</td>
     ${manage ? `<td class="nowrap">${acts.join(' ')}</td>` : ''}</tr>`;
 }
 
 async function incAction(id, action, done) {
-  try { await api(`/api/incidents/${id}`, { method: 'PATCH', body: { action } }); toast(`Incident ${action === 'acknowledge' ? 'acknowledged' : action === 'reopen' ? 'reopened' : action + 'd'}`); done(); }
+  const key = { acknowledge: 'inc.t.acknowledged', resolve: 'inc.t.resolved', reopen: 'inc.t.reopened' }[action] || 'inc.t.updated';
+  try { await api(`/api/incidents/${id}`, { method: 'PATCH', body: { action } }); toast(t(key)); done(); }
   catch (e) { toast(e.message, true); }
 }
 
 function incEdit(i, done) {
   modal({
-    title: 'Assign / add a note', submit: 'Save',
+    title: t('inc.edit.title'), submit: t('common.save'),
     body: `<p class="note">${esc(i.title)}</p>
-      <label>Assignee<input name="assignee" maxlength="64" value="${esc(i.assignee || '')}" placeholder="who owns this"></label>
-      <label>Note<textarea name="note" maxlength="1000" dir="auto" style="min-height:80px;font-family:inherit;font-size:14px">${esc(i.note || '')}</textarea></label>`,
-    onSubmit: async (f) => { await api(`/api/incidents/${i.id}`, { method: 'PATCH', body: { action: 'assign', assignee: f.assignee.value, note: f.note.value } }); toast('Incident updated'); done(); },
+      <label>${t('inc.assignee')}<input name="assignee" maxlength="64" value="${esc(i.assignee || '')}" placeholder="${esc(t('inc.assignee.ph'))}"></label>
+      <label>${t('inc.note')}<textarea name="note" maxlength="1000" dir="auto" style="min-height:80px;font-family:inherit;font-size:14px">${esc(i.note || '')}</textarea></label>`,
+    onSubmit: async (f) => { await api(`/api/incidents/${i.id}`, { method: 'PATCH', body: { action: 'assign', assignee: f.assignee.value, note: f.note.value } }); toast(t('inc.t.updated')); done(); },
   });
 }
 
@@ -1584,14 +1610,14 @@ async function incForm(done) {
   try { devs = await api('/api/devices'); } catch { /* none */ }
   const mgr = state.me.role === 'school_manager';
   modal({
-    title: 'New incident', submit: 'Create incident',
-    body: `<label>Title<input name="title" maxlength="200" required dir="auto" placeholder="e.g. Projector PC will not boot"></label>
-      <label>Severity<select name="severity"><option value="warning">Warning</option><option value="critical">Critical</option><option value="info">Info</option></select></label>
-      <label>Device${mgr ? '' : ' (optional)'}<select name="device_id" ${mgr ? 'required' : ''}>
-        ${mgr ? '' : '<option value="">— Not tied to a device —</option>'}
+    title: t('inc.new.title'), submit: t('inc.create'),
+    body: `<label>${t('inc.title')}<input name="title" maxlength="200" required dir="auto"></label>
+      <label>${t('inc.severity')}<select name="severity"><option value="warning">${t('sev.warning')}</option><option value="critical">${t('sev.critical')}</option><option value="info">${t('sev.info')}</option></select></label>
+      <label>${t('inc.device')}<select name="device_id" ${mgr ? 'required' : ''}>
+        ${mgr ? '' : `<option value="">${t('common.notied')}</option>`}
         ${devs.map((d) => `<option value="${esc(d.id)}">${esc(d.hostname)}${placeText(d) ? ' · ' + esc(placeText(d)) : ''}</option>`).join('')}</select></label>
-      <label>Detail<textarea name="detail" maxlength="1000" dir="auto" style="min-height:80px;font-family:inherit;font-size:14px"></textarea></label>`,
-    onSubmit: async (f) => { await api('/api/incidents', { method: 'POST', body: { title: f.title.value, severity: f.severity.value, device_id: f.device_id.value, detail: f.detail.value } }); toast('Incident created'); done(); },
+      <label>${t('inc.detail')}<textarea name="detail" maxlength="1000" dir="auto" style="min-height:80px;font-family:inherit;font-size:14px"></textarea></label>`,
+    onSubmit: async (f) => { await api('/api/incidents', { method: 'POST', body: { title: f.title.value, severity: f.severity.value, device_id: f.device_id.value, detail: f.detail.value } }); toast(t('inc.t.created')); done(); },
   });
 }
 
