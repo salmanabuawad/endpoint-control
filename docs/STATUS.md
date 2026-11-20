@@ -23,6 +23,13 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
   devices preserved) — verified against a real pre-upgrade DB
 * ✅ Role-aware dashboard: org tree, users, gateways, lab-scoped device lists, teacher console
   with class banner — verified live in a browser
+* ✅ **Exportable reports**: scope-aware Device inventory, Software licence compliance and Incidents
+  reports, each as a **CSV** (UTF-8 BOM, opens in Excel, Hebrew-safe) and a **print-ready HTML** page
+  (the browser's Save-as-PDF makes a PDF — no PDF/Excel libraries needed). Every row is filtered to
+  the viewer's scope and the action is audited. Verified end to end (16 checks: catalog, CSV
+  content-type/BOM/rows, HTML table, licensing + incident contents, format/kind validation, and
+  RBAC/scope — a teacher sees only their lab and cannot pull the licensing report) plus a live
+  dashboard (report cards + the rendered printable report).
 * ✅ **Local AI diagnostics**: KEM sends one device's health snapshot to an admin-configured
   OpenAI-compatible endpoint (Ollama / llama.cpp / LM Studio / vLLM — meant to run locally) and
   shows the model's written diagnosis + remediation steps, stored on the device. Disabled until
@@ -91,7 +98,7 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
 | 27 | Local recovery image per station | 🟡🧪 | System Restore baseline exists (Level 1); dedicated recovery partition/WinRE image (Level 2) not built |
 | 28 | Automatic & manual recovery | 🟡🧪 | `reset_device` = restore baseline / MDM factory wipe; policy-driven auto-recovery not built |
 | 29 | Local AI diagnostics | ✅ | per-device diagnosis via an admin-configured OpenAI-compatible endpoint (Ollama/llama.cpp/LM Studio); PII-stripped prompt, advice-only output, scoped to admins/school managers; model quality depends on the endpoint the admin points at |
-| 30 | Reports & auditing | 🟡 | full audit log + notification log; PDF/Excel export & scheduled reports not built |
+| 30 | Reports & auditing | ✅ | full audit log + notification log **and** exportable reports (devices / licensing / incidents) as CSV and print-to-PDF HTML, scoped per role; scheduled/emailed report delivery still pending |
 | 31 | Multi-language | 🟡 | agent & server are UTF-8/Hebrew-safe (ASCII JSON for PS 5.1); dashboard i18n (RTL) not built |
 | 32 | Secure offline operation | 🟡 | agent re-asserts policy offline; gateway task-caching while central is down not built (relay forwards live) |
 
@@ -104,8 +111,9 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
 * **Phase 2 — classroom control & endpoint security** 🟡: internet/USB/web-filter/messaging/lock
   and **examination mode** done; live monitoring, broadcast, remote assistance, allowlisting, file
   distribution pending.
-* **Phase 3 — health & licensing** 🟡: health + alerts + **incident workflow** + **license registry
-  & compliance findings** + **local AI diagnostics** done; exportable (PDF/Excel) reports pending.
+* **Phase 3 — health & licensing** 🟡→ mostly ✅: health + alerts + **incident workflow** + **license
+  registry & compliance findings** + **local AI diagnostics** + **exportable reports** done; only
+  scheduled/emailed report delivery pending.
 * **Phase 4 — recovery infrastructure** 🟡🧪: Windows Restore (L1) + factory wipe exist; local
   recovery image (L2), recovery boot env, central image catalog, gateway image delivery pending.
 * **Phase 5 — exams & automation** 🟡: examination mode (lock/revert a lab) done; policy-driven

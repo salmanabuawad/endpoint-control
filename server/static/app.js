@@ -370,8 +370,8 @@ function route() {
   const [, name = 'devices', arg] = (location.hash || '#/devices').split('/');
   setNav(name === 'device' ? 'devices' : name);
   const views = { devices: viewDevices, device: () => viewDevice(arg), enroll: viewEnroll, activity: viewActivity,
-    audit: viewAudit, settings: viewSettings, org: viewOrg, users: viewUsers, gateways: viewGateways, licensing: viewLicensing, incidents: viewIncidents };
-  const needs = { org: 'manage_org', users: 'manage_users', gateways: 'manage_gateways', enroll: 'manage_tokens', audit: 'view_audit', licensing: 'view_licensing', incidents: 'view_incidents' };
+    audit: viewAudit, settings: viewSettings, org: viewOrg, users: viewUsers, gateways: viewGateways, licensing: viewLicensing, incidents: viewIncidents, reports: viewReports };
+  const needs = { org: 'manage_org', users: 'manage_users', gateways: 'manage_gateways', enroll: 'manage_tokens', audit: 'view_audit', licensing: 'view_licensing', incidents: 'view_incidents', reports: 'view_reports' };
   if (needs[name] && !cap(needs[name])) { location.hash = '#/devices'; return; }
   (views[name] || viewDevices)();
 }
@@ -1456,6 +1456,29 @@ async function incForm(done) {
       <label>Detail<textarea name="detail" maxlength="1000" dir="auto" style="min-height:80px;font-family:inherit;font-size:14px"></textarea></label>`,
     onSubmit: async (f) => { await api('/api/incidents', { method: 'POST', body: { title: f.title.value, severity: f.severity.value, device_id: f.device_id.value, detail: f.detail.value } }); toast('Incident created'); done(); },
   });
+}
+
+// ------------------------------------------------------------------ reports
+const REPORT_DESC = {
+  devices: "Every station in your scope — placement, OS, health, controls and current alerts.",
+  licensing: "Installed commercial software vs. the licences on record: seats, expiry and findings.",
+  incidents: "All incidents in your scope with severity, status, assignee and timestamps.",
+};
+
+async function viewReports() {
+  view.innerHTML = `<div class="page-head"><div><h1>Reports</h1><p class="sub">Export your scope's data — CSV opens in Excel, the HTML view prints to PDF${state.me.scope_label && state.me.role !== 'superadmin' ? ' · ' + esc(state.me.scope_label) : ''}</p></div></div>
+    <div class="cards" id="reportcards"><div class="empty">Loading…</div></div>`;
+  let list;
+  try { list = await api('/api/reports'); } catch (e) { toast(e.message, true); return; }
+  $('#reportcards').innerHTML = list.map((r) => `
+    <div class="card pad">
+      <h2>${esc(r.label)}</h2>
+      <p class="muted">${esc(REPORT_DESC[r.kind] || '')}</p>
+      <div class="row" style="margin-top:4px">
+        <a class="btn" href="/api/reports/${encodeURIComponent(r.kind)}?format=html" target="_blank" rel="noopener">Open (print / PDF)</a>
+        <a class="btn primary" href="/api/reports/${encodeURIComponent(r.kind)}?format=csv">Download CSV</a>
+      </div>
+    </div>`).join('') || '<div class="empty">No reports available for your role.</div>';
 }
 
 async function boot() {

@@ -23,6 +23,7 @@ but trimmed down to what a small IT team actually needs.
 | **Users** | Admins create/disable/delete scoped users and reset passwords |
 | **Incident management** | Device health alerts auto-open and auto-resolve tracked incidents (open → acknowledged → resolved) with severity, assignee and notes; operators can also raise incidents by hand. Scoped per role, with a dashboard and nav badge |
 | **Local AI diagnostics** | Point KEM at a local OpenAI-compatible model (Ollama/llama.cpp/LM Studio); "Diagnose" sends a device's **health data only** (no user/IP/serial) and shows the model's suggested fixes — advice only, nothing runs automatically |
+| **Reports** | Device inventory, licence compliance and incident reports, scoped per role, as CSV (opens in Excel) or a print-ready HTML page (Save as PDF) |
 | **License compliance** | Entitlement registry + a findings engine comparing installed commercial software against licences owned (seats, expiry), scoped per school; findings: compliant / verify / potential gap / confirmed issue |
 
 An existing single-tenant KEM database upgrades in place: the lone admin becomes a `superadmin`,

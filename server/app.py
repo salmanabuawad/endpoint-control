@@ -7,8 +7,10 @@ reset to baseline image, ...).
 """
 from __future__ import annotations
 
+import csv
 import hashlib
 import hmac
+import io
 import json
 import os
 import re
@@ -203,7 +205,7 @@ def role_capabilities(role: str) -> dict:
         "class_session": role == "teacher",
         "manage_exams": role in ROLES,  # teacher (during class), school_manager, admins; API re-checks scope
         "view_incidents": role in ROLES, "manage_incidents": admin or role == "school_manager",
-        "run_diagnostics": admin or role == "school_manager",
+        "run_diagnostics": admin or role == "school_manager", "view_reports": role in ROLES,
         "view_licensing": admin or role == "school_manager", "manage_licensing": admin,
         "commands": sorted(COMMAND_TYPES) if admin else
                     sorted(COMMAND_TYPES - SCHOOL_MANAGER_BLOCKED) if role == "school_manager" else
@@ -1599,6 +1601,127 @@ def diagnose_device(device_id: str, request: Request, user: dict = Depends(requi
         audit(con, user["username"], client_ip(request), "ai_diagnose", row["hostname"],
               {"model": cfg["model"], "chars": len(text)})
     return {"diagnosis": text, "at": t, "model": cfg["model"], "context_sent": ctx}
+
+
+# ---------------------------------------------------------------- reports (CSV / printable HTML)
+# Exportable reports, scoped to the signed-in user. CSV opens in Excel (UTF-8 BOM, Hebrew-safe);
+# the HTML version is print-ready, so the browser's "Save as PDF" produces a PDF without extra deps.
+
+REPORTS = {"devices": "Device inventory", "licensing": "Software licence compliance", "incidents": "Incidents"}
+
+
+def _report_date(ts) -> str:
+    return time.strftime("%Y-%m-%d %H:%M", time.localtime(ts)) if ts else ""
+
+
+def _can_licensing(user: dict) -> bool:
+    return user["role"] in ADMIN_ROLES or user["role"] == "school_manager"
+
+
+def report_data(con, user: dict, kind: str) -> tuple[list[str], list[list], str]:
+    """Return (columns, rows, title) for a report, already filtered to the user's scope."""
+    if kind == "devices":
+        allowed = allowed_lab_ids(con, user)
+        pmap = place_map(con)
+        cols = ["Hostname", "Municipality", "School", "Lab", "OS", "Model", "Last seen", "Online",
+                "CPU %", "RAM %", "Disk %", "Internet", "USB", "Web filter sites", "Alerts"]
+        rows = []
+        for r in con.execute("SELECT * FROM devices ORDER BY hostname").fetchall():
+            if allowed is not None and not (r["lab_id"] in allowed or (r["lab_id"] is None and sees_unassigned(user))):
+                continue
+            d = serialize_device(r)
+            p = pmap.get(r["lab_id"], {}) if r["lab_id"] else {}
+            alerts = "; ".join(a["text"] for a in d["alerts"] if a["level"] != "info")
+            rows.append([d["hostname"], p.get("municipality", ""), p.get("school", ""), p.get("lab", ""),
+                         d["os"], d["model"], _report_date(d["last_seen"]), "yes" if d["online"] else "no",
+                         d["cpu"], d["mem"], d["disk"], "blocked" if d["isolated"] else "allowed",
+                         d["usb"] or "allow", d["web_filter"] or 0, alerts])
+        return cols, rows, "Device inventory"
+    if kind == "licensing":
+        if not _can_licensing(user):
+            raise HTTPException(403, "Not allowed to view licensing")
+        cols = ["Product", "Status", "Installs", "Seats", "Entitlements", "Expires", "Notes"]
+        rows = [[f["label"], f["category"].replace("_", " "), f["installs"],
+                 "site" if f["site"] else (f["seats"] or 0), f["entitlements"],
+                 _report_date(f["expires"]) if f["expires"] else "", f["message"]]
+                for f in compute_findings(con, user)]
+        return cols, rows, "Software licence compliance"
+    if kind == "incidents":
+        allowed = allowed_lab_ids(con, user)
+        cols = ["Severity", "Title", "Device", "Lab", "Status", "Assignee", "Source", "Opened", "Resolved"]
+        rows = []
+        for r in con.execute(_INC_COLS + "ORDER BY i.created DESC LIMIT 5000").fetchall():
+            if not _incident_visible(user, allowed, r["lab_id"]):
+                continue
+            rows.append([r["severity"], r["title"], r["device_hostname"] or "",
+                         scope_name(con, "lab", r["lab_id"]) if r["lab_id"] else "", r["status"],
+                         r["assignee"] or "", r["source"], _report_date(r["created"]),
+                         _report_date(r["resolved_at"]) if r["resolved_at"] else ""])
+        return cols, rows, "Incidents"
+    raise HTTPException(404, "Unknown report")
+
+
+def report_csv(cols: list[str], rows: list[list], filename: str) -> Response:
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(cols)
+    for row in rows:
+        w.writerow(["" if v is None else v for v in row])
+    return Response(content="﻿" + buf.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{filename}.csv"'})
+
+
+def report_html(title: str, cols: list[str], rows: list[list], scope: str) -> Response:
+    import html
+    e = html.escape
+    thead = "".join(f"<th>{e(c)}</th>" for c in cols)
+    tbody = "".join("<tr>" + "".join(f"<td>{e(str('' if v is None else v))}</td>" for v in row) + "</tr>"
+                    for row in rows) or f'<tr><td colspan="{len(cols)}" class="empty">No data in scope.</td></tr>'
+    page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>{e(title)} — KEM report</title>
+<style>
+  :root {{ color-scheme: light; }}
+  * {{ box-sizing: border-box; }}
+  body {{ font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: 32px; color: #111; background: #fff; }}
+  header {{ display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; border-bottom: 2px solid #111; padding-bottom: 12px; margin-bottom: 20px; flex-wrap: wrap; }}
+  h1 {{ font-size: 20px; margin: 0 0 4px; }}
+  .meta {{ color: #555; font-size: 13px; }}
+  .btn {{ border: 1px solid #2563eb; background: #2563eb; color: #fff; padding: 8px 14px; border-radius: 8px; font: inherit; cursor: pointer; }}
+  table {{ border-collapse: collapse; width: 100%; font-size: 12.5px; }}
+  th, td {{ text-align: left; padding: 7px 10px; border-bottom: 1px solid #e3e3e3; vertical-align: top; }}
+  th {{ background: #f3f4f6; font-weight: 700; border-bottom: 2px solid #ccc; }}
+  tr:nth-child(even) td {{ background: #fafafa; }}
+  .empty {{ text-align: center; color: #777; padding: 24px; }}
+  footer {{ margin-top: 20px; color: #888; font-size: 12px; }}
+  @media print {{ body {{ padding: 0; }} .btn {{ display: none; }} th {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }} }}
+</style></head><body>
+<header><div><h1>{e(title)}</h1>
+  <div class="meta">KEM · School Lab Manager — scope: {e(scope)} · {len(rows)} row(s)<br>Generated {e(time.strftime('%Y-%m-%d %H:%M'))}</div></div>
+  <button class="btn" onclick="window.print()">Print / Save as PDF</button></header>
+<table><thead><tr>{thead}</tr></thead><tbody>{tbody}</tbody></table>
+<footer>Generated by KEM. Figures reflect the most recent check-in from each device in scope.</footer>
+</body></html>"""
+    return Response(content=page, media_type="text/html; charset=utf-8")
+
+
+@app.get("/api/reports")
+def list_reports(user: dict = Depends(current_user)):
+    return [{"kind": k, "label": v} for k, v in REPORTS.items()
+            if not (k == "licensing" and not _can_licensing(user))]
+
+
+@app.get("/api/reports/{kind}")
+def get_report(kind: str, request: Request, format: str = "html", user: dict = Depends(current_user)):
+    if kind not in REPORTS:
+        raise HTTPException(404, "Unknown report")
+    if format not in ("html", "csv"):
+        raise HTTPException(400, "format must be html or csv")
+    with db() as con:
+        cols, rows, title = report_data(con, user, kind)
+        scope = scope_label(con, user)
+        audit(con, user["username"], client_ip(request), "report", kind, {"format": format, "rows": len(rows)})
+    fname = f"kem-{kind}-{time.strftime('%Y%m%d')}"
+    return report_csv(cols, rows, fname) if format == "csv" else report_html(title, cols, rows, scope)
 
 
 # ---------------------------------------------------------------- organization (municipality/school/lab)
