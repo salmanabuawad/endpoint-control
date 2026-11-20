@@ -23,6 +23,15 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
   devices preserved) — verified against a real pre-upgrade DB
 * ✅ Role-aware dashboard: org tree, users, gateways, lab-scoped device lists, teacher console
   with class banner — verified live in a browser
+* ✅ **Local AI diagnostics**: KEM sends one device's health snapshot to an admin-configured
+  OpenAI-compatible endpoint (Ollama / llama.cpp / LM Studio / vLLM — meant to run locally) and
+  shows the model's written diagnosis + remediation steps, stored on the device. Disabled until
+  configured; the prompt carries **health data only** — never the signed-in user, IP, MAC or serial
+  — and the UI shows exactly what was sent. The reply is advice to display, never commands to run.
+  Verified end to end against a mock endpoint (17 checks: config/enable gating, the call, PII
+  exclusion from both context and prompt, API-key masking, persistence, connection test, RBAC
+  teacher-denied/manager-scoped, and a clean 502 when the endpoint is down) plus a live dashboard
+  (Settings card with Test connection, device-page Run/Re-run with a "what was sent" disclosure).
 * ✅ **Incident management**: device health alerts become tracked incidents (open → acknowledged →
   resolved) with a severity, an assignee and notes. Warn/critical alerts open incidents and
   auto-resolve themselves when the underlying condition clears (idempotent reconcile, stable keys
@@ -81,7 +90,7 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
 | 26 | Gateway image distribution | ⬜ | planned (Phase 4) — relay transport exists, image serving does not |
 | 27 | Local recovery image per station | 🟡🧪 | System Restore baseline exists (Level 1); dedicated recovery partition/WinRE image (Level 2) not built |
 | 28 | Automatic & manual recovery | 🟡🧪 | `reset_device` = restore baseline / MDM factory wipe; policy-driven auto-recovery not built |
-| 29 | Local AI diagnostics | ⬜ | planned (Phase 3/5) — Ollama/OpenAI-compatible adapter |
+| 29 | Local AI diagnostics | ✅ | per-device diagnosis via an admin-configured OpenAI-compatible endpoint (Ollama/llama.cpp/LM Studio); PII-stripped prompt, advice-only output, scoped to admins/school managers; model quality depends on the endpoint the admin points at |
 | 30 | Reports & auditing | 🟡 | full audit log + notification log; PDF/Excel export & scheduled reports not built |
 | 31 | Multi-language | 🟡 | agent & server are UTF-8/Hebrew-safe (ASCII JSON for PS 5.1); dashboard i18n (RTL) not built |
 | 32 | Secure offline operation | 🟡 | agent re-asserts policy offline; gateway task-caching while central is down not built (relay forwards live) |
@@ -90,13 +99,13 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
 
 * **Phase 1 — distributed foundation** 🟡→ mostly ✅: backend, DB, auth, RBAC, schools/labs,
   agent, gateway, enrollment, task protocol, heartbeats, inventory, dashboards, messaging,
-  restart, screen lock, command delivery through the gateway **all working**. Missing from
-  Phase 1: a central Local-AI gateway stub.
+  restart, screen lock, command delivery through the gateway, and a central Local-AI integration
+  **all working**. Phase 1 foundation is essentially complete.
 * **Phase 2 — classroom control & endpoint security** 🟡: internet/USB/web-filter/messaging/lock
   and **examination mode** done; live monitoring, broadcast, remote assistance, allowlisting, file
   distribution pending.
 * **Phase 3 — health & licensing** 🟡: health + alerts + **incident workflow** + **license registry
-  & compliance findings** done; AI diagnostics and exportable (PDF/Excel) reports pending.
+  & compliance findings** + **local AI diagnostics** done; exportable (PDF/Excel) reports pending.
 * **Phase 4 — recovery infrastructure** 🟡🧪: Windows Restore (L1) + factory wipe exist; local
   recovery image (L2), recovery boot env, central image catalog, gateway image delivery pending.
 * **Phase 5 — exams & automation** 🟡: examination mode (lock/revert a lab) done; policy-driven

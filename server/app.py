@@ -18,6 +18,7 @@ import sqlite3
 import ssl
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
@@ -117,6 +118,8 @@ MIGRATIONS = [
     ("tokens", "kind", "TEXT DEFAULT 'device'"),
     ("tokens", "lab_id", "TEXT"),
     ("commands", "via_role", "TEXT DEFAULT ''"),
+    ("devices", "ai_diagnosis", "TEXT"),
+    ("devices", "ai_diagnosis_at", "REAL"),
 ]
 
 COMMAND_TYPES = {
@@ -153,6 +156,8 @@ DEFAULT_SETTINGS = {
     "smtp_pass": "", "smtp_from": "", "smtp_security": "starttls",
     "notify_events": json.dumps(["enrolled", "alert", "offline", "command_failed"]),
     "notify_offline_hours": "0", "auto_update_scan": "1", "auto_update_agent": "1", "public_url": "",
+    # Local AI diagnostics (OpenAI-compatible endpoint: Ollama, llama.cpp, LM Studio, ...).
+    "ai_enabled": "0", "ai_base_url": "", "ai_model": "", "ai_api_key": "",
 }
 
 # ---------------------------------------------------------------- roles & RBAC
@@ -198,6 +203,7 @@ def role_capabilities(role: str) -> dict:
         "class_session": role == "teacher",
         "manage_exams": role in ROLES,  # teacher (during class), school_manager, admins; API re-checks scope
         "view_incidents": role in ROLES, "manage_incidents": admin or role == "school_manager",
+        "run_diagnostics": admin or role == "school_manager",
         "view_licensing": admin or role == "school_manager", "manage_licensing": admin,
         "commands": sorted(COMMAND_TYPES) if admin else
                     sorted(COMMAND_TYPES - SCHOOL_MANAGER_BLOCKED) if role == "school_manager" else
@@ -887,7 +893,8 @@ def serialize_device(row, full: bool = False) -> dict:
     if full:
         out.update({"telemetry": tel, "inventory": inv, "inventory_at": row["inventory_at"],
                     "software": jload(row["software"], []), "software_at": row["software_at"],
-                    "update_list": upd.get("updates") or []})
+                    "update_list": upd.get("updates") or [],
+                    "ai_diagnosis": row["ai_diagnosis"], "ai_diagnosis_at": row["ai_diagnosis_at"]})
     return out
 
 
@@ -1395,8 +1402,10 @@ def list_audit(limit: int = 300, admin: str = Depends(require_admin)):
 
 def public_settings(con) -> dict:
     cfg = notify_config(con)
-    out = {k: v for k, v in cfg.items() if k != "smtp_pass"}
+    out = {k: v for k, v in cfg.items() if k not in ("smtp_pass", "ai_api_key")}
     out["smtp_pass_set"] = bool(cfg["smtp_pass"])
+    out["ai_api_key_set"] = bool(cfg["ai_api_key"])
+    out["ai_enabled"] = cfg["ai_enabled"] == "1"
     out["notify_events"] = jload(cfg["notify_events"], [])
     out["event_names"] = NOTIFY_EVENTS
     out["agent_version"] = AGENT_RELEASE["version"]
@@ -1437,6 +1446,15 @@ def put_settings(request: Request, body: dict = Body(...), admin: str = Depends(
     vals["notify_offline_hours"] = str(_int(body, "notify_offline_hours", 0, 0, 720))
     vals["auto_update_scan"] = "1" if body.get("auto_update_scan") else "0"
     vals["auto_update_agent"] = "1" if body.get("auto_update_agent") else "0"
+    ai_url = clean(body.get("ai_base_url"), 500)
+    if ai_url and not re.match(r"^https?://[^\s]+$", ai_url):
+        raise HTTPException(400, "AI endpoint URL must start with http:// or https://")
+    vals["ai_base_url"] = ai_url.rstrip("/")
+    vals["ai_model"] = clean(body.get("ai_model"), 100)
+    ai_on = bool(body.get("ai_enabled"))
+    if ai_on and not (vals["ai_base_url"] and vals["ai_model"]):
+        raise HTTPException(400, "Set the AI endpoint URL and model before enabling AI diagnostics")
+    vals["ai_enabled"] = "1" if ai_on else "0"
     # Remember how admins reach the dashboard so notifications can link to devices.
     vals["public_url"] = f"{'https' if is_https(request) else 'http'}://{request.headers.get('host', '')}".rstrip("/")
     with db() as con:
@@ -1446,6 +1464,10 @@ def put_settings(request: Request, body: dict = Body(...), admin: str = Depends(
             set_setting(con, "smtp_pass", str(body["smtp_pass"])[:200])
         if body.get("clear_smtp_pass"):
             set_setting(con, "smtp_pass", "")
+        if body.get("ai_api_key"):  # blank = keep the stored key
+            set_setting(con, "ai_api_key", str(body["ai_api_key"])[:400])
+        if body.get("clear_ai_api_key"):
+            set_setting(con, "ai_api_key", "")
         audit(con, admin, client_ip(request), "settings_updated", "",
               {k: v for k, v in vals.items() if k not in ("notify_webhook",)})
         return public_settings(con)
@@ -1467,6 +1489,116 @@ def test_notification(request: Request, admin: str = Depends(require_admin)):
 def list_notifications(admin: str = Depends(require_admin)):
     with db() as con:
         return [dict(r) for r in con.execute("SELECT * FROM notifications ORDER BY id DESC LIMIT 100").fetchall()]
+
+
+# ---------------------------------------------------------------- local AI diagnostics
+# Sends a privacy-safe health snapshot of one device to an admin-configured OpenAI-compatible
+# endpoint (Ollama / llama.cpp / LM Studio / vLLM, meant to run locally or on the LAN) and returns
+# the model's written diagnosis. The reply is advice to show a technician, never commands to run.
+
+AI_SYSTEM_PROMPT = (
+    "You are an IT support assistant for a school computer lab. You receive one Windows endpoint's "
+    "health and inventory data as JSON. Identify the most likely problems and give concise, concrete "
+    "remediation steps a technician can follow, most important first. Prioritise security and "
+    "data-loss risks. If the data looks healthy, say so plainly. Use only the data provided - do not "
+    "invent details. Reply in short plain-text sections."
+)
+
+
+def ai_config(con) -> dict:
+    return {"enabled": setting(con, "ai_enabled") == "1", "base_url": setting(con, "ai_base_url"),
+            "model": setting(con, "ai_model"), "api_key": setting(con, "ai_api_key")}
+
+
+def ai_chat(cfg: dict, system: str, user: str, max_tokens: int = 700) -> str:
+    """Call an OpenAI-compatible /chat/completions endpoint. Raises HTTPException(502) on any failure."""
+    url = cfg["base_url"].rstrip("/") + "/chat/completions"
+    payload = {"model": cfg["model"], "temperature": 0.2, "stream": False, "max_tokens": max_tokens,
+               "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
+    headers = {"Content-Type": "application/json", "User-Agent": f"KEM/{APP_VERSION}"}
+    if cfg["api_key"]:
+        headers["Authorization"] = "Bearer " + cfg["api_key"]
+    req = urllib.request.Request(url, data=json.dumps(payload).encode(), method="POST", headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=90) as r:
+            data = json.loads(r.read().decode("utf-8", "replace"))
+    except urllib.error.HTTPError as e:
+        body = e.read(2000).decode("utf-8", "replace")
+        raise HTTPException(502, f"AI endpoint returned HTTP {e.code}: {body[:300]}")
+    except Exception as e:  # noqa: BLE001 - connection refused / timeout / DNS / bad JSON
+        raise HTTPException(502, f"Could not reach the AI endpoint: {e}")
+    try:
+        text = data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError):
+        raise HTTPException(502, "AI endpoint returned an unexpected response shape")
+    if not isinstance(text, str) or not text.strip():
+        raise HTTPException(502, "AI endpoint returned an empty response")
+    return text.strip()
+
+
+def ai_device_context(d: dict) -> dict:
+    """A health snapshot for the model - deliberately no signed-in user, no IP/MAC/serial (privacy)."""
+    tel = d.get("telemetry") or {}
+    inv = d.get("inventory") or {}
+    return {
+        "hostname": d.get("hostname"), "os": d.get("os"), "os_version": d.get("os_version"),
+        "model": d.get("model"), "online": d.get("online"), "agent_version": d.get("agent_version"),
+        "cpu_percent": d.get("cpu"), "memory_percent": d.get("mem"), "disk_percent": d.get("disk"),
+        "disks": [{"drive": x.get("drive"), "size_gb": x.get("size_gb"), "free_gb": x.get("free_gb")}
+                  for x in (tel.get("disks") or []) if isinstance(x, dict)],
+        "defender": inv.get("defender"), "firewall": inv.get("firewall"), "bitlocker": inv.get("bitlocker"),
+        "pending_reboot": inv.get("pending_reboot"), "missing_updates": d.get("updates"),
+        "alerts": [a.get("text") for a in (d.get("alerts") or [])],
+    }
+
+
+def require_diagnostics(request: Request) -> dict:
+    u = _authenticate(request)
+    if u["role"] not in ADMIN_ROLES and u["role"] != "school_manager":
+        raise HTTPException(403, "Not allowed to run diagnostics")
+    return u
+
+
+@app.get("/api/ai/status")
+def ai_status(user: dict = Depends(current_user)):
+    with db() as con:
+        cfg = ai_config(con)
+    return {"enabled": cfg["enabled"], "configured": bool(cfg["base_url"] and cfg["model"]), "model": cfg["model"]}
+
+
+@app.post("/api/ai/test")
+def ai_test(admin: str = Depends(require_admin)):
+    with db() as con:
+        cfg = ai_config(con)
+    if not (cfg["base_url"] and cfg["model"]):
+        raise HTTPException(400, "Set the AI endpoint URL and model first")
+    reply = ai_chat(cfg, "You are a connectivity check.", "Reply with the single word READY.", max_tokens=20)
+    return {"ok": True, "model": cfg["model"], "reply": reply[:200]}
+
+
+@app.post("/api/devices/{device_id}/diagnose")
+def diagnose_device(device_id: str, request: Request, user: dict = Depends(require_diagnostics)):
+    with db() as con:
+        row = con.execute("SELECT * FROM devices WHERE id=?", (device_id,)).fetchone()
+        if not row or not device_in_scope(con, user, row["lab_id"]):
+            raise HTTPException(404, "Device not found")
+        cfg = ai_config(con)
+        if not cfg["enabled"]:
+            raise HTTPException(400, "AI diagnostics are not enabled - configure them in Settings")
+        d = serialize_device(row, full=True)
+        incidents = [r["title"] for r in con.execute(
+            "SELECT title FROM incidents WHERE device_id=? AND status!='resolved' ORDER BY created DESC LIMIT 20",
+            (device_id,)).fetchall()]
+    ctx = ai_device_context(d)
+    ctx["open_incidents"] = incidents
+    user_msg = "Diagnose this Windows endpoint and recommend fixes.\n\n" + json.dumps(ctx, ensure_ascii=False, indent=2)
+    text = ai_chat(cfg, AI_SYSTEM_PROMPT, user_msg)
+    t = now()
+    with db() as con:
+        con.execute("UPDATE devices SET ai_diagnosis=?, ai_diagnosis_at=? WHERE id=?", (text, t, device_id))
+        audit(con, user["username"], client_ip(request), "ai_diagnose", row["hostname"],
+              {"model": cfg["model"], "chars": len(text)})
+    return {"diagnosis": text, "at": t, "model": cfg["model"], "context_sent": ctx}
 
 
 # ---------------------------------------------------------------- organization (municipality/school/lab)

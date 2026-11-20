@@ -572,7 +572,7 @@ async function viewDevice(id) {
   const TABS = [['commands', 'Activity'], ['updates', 'Windows updates'], ['software', 'Installed software'], ['processes', 'Processes'], ['services', 'Services']];
   const ui = { tab: 'commands', softQ: '', softAt: null, updSig: null, open: new Set(), loaded: {}, busy: {}, sel: new Set(),
     procQ: '', procSort: 'mem', procs: null, procAt: null, svcQ: '', svcFilter: 'all', svcs: null, svcAt: null };
-  view.innerHTML = `<p><a href="#/devices">← All devices</a></p><div id="dhead"></div><div id="dbanner"></div><div class="cards" id="dcards"></div>
+  view.innerHTML = `<p><a href="#/devices">← All devices</a></p><div id="dhead"></div><div id="dbanner"></div><div class="cards" id="dcards"></div><div id="aicard"></div>
     <div class="card" style="margin-bottom:16px"><div class="tabs">${TABS.map(([k, l], i) => `<button data-t="${k}" class="${i ? '' : 'on'}">${l}<span class="tcount" id="tc-${k}"></span></button>`).join('')}</div>
       ${TABS.map(([k], i) => `<div id="tab-${k}" class="${i ? 'hidden' : ''}"></div>`).join('')}
     </div>
@@ -600,6 +600,30 @@ async function viewDevice(id) {
   $('#procrefresh').onclick = () => fetchList('processes');
   $('#svcrefresh').onclick = () => fetchList('services');
   let dev = null;
+
+  function renderAI() {
+    const el = $('#aicard');
+    if (!el) return;
+    if (!cap('run_diagnostics')) { el.innerHTML = ''; return; }
+    const has = dev.ai_diagnosis;
+    el.innerHTML = `<div class="card pad"><div class="row" style="justify-content:space-between;align-items:center">
+        <h2>AI diagnosis</h2><button class="btn small" id="airun">${has ? 'Re-run' : 'Run AI diagnosis'}</button></div>
+      <div id="aiout">${has
+        ? `<div class="muted small">${ago(dev.ai_diagnosis_at)} · last run</div><pre class="aiout-text">${esc(dev.ai_diagnosis)}</pre>`
+        : '<p class="muted">Ask a local model to review this device\'s health and suggest fixes. Only health data is sent — never the signed-in user, IP or serial. Configure the endpoint in Settings.</p>'}</div></div>`;
+    $('#airun').onclick = async () => {
+      const b = $('#airun'); b.disabled = true;
+      $('#aiout').innerHTML = '<div class="muted"><span class="spin"></span> Asking the model…</div>';
+      try {
+        const r = await api(`/api/devices/${id}/diagnose`, { method: 'POST' });
+        dev.ai_diagnosis = r.diagnosis; dev.ai_diagnosis_at = r.at;
+        $('#aiout').innerHTML = `<div class="muted small">just now · ${esc(r.model)}</div><pre class="aiout-text">${esc(r.diagnosis)}</pre>
+          <details class="help"><summary>Exactly what was sent to the model</summary><pre class="aiout-text">${esc(JSON.stringify(r.context_sent, null, 2))}</pre></details>
+          <p class="note">Suggestions only — review before acting. KEM never runs anything automatically.</p>`;
+      } catch (e) { $('#aiout').innerHTML = `<div class="banner crit">⚠ ${esc(e.message)}</div>`; }
+      finally { b.disabled = false; }
+    };
+  }
 
   const KIND = { processes: 'list_processes', services: 'list_services' };
   const latestWithData = (type) => (dev.commands || []).find((c) => c.type === type && c.has_data);
@@ -864,6 +888,7 @@ async function viewDevice(id) {
       body: `<p class="note">Removes <b>${esc(dev.hostname)}</b> and all its history from the server. If the agent is still installed it will stop being accepted.</p>`,
       onSubmit: async () => { await api(`/api/devices/${id}`, { method: 'DELETE' }); toast('Device forgotten'); location.hash = '#/devices'; },
     });
+    renderAI();
 
     $$('#tab-commands details[open]').forEach((d) => ui.open.add(d.dataset.id));
     $('#tab-commands').innerHTML = commandTable(dev.commands, false, ui.open);
@@ -1025,6 +1050,7 @@ async function viewSettings() {
       <form class="card pad" id="notif"><h2>Notifications</h2><div class="empty">Loading…</div></form>
       <div class="stack">
         <form class="card pad" id="auto"><h2>Automation</h2></form>
+        <form class="card pad" id="ai"><h2>AI diagnostics</h2></form>
         <div class="card pad"><h2>Change admin password</h2>
           <form id="pw" class="stack">
             <label>Current password<input type="password" name="current" required autocomplete="current-password"></label>
@@ -1071,20 +1097,35 @@ async function viewSettings() {
       const b = $('#testn'); b.disabled = true;
       try { await save(false); await api('/api/settings/test-notification', { method: 'POST' }); toast('Test notification sent'); } catch (e) { toast(e.message, true); } finally { b.disabled = false; }
     };
+    $('#ai').innerHTML = `<h2>AI diagnostics</h2>
+      <p class="note">Point KEM at a local <b>OpenAI-compatible</b> model (Ollama, llama.cpp, LM Studio, vLLM). "Diagnose" on a device page sends that device's <b>health data only</b> — never the signed-in user, IP or serial — and shows the model's advice. Suggestions only; review before acting.</p>
+      <label>Endpoint base URL<input name="ai_base_url" value="${esc(s.ai_base_url)}" placeholder="http://localhost:11434/v1" spellcheck="false"></label>
+      <div class="form-2">
+        <label>Model<input name="ai_model" value="${esc(s.ai_model)}" placeholder="llama3.1" spellcheck="false"></label>
+        <label>API key (optional)<input name="ai_api_key" type="password" autocomplete="new-password" placeholder="${s.ai_api_key_set ? '•••••• (saved — leave blank to keep)' : 'only if your endpoint needs one'}"></label>
+      </div>
+      <label class="check"><input type="checkbox" name="ai_enabled" ${s.ai_enabled ? 'checked' : ''}><div>Enable AI diagnostics<br><span class="muted small">Keep the endpoint on localhost or your LAN; data leaves KEM only to the URL above.</span></div></label>
+      <div class="row"><button class="btn primary">Save</button><button type="button" class="btn" id="testai">Test connection</button></div>`;
+    $('#testai').onclick = async () => {
+      const b = $('#testai'); b.disabled = true;
+      try { await save(false); const r = await api('/api/ai/test', { method: 'POST' }); toast(`AI reachable (${r.model}): ${r.reply}`); } catch (e) { toast(e.message, true); } finally { b.disabled = false; }
+    };
   };
   const collect = () => {
-    const n = $('#notif'), a = $('#auto');
+    const n = $('#notif'), a = $('#auto'), ai = $('#ai');
     return {
       notify_webhook: n.notify_webhook.value.trim(), notify_email: n.notify_email.value.trim(), smtp_host: n.smtp_host.value.trim(),
       smtp_port: +n.smtp_port.value || 587, smtp_security: n.smtp_security.value, smtp_from: n.smtp_from.value.trim(), smtp_user: n.smtp_user.value.trim(),
       smtp_pass: n.smtp_pass.value, notify_events: $$('[name=ev]:checked', n).map((x) => x.value), notify_offline_hours: +n.notify_offline_hours.value || 0,
       auto_update_scan: a.auto_update_scan.checked, auto_update_agent: a.auto_update_agent.checked,
+      ai_base_url: ai.ai_base_url.value.trim(), ai_model: ai.ai_model.value.trim(), ai_api_key: ai.ai_api_key.value, ai_enabled: ai.ai_enabled.checked,
     };
   };
   const save = async (announce = true) => { s = await api('/api/settings', { method: 'PUT', body: collect() }); render(); if (announce) toast('Settings saved'); };
   render();
   $('#notif').onsubmit = (e) => { e.preventDefault(); save().catch((err) => toast(err.message, true)); };
   $('#auto').onsubmit = (e) => { e.preventDefault(); save().catch((err) => toast(err.message, true)); };
+  $('#ai').onsubmit = (e) => { e.preventDefault(); save().catch((err) => toast(err.message, true)); };
 
   const loadLog = async () => {
     const rows = await api('/api/notifications');
