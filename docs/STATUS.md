@@ -37,6 +37,12 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
   content-type/BOM/rows, HTML table, licensing + incident contents, format/kind validation, and
   RBAC/scope — a teacher sees only their lab and cannot pull the licensing report) plus a live
   dashboard (report cards + the rendered printable report).
+* ✅ **Approved application launching**: a `launch_app` command opens an approved program (full
+  path) or a web page (default browser) in the signed-in student's session — a classroom action
+  (teacher during a class, school managers, admins). Server validation (app path / https URL),
+  the teacher class-session gate, RBAC and queueing verified by 13 checks and a live dashboard; the
+  agent launches via the existing run-as-user helper (same "not yet hardware-tested" caveat as the
+  other agent actions). This is distinct from `install_software` (deploy) — it just launches.
 * 🟡 **Central image repository (catalog)**: a repository of golden OS images referenced by location
   (URL or share path) + size + SHA-256, scoped to a municipality/school/lab/global, plus a per-lab
   "target image" assignment. CRUD + assignment + scope + RBAC (admins register; admins & school
@@ -126,7 +132,7 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
 | 12 | USB / SD restrictions | ✅ | `usb_storage` allow/read-only/block |
 | 13 | Software install restrictions | 🟡🧪 | installs via winget/MSI exist; enforced *blocking* of unapproved installers (AppLocker/App Control) not yet built |
 | 14 | Application allowlisting | 🟡🧪 | `set_app_policy` pushes an AppLocker executable allowlist (audit/enforce/off; path + filename rules), brick-safe (keeps Windows defaults, audit by default); server validation/RBAC/scope verified (15 checks) + XML validated well-formed; AppLocker not yet run on hardware |
-| 15 | Approved application launching | 🟡 | `install_software` from a catalog; "launch for user" not yet separated |
+| 15 | Approved application launching | ✅ | `launch_app` opens an approved program or URL in the student's session (classroom action, class-gated for teachers); server verified (13 checks + dashboard), agent run-as-user exec pending hardware like other agent actions |
 | 16 | Remote assistance | ⬜ | not built |
 | 17 | File distribution | 🟡🧪 | `distribute_file` command: download a URL (SHA-256 checked) to a folder on targeted stations; server validation/RBAC/scope/queueing verified (15 checks), agent handler written + syntax-checked but not yet run on hardware |
 | 18 | Messaging | ✅ | `send_message` to the signed-in user |
@@ -177,7 +183,7 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
 * **Not yet exercised on real Windows hardware** (need an elevated agent / lab): applying web
   filter, USB policy, service start/stop, message/lock on a live station, Windows-update install,
   baseline restore, factory reset, **file distribution (`distribute_file`)**, **application
-  allowlisting (`set_app_policy` / AppLocker)**, and the gateway
+  allowlisting (`set_app_policy` / AppLocker)**, **app launching (`launch_app`)**, and the gateway
   installed as a Windows boot task. The gateway
   **relay logic itself** is verified (student enrolls through it, attribution lands on central).
 * **Gateway offline caching** is implemented (store-and-forward): during a central outage the relay

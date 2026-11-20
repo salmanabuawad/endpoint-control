@@ -51,7 +51,7 @@ The single-tenant feature set every role builds on:
 | **Website filtering** | URL filtering | Block domains per device (hosts file, all browsers; DNS-over-HTTPS disabled by policy so it can't be bypassed in-browser). One-click presets: social, video, games, gambling, file-sharing, AI chatbots |
 | **Device lockdown** | Device control | Block or make read-only USB mass storage (keeps keyboards/mice/printers); re-applied if tampered with |
 | **Reset to image** | Recovery / reimage | *Restore baseline* (System Restore snapshot taken at install / on demand), or *Factory reset* via the Windows MDM RemoteWipe CSP (wipe all or keep user files) |
-| Remote actions | Scripting, power management | Run PowerShell as SYSTEM with output, reboot with user message, pop a message to the signed-in user, lock the screen / sign the user out |
+| Remote actions | Scripting, power management | Run PowerShell as SYSTEM with output, reboot with user message, pop a message to the signed-in user, lock the screen / sign the user out, launch an approved program or web page in the user's session |
 | Live triage | RMM remote tools | List running processes (CPU/RAM) and end one; list services and start/stop/restart or change startup type |
 | Alerting | Monitoring / notifications | Webhook (Slack, Teams, Discord, Telegram, Google Chat, Mattermost, generic JSON) and/or e-mail (SMTP) on new device, new warning, long offline, failed action |
 | Fleet upkeep | Agent management | Agents self-update to the version the server hosts (checksum- and parse-verified), automatically or on demand |

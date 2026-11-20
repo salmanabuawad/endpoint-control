@@ -954,6 +954,18 @@ function Set-KemAppPolicy($P) {
     }
 }
 
+function Launch-KemApp($P) {
+    # Launch an approved program or URL in the signed-in user's session (not as SYSTEM).
+    if ("$($P.target)" -eq 'url') {
+        $script = "Start-Process $(ConvertTo-KemPsLiteral $P.value)"
+    } else {
+        $script = "Start-Process -FilePath $(ConvertTo-KemPsLiteral $P.value)"
+        if ("$($P.args)") { $script += " -ArgumentList $(ConvertTo-KemPsLiteral $P.args)" }
+    }
+    $r = Invoke-KemAsUser $script -NoWait
+    return "Launched in $($r.user)'s session: $($P.value)"
+}
+
 function Invoke-KemCommand($Command, [string]$Server) {
     $p = $Command.params
     switch ($Command.type) {
@@ -970,6 +982,7 @@ function Invoke-KemCommand($Command, [string]$Server) {
         'usb_storage'        { return @{ status = 'success'; output = (Set-KemUsbStorage "$($p.mode)") } }
         'distribute_file'    { return Copy-KemDistributedFile $p }
         'set_app_policy'     { return Set-KemAppPolicy $p }
+        'launch_app'         { return @{ status = 'success'; output = (Launch-KemApp $p) } }
         'list_processes'     { return Get-KemProcessList }
         'kill_process'       { return @{ status = 'success'; output = (Stop-KemProcess $p) } }
         'list_services'      { return Get-KemServiceList }

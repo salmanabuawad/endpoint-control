@@ -16,6 +16,7 @@ const CMD = {
   set_web_filter: 'Web filter', usb_storage: 'USB storage', list_processes: 'List processes', kill_process: 'End process',
   list_services: 'List services', service_action: 'Service control', send_message: 'Message user', lock_session: 'Lock / sign out',
   update_agent: 'Update agent', distribute_file: 'Distribute file', set_app_policy: 'Application allowlist',
+  launch_app: 'Launch app',
 };
 const USB_LABEL = { allow: 'Allowed', read_only: 'Read-only', block: 'Blocked' };
 const WEB_PRESETS = [
@@ -58,8 +59,8 @@ const I18N = {
     'bulk.selected': 'selected', 'bulk.clear': 'Clear selection',
     'act.block_internet': '⛔ Block internet', 'act.unblock_internet': '🌐 Restore internet', 'act.install_software': '⬇ Install software',
     'act.distribute_file': '📄 Distribute file', 'act.install_updates': '⟳ Windows updates', 'act.set_web_filter': '🚫 Web filter',
-    'act.usb_storage': '🔌 USB', 'act.set_app_policy': '🛡 Allowlist', 'act.send_message': '💬 Message', 'act.lock_session': '🔒 Lock',
-    'act.run_script': '›_ Run script', 'act.defender_scan': '🛡 Scan', 'act.reboot': '↻ Reboot',
+    'act.usb_storage': '🔌 USB', 'act.set_app_policy': '🛡 Allowlist', 'act.launch_app': '▶ Launch app', 'act.send_message': '💬 Message',
+    'act.lock_session': '🔒 Lock', 'act.run_script': '›_ Run script', 'act.defender_scan': '🛡 Scan', 'act.reboot': '↻ Reboot',
     'pill.blocked': '⛔ Blocked', 'pill.working': 'Working…', 'pill.filter': '🚫 Filter', 'pill.healthy': 'Healthy',
     'devices.none': 'No devices yet.', 'devices.nomatch': 'No devices match this filter.', 'common.loading': 'Loading…',
   },
@@ -78,8 +79,8 @@ const I18N = {
     'bulk.selected': 'נבחרו', 'bulk.clear': 'ניקוי הבחירה',
     'act.block_internet': '⛔ חסום אינטרנט', 'act.unblock_internet': '🌐 שחזר אינטרנט', 'act.install_software': '⬇ התקן תוכנה',
     'act.distribute_file': '📄 הפץ קובץ', 'act.install_updates': '⟳ עדכוני Windows', 'act.set_web_filter': '🚫 סינון אתרים',
-    'act.usb_storage': '🔌 USB', 'act.set_app_policy': '🛡 רשימת היתר', 'act.send_message': '💬 הודעה', 'act.lock_session': '🔒 נעילה',
-    'act.run_script': '›_ הרצת סקריפט', 'act.defender_scan': '🛡 סריקה', 'act.reboot': '↻ הפעלה מחדש',
+    'act.usb_storage': '🔌 USB', 'act.set_app_policy': '🛡 רשימת היתר', 'act.launch_app': '▶ הפעל אפליקציה', 'act.send_message': '💬 הודעה',
+    'act.lock_session': '🔒 נעילה', 'act.run_script': '›_ הרצת סקריפט', 'act.defender_scan': '🛡 סריקה', 'act.reboot': '↻ הפעלה מחדש',
     'pill.blocked': '⛔ חסום', 'pill.working': 'פועל…', 'pill.filter': '🚫 סינון', 'pill.healthy': 'תקין',
     'devices.none': 'אין עדיין עמדות.', 'devices.nomatch': 'אין עמדות התואמות לסינון זה.', 'common.loading': 'טוען…',
   },
@@ -323,6 +324,18 @@ const ACTIONS = {
       },
     });
   },
+  launch_app(ids) {
+    modal({
+      title: 'Launch an app or web page', submit: 'Launch',
+      body: `${targetLine(ids)}
+        <label class="option"><input type="radio" name="target" value="app" checked><div><b>Program</b><span>Full path to a program on the station</span></div></label>
+        <label class="option"><input type="radio" name="target" value="url"><div><b>Web page</b><span>Opens in the default browser</span></div></label>
+        <label>Program path or URL<input name="value" required spellcheck="false" placeholder="C:\\Program Files\\App\\app.exe   or   https://exam.school.org"></label>
+        <label>Arguments (programs only, optional)<input name="args" spellcheck="false"></label>
+        <p class="note">Runs in the signed-in student's session (not as admin). Nothing happens if no one is signed in.</p>`,
+      onSubmit: (f) => queue(ids, 'launch_app', { target: f.querySelector('[name=target]:checked').value, value: f.value.value.trim(), args: f.args.value.trim() }),
+    });
+  },
   run_script(ids) {
     modal({
       title: 'Run PowerShell script', submit: 'Run', wide: true,
@@ -485,7 +498,7 @@ function every(fn, ms) { refreshCurrent = fn; state.timer = setInterval(() => { 
 // ------------------------------------------------------------------ devices list
 async function viewDevices() {
   const bulkActs = ['block_internet', 'unblock_internet', 'install_software', 'distribute_file', 'install_updates',
-    'set_web_filter', 'usb_storage', 'set_app_policy', 'send_message', 'lock_session', 'run_script', 'defender_scan', 'reboot'];
+    'set_web_filter', 'usb_storage', 'set_app_policy', 'launch_app', 'send_message', 'lock_session', 'run_script', 'defender_scan', 'reboot'];
   view.innerHTML = `
     <div class="page-head"><div><h1>${t('devices.title')}</h1><p class="sub">${state.me.role === 'teacher' ? t('devices.sub.lab') : t('devices.sub.server')}${state.me.scope_label && state.me.role !== 'superadmin' ? ' · ' + esc(state.me.scope_label) : ''}</p></div>
       ${cap('manage_tokens') ? `<a class="btn primary" href="#/enroll">${t('devices.add')}</a>` : ''}</div>

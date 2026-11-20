@@ -154,6 +154,8 @@ COMMAND_TYPES = {
     "distribute_file",
     # application allowlisting (AppLocker)
     "set_app_policy",
+    # launch an approved app / URL in the student's session
+    "launch_app",
 }
 # Destructive commands: one device at a time, admin must type the hostname.
 CONFIRM_TYPES = {"reset_device", "uninstall_agent"}
@@ -199,7 +201,7 @@ SCOPE_FOR_ROLE = {"superadmin": "global", "municipality_admin": "municipality",
 # run scripts, reset/reimage, change the security baseline, or touch the agent.
 TEACHER_COMMANDS = {
     "lock_session", "send_message", "reboot", "block_internet", "unblock_internet",
-    "usb_storage", "set_web_filter", "list_processes", "list_services",
+    "usb_storage", "set_web_filter", "list_processes", "list_services", "launch_app",
 }
 # A school manager may do everything except destructive recovery and raw script execution,
 # which stay with municipality admins (or require explicit delegation - a later phase).
@@ -1094,6 +1096,23 @@ def validate_params(ctype: str, p: Any) -> dict:
         if mode != "off" and not rules:
             raise HTTPException(400, "Add at least one allow rule, or choose 'off' to remove the policy")
         return {"mode": mode, "rules": rules}
+    if ctype == "launch_app":
+        target = p.get("target")
+        if target not in ("app", "url"):
+            raise HTTPException(400, "target must be 'app' or 'url'")
+        val = clean(p.get("value"), 2000)
+        if not val:
+            raise HTTPException(400, "A program path or URL is required")
+        if target == "url":
+            if not re.match(r"^https?://[^\s]+$", val):
+                raise HTTPException(400, "url must start with https:// or http://")
+            return {"target": "url", "value": val, "args": ""}
+        if not re.match(r"^([A-Za-z]:\\|%[A-Za-z0-9_()]+%)", val) or "\n" in val or "\r" in val:
+            raise HTTPException(400, "app must be a full Windows path, e.g. C:\\Program Files\\App\\app.exe")
+        args = clean(p.get("args"), 1000)
+        if "\n" in args or "\r" in args:
+            raise HTTPException(400, "args must be a single line")
+        return {"target": "app", "value": val, "args": args}
     if ctype == "kill_process":
         if p.get("pid") not in (None, ""):
             return {"pid": _int(p, "pid", 0, 5, 2**31 - 1)}
