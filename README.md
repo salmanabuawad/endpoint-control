@@ -33,8 +33,9 @@ An existing single-tenant KEM database upgrades in place: the lone admin becomes
 new columns/tables are added, and all devices are preserved (placed into labs by an admin afterwards).
 
 The dashboard has **English and Hebrew** with a full right-to-left layout (switch in the sidebar;
-the choice is remembered per browser). The shell and the Devices page are translated today; other
-views fall back to English and are translated incrementally.
+the choice is remembered per browser). The shell, every page header, the role labels, the Devices
+page and the dialogs are translated; deep table/card bodies on other views fall back to English and
+are translated incrementally.
 
 ## Endpoint-management core
 

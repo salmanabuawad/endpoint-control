@@ -39,7 +39,7 @@ const CATALOG = [
 const ROLE_LABEL = { superadmin: 'Platform owner', municipality_admin: 'Municipality admin', school_manager: 'School manager', teacher: 'Teacher' };
 const cap = (k) => !!(state.me && state.me.capabilities && state.me.capabilities[k]);
 const isAdmin = () => ['superadmin', 'municipality_admin'].includes(state.me && state.me.role);
-const roleLabel = (r) => ROLE_LABEL[r] || r;
+const roleLabel = (r) => (I18N.en['role.' + r] ? t('role.' + r) : (ROLE_LABEL[r] || r));
 const placeText = (d) => (d.place && d.place.lab ? `${d.place.school ? d.place.school + ' · ' : ''}${d.place.lab}` : '');
 
 // ------------------------------------------------------------------ i18n (English + Hebrew/RTL)
@@ -63,6 +63,20 @@ const I18N = {
     'act.lock_session': '🔒 Lock', 'act.run_script': '›_ Run script', 'act.defender_scan': '🛡 Scan', 'act.reboot': '↻ Reboot',
     'pill.blocked': '⛔ Blocked', 'pill.working': 'Working…', 'pill.filter': '🚫 Filter', 'pill.healthy': 'Healthy',
     'devices.none': 'No devices yet.', 'devices.nomatch': 'No devices match this filter.', 'common.loading': 'Loading…',
+    'common.cancel': 'Cancel',
+    'role.superadmin': 'Platform owner', 'role.municipality_admin': 'Municipality admin', 'role.school_manager': 'School manager', 'role.teacher': 'Teacher',
+    'page.activity.title': 'Activity', 'page.activity.sub': 'Every command sent to every device, newest first',
+    'page.audit.title': 'Audit log', 'page.audit.sub': 'Sign-ins, enrollments and every admin action',
+    'page.enroll.title': 'Add devices', 'page.enroll.sub': 'Create a registration token, then run the install command on each machine',
+    'page.settings.title': 'Settings', 'page.settings.sub': 'Server settings, notifications and automation',
+    'page.org.title': 'Organization', 'page.org.sub': 'Municipalities, schools and computer labs',
+    'page.users.title': 'Users', 'page.users.sub': 'Administrators, school managers and teachers',
+    'page.gateways.title': 'Teacher Gateways', 'page.gateways.sub': 'Lab relays between student stations and this server',
+    'page.licensing.title': 'Software licensing', 'page.licensing.sub': 'Installed commercial software vs recorded entitlements',
+    'page.incidents.title': 'Incidents', 'page.incidents.sub': 'Health alerts and issues to track',
+    'page.reports.title': 'Reports', 'page.reports.sub': "Export your scope's data — CSV opens in Excel, the HTML view prints to PDF",
+    'page.images.title': 'Image repository', 'page.images.sub': 'Golden OS images referenced by location + checksum, and the image each lab should run.',
+    'page.images.note': 'Distribution & reimaging need boot media and are not built yet.',
   },
   he: {
     'app.title': 'KEM · ניהול עמדות',
@@ -83,6 +97,20 @@ const I18N = {
     'act.lock_session': '🔒 נעילה', 'act.run_script': '›_ הרצת סקריפט', 'act.defender_scan': '🛡 סריקה', 'act.reboot': '↻ הפעלה מחדש',
     'pill.blocked': '⛔ חסום', 'pill.working': 'פועל…', 'pill.filter': '🚫 סינון', 'pill.healthy': 'תקין',
     'devices.none': 'אין עדיין עמדות.', 'devices.nomatch': 'אין עמדות התואמות לסינון זה.', 'common.loading': 'טוען…',
+    'common.cancel': 'ביטול',
+    'role.superadmin': 'בעל הפלטפורמה', 'role.municipality_admin': 'מנהל עירייה', 'role.school_manager': 'מנהל בית ספר', 'role.teacher': 'מורה',
+    'page.activity.title': 'פעילות', 'page.activity.sub': 'כל פקודה שנשלחה לכל עמדה, מהחדשה לישנה',
+    'page.audit.title': 'יומן ביקורת', 'page.audit.sub': 'כניסות, רישומים וכל פעולת מנהל',
+    'page.enroll.title': 'הוספת עמדות', 'page.enroll.sub': 'צרו אסימון רישום, ואז הריצו את פקודת ההתקנה בכל מחשב',
+    'page.settings.title': 'הגדרות', 'page.settings.sub': 'הגדרות שרת, התראות ואוטומציה',
+    'page.org.title': 'ארגון', 'page.org.sub': 'עיריות, בתי ספר ומעבדות מחשבים',
+    'page.users.title': 'משתמשים', 'page.users.sub': 'מנהלים, מנהלי בתי ספר ומורים',
+    'page.gateways.title': 'שערי מורה', 'page.gateways.sub': 'ממסרי מעבדה בין עמדות התלמידים לשרת זה',
+    'page.licensing.title': 'רישוי תוכנה', 'page.licensing.sub': 'תוכנה מסחרית מותקנת מול רישיונות רשומים',
+    'page.incidents.title': 'תקריות', 'page.incidents.sub': 'התראות תקינות ובעיות למעקב',
+    'page.reports.title': 'דוחות', 'page.reports.sub': 'ייצוא נתוני ההרשאה שלך — CSV נפתח ב‑Excel ותצוגת ה‑HTML מודפסת ל‑PDF',
+    'page.images.title': 'מאגר תמונות מערכת', 'page.images.sub': 'תמונות מערכת זהב לפי מיקום + סכום ביקורת, והתמונה שכל מעבדה אמורה להריץ.',
+    'page.images.note': 'ההפצה והדמיית מחדש דורשות מדיית אתחול ועדיין לא מומשו.',
   },
 };
 let LANG = (() => { try { return localStorage.getItem('kem.lang') === 'he' ? 'he' : 'en'; } catch { return 'en'; } })();
@@ -198,7 +226,7 @@ function modal({ title, body, submit = 'Confirm', danger = false, onSubmit, wide
   root.innerHTML = `<div class="overlay"><form class="modal" ${wide ? 'style="max-width:720px"' : ''}>
     <header><h3>${esc(title)}</h3><button type="button" class="x" aria-label="Close">×</button></header>
     <div class="body">${body}</div>
-    <footer><button type="button" class="btn" data-close>Cancel</button>
+    <footer><button type="button" class="btn" data-close>${t('common.cancel')}</button>
     <button type="submit" class="btn ${danger ? 'danger' : 'primary'}">${esc(submit)}</button></footer></form></div>`;
   const form = $('form', root);
   const close = () => { root.innerHTML = ''; };
@@ -1052,7 +1080,7 @@ function bindCancel(root) {
 
 // ------------------------------------------------------------------ activity / audit
 async function viewActivity() {
-  view.innerHTML = `<div class="page-head"><div><h1>Activity</h1><p class="sub">Every command sent to every device, newest first</p></div></div><div class="card" id="acts"><div class="empty">Loading…</div></div>`;
+  view.innerHTML = `<div class="page-head"><div><h1>${t('page.activity.title')}</h1><p class="sub">${t('page.activity.sub')}</p></div></div><div class="card" id="acts"><div class="empty">Loading…</div></div>`;
   const open = new Set();
   const load = async () => {
     $$('#acts details[open]').forEach((d) => open.add(d.dataset.id));
@@ -1065,7 +1093,7 @@ async function viewActivity() {
 }
 
 async function viewAudit() {
-  view.innerHTML = `<div class="page-head"><div><h1>Audit log</h1><p class="sub">Sign-ins, enrollments and every admin action</p></div></div><div class="card" id="aud"><div class="empty">Loading…</div></div>`;
+  view.innerHTML = `<div class="page-head"><div><h1>${t('page.audit.title')}</h1><p class="sub">${t('page.audit.sub')}</p></div></div><div class="card" id="aud"><div class="empty">Loading…</div></div>`;
   const rows = await api('/api/audit?limit=500');
   $('#aud').innerHTML = rows.length ? `<div class="table-wrap"><table class="grid"><thead><tr><th class="nowrap">Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Details</th><th>IP</th></tr></thead><tbody>${
     rows.map((r) => `<tr><td class="small nowrap">${fmtDate(r.ts)}</td><td>${esc(r.actor)}</td><td><span class="pill ${/fail|reject/.test(r.action) ? 'crit' : ''}">${esc(r.action)}</span></td><td>${esc(r.target)}</td><td class="small mono muted">${esc(r.details)}</td><td class="small mono">${esc(r.ip)}</td></tr>`).join('')
@@ -1085,7 +1113,7 @@ async function viewEnroll() {
   const global = state.me.role === 'superadmin' || (state.me.role === 'municipality_admin' && state.me.scope_type === 'global');
   const labOptions = (labs.length ? labs.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('') : '')
     + (global ? '<option value="">Any lab (place the device later)</option>' : '');
-  view.innerHTML = `<div class="page-head"><div><h1>Add devices</h1><p class="sub">Create a registration token, then run the install command on each machine</p></div></div>
+  view.innerHTML = `<div class="page-head"><div><h1>${t('page.enroll.title')}</h1><p class="sub">${t('page.enroll.sub')}</p></div></div>
     <div class="card pad" style="margin-bottom:16px"><h2>New registration token</h2>
       <form id="tokform" class="form-grid">
         <label>Type<select name="kind"><option value="device">Student / device agent</option><option value="gateway">Teacher gateway</option></select></label>
@@ -1149,12 +1177,12 @@ async function viewSettings() {
     try { await api('/api/password', { method: 'POST', body: { current: e.target.current.value, new: e.target.new.value } }); e.target.reset(); toast('Password updated'); } catch (err) { toast(err.message, true); }
   }; };
   if (!isAdmin()) {
-    view.innerHTML = `<div class="page-head"><div><h1>Settings</h1><p class="sub">${esc(roleLabel(state.me.role))}${state.me.scope_label ? ' · ' + esc(state.me.scope_label) : ''}</p></div></div>
+    view.innerHTML = `<div class="page-head"><div><h1>${t('page.settings.title')}</h1><p class="sub">${esc(roleLabel(state.me.role))}${state.me.scope_label ? ' · ' + esc(state.me.scope_label) : ''}</p></div></div>
       <div class="settings-grid"><div class="stack">${pwCard}</div></div>`;
     wirePw();
     return;
   }
-  view.innerHTML = `<div class="page-head"><div><h1>Settings</h1><p class="sub">KEM v${esc(state.me?.version)} · agents check in every ${state.me?.interval}s</p></div></div>
+  view.innerHTML = `<div class="page-head"><div><h1>${t('page.settings.title')}</h1><p class="sub">${t('page.settings.sub')} · KEM v${esc(state.me?.version)}</p></div></div>
     <div class="settings-grid">
       <form class="card pad" id="notif"><h2>Notifications</h2><div class="empty">Loading…</div></form>
       <div class="stack">
@@ -1262,7 +1290,7 @@ function orgFlat(org) {
 }
 
 async function viewOrg() {
-  view.innerHTML = `<div class="page-head"><div><h1>Organization</h1><p class="sub">Municipalities, schools and computer labs</p></div></div>
+  view.innerHTML = `<div class="page-head"><div><h1>${t('page.org.title')}</h1><p class="sub">${t('page.org.sub')}</p></div></div>
     <div id="orgwrap" class="card"><div class="empty">Loading…</div></div>`;
   let org;
   try { org = await api('/api/org'); } catch (e) { toast(e.message, true); return; }
@@ -1285,7 +1313,7 @@ async function viewOrg() {
 
 // ------------------------------------------------------------------ users
 async function viewUsers() {
-  view.innerHTML = `<div class="page-head"><div><h1>Users</h1><p class="sub">Administrators, school managers and teachers</p></div>
+  view.innerHTML = `<div class="page-head"><div><h1>${t('page.users.title')}</h1><p class="sub">${t('page.users.sub')}</p></div>
       <button class="btn primary" id="adduser">＋ Add user</button></div>
     <div class="card pad hidden" id="userform"></div>
     <div class="card" id="userlist"><div class="empty">Loading…</div></div>`;
@@ -1348,7 +1376,7 @@ async function loadUsers() {
 
 // ------------------------------------------------------------------ gateways
 async function viewGateways() {
-  view.innerHTML = `<div class="page-head"><div><h1>Teacher Gateways</h1><p class="sub">Lab relays between student stations and this server</p></div>
+  view.innerHTML = `<div class="page-head"><div><h1>${t('page.gateways.title')}</h1><p class="sub">${t('page.gateways.sub')}</p></div>
       <a class="btn" href="#/enroll">Create gateway token</a></div>
     <div class="card pad" style="margin-bottom:16px"><h2>How a gateway works</h2>
       <p class="note">Students connect to the gateway on their lab PC; the gateway forwards to this server and never lets students reach it directly.</p>
@@ -1380,7 +1408,7 @@ const FINDING_META = {
   not_applicable: ['', 'Not applicable'],
 };
 async function viewLicensing() {
-  view.innerHTML = `<div class="page-head"><div><h1>Software licensing</h1><p class="sub">Installed commercial software vs recorded entitlements</p></div>
+  view.innerHTML = `<div class="page-head"><div><h1>${t('page.licensing.title')}</h1><p class="sub">${t('page.licensing.sub')}</p></div>
       ${cap('manage_licensing') ? '<button class="btn primary" id="addent">＋ Add entitlement</button>' : ''}</div>
     <section class="tiles" id="lictiles"></section>
     <div class="card" id="findings"><div class="empty">Loading…</div></div>
@@ -1485,7 +1513,7 @@ async function viewIncidents() {
   const manage = cap('manage_incidents');
   if (state.incFilter == null) state.incFilter = 'unresolved';
   view.innerHTML = `
-    <div class="page-head"><div><h1>Incidents</h1><p class="sub">Health alerts and issues to track${state.me.scope_label && state.me.role !== 'superadmin' ? ' · ' + esc(state.me.scope_label) : ''}</p></div>
+    <div class="page-head"><div><h1>${t('page.incidents.title')}</h1><p class="sub">${t('page.incidents.sub')}${state.me.scope_label && state.me.role !== 'superadmin' ? ' · ' + esc(state.me.scope_label) : ''}</p></div>
       <div class="row">${manage ? '<button class="btn" id="incscan">⟳ Scan now</button> <button class="btn primary" id="incnew">＋ New incident</button>' : ''}</div></div>
     <div class="toolbar"><div class="seg" id="incseg" style="max-width:520px">
       ${Object.entries(INC_SEG).map(([s, l]) => `<button data-s="${s}" class="${state.incFilter === s ? 'on' : ''}">${l}</button>`).join('')}
@@ -1585,7 +1613,7 @@ function cadenceText(s) {
 
 async function viewReports() {
   const admin = isAdmin();
-  view.innerHTML = `<div class="page-head"><div><h1>Reports</h1><p class="sub">Export your scope's data — CSV opens in Excel, the HTML view prints to PDF${state.me.scope_label && state.me.role !== 'superadmin' ? ' · ' + esc(state.me.scope_label) : ''}</p></div></div>
+  view.innerHTML = `<div class="page-head"><div><h1>${t('page.reports.title')}</h1><p class="sub">${t('page.reports.sub')}${state.me.scope_label && state.me.role !== 'superadmin' ? ' · ' + esc(state.me.scope_label) : ''}</p></div></div>
     <div class="cards" id="reportcards"><div class="empty">Loading…</div></div>
     ${admin ? `
     <div class="card" style="margin-top:18px"><div class="pad-h row" style="justify-content:space-between;align-items:center"><h2>Scheduled reports</h2><button class="btn primary small" id="newsched">＋ New schedule</button></div>
@@ -1674,7 +1702,7 @@ function fmtBytes(n) {
 
 async function viewImages() {
   const manage = cap('manage_images');
-  view.innerHTML = `<div class="page-head"><div><h1>Image repository</h1><p class="sub">Golden OS images referenced by location + checksum, and the image each lab should run. <b>Distribution &amp; reimaging need boot media and are not built yet.</b></p></div>
+  view.innerHTML = `<div class="page-head"><div><h1>${t('page.images.title')}</h1><p class="sub">${t('page.images.sub')} <b>${t('page.images.note')}</b></p></div>
       ${manage ? '<button class="btn primary" id="newimg">＋ Register image</button>' : ''}</div>
     <div class="card table-wrap"><table class="grid"><thead><tr><th>Image</th><th>OS / version</th><th>Size</th><th>Scope</th><th>Source</th><th>SHA-256</th>${manage ? '<th></th>' : ''}</tr></thead>
       <tbody id="imgrows"><tr><td colspan="7" class="empty">${t('common.loading')}</td></tr></tbody></table></div>
