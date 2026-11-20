@@ -143,6 +143,15 @@ const I18N = {
     'img.new': 'Register an image', 'img.create': 'Register', 'img.f.name': 'Name', 'img.f.os': 'Operating system', 'img.f.version': 'Version',
     'img.f.source': 'Source (URL or share path)', 'img.f.size': 'Size (bytes)', 'img.f.sha': 'SHA-256 (optional)', 'img.f.scope': 'Scope', 'img.f.scopetarget': 'Scope target', 'img.f.notes': 'Notes',
     'img.f.note': 'The image file itself is not uploaded — KEM stores a reference (location + checksum). Gateway distribution and reimaging are not built yet.',
+    'set.pw.title.self': 'Change your password', 'set.pw.title.admin': 'Change admin password', 'set.pw.current': 'Current password', 'set.pw.new': 'New password (10+ characters)', 'set.pw.update': 'Update password', 'set.t.pwupdated': 'Password updated',
+    'set.notif': 'Notifications', 'set.notif.note': 'Get told when something needs attention. Use a chat webhook, e-mail, or both.',
+    'set.f.webhook': 'Webhook URL', 'set.notif.whichhelp': 'Which webhook URLs work?', 'set.f.email': 'E-mail to (comma separated)',
+    'set.f.smtphost': 'SMTP server', 'set.f.port': 'Port', 'set.f.security': 'Security', 'set.f.from': 'From address', 'set.f.smtpuser': 'SMTP user', 'set.f.smtppass': 'SMTP password', 'set.pwsaved': '•••••• (saved — leave blank to keep)',
+    'set.notif.when': 'Notify me when', 'set.f.offline': 'Offline threshold (hours, 0 = off)', 'set.save': 'Save', 'set.sendtest': 'Send test', 'set.t.testsent': 'Test notification sent', 'set.t.saved': 'Settings saved',
+    'set.auto': 'Automation', 'set.auto.scan': 'Scan every device for missing Windows updates once a day', 'set.auto.agent': 'Keep agents up to date automatically', 'set.auto.agent.sub': "Devices update to the server's agent version on their next check-in.",
+    'set.ai': 'AI diagnostics', 'set.ai.note': 'Point KEM at a local OpenAI-compatible model (Ollama, llama.cpp, LM Studio, vLLM). "Diagnose" on a device page sends that device\'s health data only — never the signed-in user, IP or serial — and shows the model\'s advice. Suggestions only; review before acting.',
+    'set.f.aiurl': 'Endpoint base URL', 'set.f.aimodel': 'Model', 'set.f.aikey': 'API key (optional)', 'set.ai.key.need': 'only if your endpoint needs one', 'set.ai.enable': 'Enable AI diagnostics', 'set.ai.enable.sub': 'Keep the endpoint on localhost or your LAN; data leaves KEM only to the URL above.', 'set.testconn': 'Test connection', 'set.ai.reachable': 'AI reachable',
+    'set.notiflog': 'Recent notifications', 'set.col.time': 'Time', 'set.col.device': 'Device', 'set.col.event': 'Event', 'set.col.message': 'Message', 'set.col.delivery': 'Delivery', 'set.notiflog.none': 'Nothing sent yet.',
   },
   he: {
     'app.title': 'KEM · ניהול עמדות',
@@ -243,6 +252,15 @@ const I18N = {
     'img.new': 'רישום תמונה', 'img.create': 'רשום', 'img.f.name': 'שם', 'img.f.os': 'מערכת הפעלה', 'img.f.version': 'גרסה',
     'img.f.source': 'מקור (כתובת URL או נתיב שיתוף)', 'img.f.size': 'גודל (בתים)', 'img.f.sha': 'SHA-256 (רשות)', 'img.f.scope': 'הרשאה', 'img.f.scopetarget': 'יעד ההרשאה', 'img.f.notes': 'הערות',
     'img.f.note': 'קובץ התמונה עצמו אינו מועלה — KEM שומר הפניה (מיקום + סכום ביקורת). הפצה דרך השער והדמיה מחדש עדיין לא מומשו.',
+    'set.pw.title.self': 'שינוי הסיסמה שלך', 'set.pw.title.admin': 'שינוי סיסמת המנהל', 'set.pw.current': 'סיסמה נוכחית', 'set.pw.new': 'סיסמה חדשה (10+ תווים)', 'set.pw.update': 'עדכן סיסמה', 'set.t.pwupdated': 'הסיסמה עודכנה',
+    'set.notif': 'התראות', 'set.notif.note': 'קבלו עדכון כשמשהו דורש טיפול. השתמשו ב‑webhook של צ׳אט, בדוא״ל או בשניהם.',
+    'set.f.webhook': 'כתובת Webhook', 'set.notif.whichhelp': 'אילו כתובות webhook נתמכות?', 'set.f.email': 'דוא״ל אל (מופרד בפסיקים)',
+    'set.f.smtphost': 'שרת SMTP', 'set.f.port': 'פורט', 'set.f.security': 'אבטחה', 'set.f.from': 'כתובת שולח', 'set.f.smtpuser': 'משתמש SMTP', 'set.f.smtppass': 'סיסמת SMTP', 'set.pwsaved': '•••••• (שמור — השאירו ריק לשמירה)',
+    'set.notif.when': 'הודיעו לי כאשר', 'set.f.offline': 'סף ניתוק (שעות, 0 = כבוי)', 'set.save': 'שמור', 'set.sendtest': 'שלח בדיקה', 'set.t.testsent': 'התראת בדיקה נשלחה', 'set.t.saved': 'ההגדרות נשמרו',
+    'set.auto': 'אוטומציה', 'set.auto.scan': 'סרוק כל מחשב לעדכוני Windows חסרים פעם ביום', 'set.auto.agent': 'עדכן את הסוכנים אוטומטית', 'set.auto.agent.sub': 'המחשבים יתעדכנו לגרסת הסוכן שבשרת בכניסה הבאה שלהם.',
+    'set.ai': 'אבחון AI', 'set.ai.note': 'הפנו את KEM למודל מקומי תואם‑OpenAI (Ollama, llama.cpp, LM Studio, vLLM). "אבחן" בדף מחשב שולח רק את נתוני התקינות של המחשב — לעולם לא את המשתמש המחובר, כתובת ה‑IP או המספר הסריאלי — ומציג את המלצת המודל. המלצות בלבד; בדקו לפני פעולה.',
+    'set.f.aiurl': 'כתובת בסיס של נקודת הקצה', 'set.f.aimodel': 'מודל', 'set.f.aikey': 'מפתח API (רשות)', 'set.ai.key.need': 'רק אם נקודת הקצה דורשת', 'set.ai.enable': 'הפעל אבחון AI', 'set.ai.enable.sub': 'השאירו את נקודת הקצה ב‑localhost או ברשת המקומית; מידע יוצא מ‑KEM רק לכתובת שלמעלה.', 'set.testconn': 'בדוק חיבור', 'set.ai.reachable': 'ה‑AI זמין',
+    'set.notiflog': 'התראות אחרונות', 'set.col.time': 'זמן', 'set.col.device': 'מחשב', 'set.col.event': 'אירוע', 'set.col.message': 'הודעה', 'set.col.delivery': 'משלוח', 'set.notiflog.none': 'עדיין לא נשלח דבר.',
   },
 };
 let LANG = (() => { try { return localStorage.getItem('kem.lang') === 'he' ? 'he' : 'en'; } catch { return 'en'; } })();
@@ -1299,14 +1317,14 @@ async function loadTokens() {
 
 // ------------------------------------------------------------------ settings
 async function viewSettings() {
-  const pwCard = `<div class="card pad"><h2>Change your password</h2>
+  const pwCard = `<div class="card pad"><h2>${t('set.pw.title.self')}</h2>
       <form id="pw" class="stack">
-        <label>Current password<input type="password" name="current" required autocomplete="current-password"></label>
-        <label>New password (10+ characters)<input type="password" name="new" required minlength="10" autocomplete="new-password"></label>
-        <button class="btn primary" style="align-self:flex-start">Update password</button></form></div>`;
+        <label>${t('set.pw.current')}<input type="password" name="current" required autocomplete="current-password"></label>
+        <label>${t('set.pw.new')}<input type="password" name="new" required minlength="10" autocomplete="new-password"></label>
+        <button class="btn primary" style="align-self:flex-start">${t('set.pw.update')}</button></form></div>`;
   const wirePw = () => { $('#pw').onsubmit = async (e) => {
     e.preventDefault();
-    try { await api('/api/password', { method: 'POST', body: { current: e.target.current.value, new: e.target.new.value } }); e.target.reset(); toast('Password updated'); } catch (err) { toast(err.message, true); }
+    try { await api('/api/password', { method: 'POST', body: { current: e.target.current.value, new: e.target.new.value } }); e.target.reset(); toast(t('set.t.pwupdated')); } catch (err) { toast(err.message, true); }
   }; };
   if (!isAdmin()) {
     view.innerHTML = `<div class="page-head"><div><h1>${t('page.settings.title')}</h1><p class="sub">${esc(roleLabel(state.me.role))}${state.me.scope_label ? ' · ' + esc(state.me.scope_label) : ''}</p></div></div>
@@ -1316,68 +1334,68 @@ async function viewSettings() {
   }
   view.innerHTML = `<div class="page-head"><div><h1>${t('page.settings.title')}</h1><p class="sub">${t('page.settings.sub')} · KEM v${esc(state.me?.version)}</p></div></div>
     <div class="settings-grid">
-      <form class="card pad" id="notif"><h2>Notifications</h2><div class="empty">Loading…</div></form>
+      <form class="card pad" id="notif"><h2>${t('set.notif')}</h2><div class="empty">${t('common.loading')}</div></form>
       <div class="stack">
-        <form class="card pad" id="auto"><h2>Automation</h2></form>
-        <form class="card pad" id="ai"><h2>AI diagnostics</h2></form>
-        <div class="card pad"><h2>Change admin password</h2>
+        <form class="card pad" id="auto"><h2>${t('set.auto')}</h2></form>
+        <form class="card pad" id="ai"><h2>${t('set.ai')}</h2></form>
+        <div class="card pad"><h2>${t('set.pw.title.admin')}</h2>
           <form id="pw" class="stack">
-            <label>Current password<input type="password" name="current" required autocomplete="current-password"></label>
-            <label>New password (10+ characters)<input type="password" name="new" required minlength="10" autocomplete="new-password"></label>
-            <button class="btn primary" style="align-self:flex-start">Update password</button></form></div>
+            <label>${t('set.pw.current')}<input type="password" name="current" required autocomplete="current-password"></label>
+            <label>${t('set.pw.new')}<input type="password" name="new" required minlength="10" autocomplete="new-password"></label>
+            <button class="btn primary" style="align-self:flex-start">${t('set.pw.update')}</button></form></div>
       </div>
     </div>
-    <div class="card" style="margin-top:16px"><div class="pad-h"><h2>Recent notifications</h2></div><div id="notiflog"></div></div>`;
+    <div class="card" style="margin-top:16px"><div class="pad-h"><h2>${t('set.notiflog')}</h2></div><div id="notiflog"></div></div>`;
   $('#pw').onsubmit = async (e) => {
     e.preventDefault();
-    try { await api('/api/password', { method: 'POST', body: { current: e.target.current.value, new: e.target.new.value } }); e.target.reset(); toast('Password updated'); } catch (err) { toast(err.message, true); }
+    try { await api('/api/password', { method: 'POST', body: { current: e.target.current.value, new: e.target.new.value } }); e.target.reset(); toast(t('set.t.pwupdated')); } catch (err) { toast(err.message, true); }
   };
   let s;
   try { s = await api('/api/settings'); } catch (e) { toast(e.message, true); return; }
 
   const render = () => {
-    $('#notif').innerHTML = `<h2>Notifications</h2>
-      <p class="note">Get told when something needs attention. Use a chat webhook, e-mail, or both.</p>
-      <label>Webhook URL<input name="notify_webhook" value="${esc(s.notify_webhook)}" placeholder="https://hooks.slack.com/services/…" spellcheck="false"></label>
-      <details class="help"><summary>Which webhook URLs work?</summary><ul>
+    $('#notif').innerHTML = `<h2>${t('set.notif')}</h2>
+      <p class="note">${t('set.notif.note')}</p>
+      <label>${t('set.f.webhook')}<input name="notify_webhook" value="${esc(s.notify_webhook)}" placeholder="https://hooks.slack.com/services/…" spellcheck="false"></label>
+      <details class="help"><summary>${t('set.notif.whichhelp')}</summary><ul>
         <li><b>Slack</b>, <b>Mattermost</b>, <b>Google Chat</b> — incoming-webhook URL</li>
         <li><b>Microsoft Teams</b> — a <i>Workflows</i> "post to a channel when a webhook request is received" URL</li>
         <li><b>Discord</b> — channel webhook URL</li>
         <li><b>Telegram</b> — <span class="mono">https://api.telegram.org/bot&lt;TOKEN&gt;/sendMessage?chat_id=&lt;CHAT_ID&gt;</span></li>
         <li>Anything else receives JSON <span class="mono">{"text": "…"}</span></li></ul></details>
-      <label>E-mail to (comma separated)<input name="notify_email" value="${esc(s.notify_email)}" placeholder="it@company.com"></label>
+      <label>${t('set.f.email')}<input name="notify_email" value="${esc(s.notify_email)}" placeholder="it@company.com"></label>
       <div class="form-2">
-        <label>SMTP server<input name="smtp_host" value="${esc(s.smtp_host)}" placeholder="smtp.gmail.com"></label>
-        <label>Port<input name="smtp_port" type="number" value="${esc(s.smtp_port)}" min="1" max="65535"></label>
-        <label>Security<select name="smtp_security">${[['starttls', 'STARTTLS (587)'], ['ssl', 'SSL/TLS (465)'], ['none', 'None']].map(([v, l]) => `<option value="${v}" ${s.smtp_security === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-        <label>From address<input name="smtp_from" value="${esc(s.smtp_from)}" placeholder="kem@company.com"></label>
-        <label>SMTP user<input name="smtp_user" value="${esc(s.smtp_user)}" autocomplete="off"></label>
-        <label>SMTP password<input name="smtp_pass" type="password" autocomplete="new-password" placeholder="${s.smtp_pass_set ? '•••••• (saved — leave blank to keep)' : ''}"></label>
+        <label>${t('set.f.smtphost')}<input name="smtp_host" value="${esc(s.smtp_host)}" placeholder="smtp.gmail.com"></label>
+        <label>${t('set.f.port')}<input name="smtp_port" type="number" value="${esc(s.smtp_port)}" min="1" max="65535"></label>
+        <label>${t('set.f.security')}<select name="smtp_security">${[['starttls', 'STARTTLS (587)'], ['ssl', 'SSL/TLS (465)'], ['none', 'None']].map(([v, l]) => `<option value="${v}" ${s.smtp_security === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label>${t('set.f.from')}<input name="smtp_from" value="${esc(s.smtp_from)}" placeholder="kem@company.com"></label>
+        <label>${t('set.f.smtpuser')}<input name="smtp_user" value="${esc(s.smtp_user)}" autocomplete="off"></label>
+        <label>${t('set.f.smtppass')}<input name="smtp_pass" type="password" autocomplete="new-password" placeholder="${s.smtp_pass_set ? esc(t('set.pwsaved')) : ''}"></label>
       </div>
-      <div><div class="muted small" style="margin-bottom:6px;font-weight:500">Notify me when</div>
+      <div><div class="muted small" style="margin-bottom:6px;font-weight:500">${t('set.notif.when')}</div>
         ${Object.entries(s.event_names).map(([k, l]) => `<label class="check"><input type="checkbox" name="ev" value="${k}" ${s.notify_events.includes(k) ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</div>
-      <label style="max-width:260px">Offline threshold (hours, 0 = off)<input name="notify_offline_hours" type="number" min="0" max="720" value="${esc(s.notify_offline_hours)}"></label>
-      <div class="row"><button class="btn primary">Save</button><button type="button" class="btn" id="testn">Send test</button></div>`;
-    $('#auto').innerHTML = `<h2>Automation</h2>
-      <label class="check"><input type="checkbox" name="auto_update_scan" ${s.auto_update_scan === '1' ? 'checked' : ''}><div>Scan every device for missing Windows updates once a day</div></label>
-      <label class="check"><input type="checkbox" name="auto_update_agent" ${s.auto_update_agent === '1' ? 'checked' : ''}><div>Keep agents up to date automatically<br><span class="muted small">Devices switch to agent v${esc(s.agent_version)} (the version on this server) on their next check-in.</span></div></label>
-      <button class="btn primary" style="align-self:flex-start">Save</button>`;
+      <label style="max-width:260px">${t('set.f.offline')}<input name="notify_offline_hours" type="number" min="0" max="720" value="${esc(s.notify_offline_hours)}"></label>
+      <div class="row"><button class="btn primary">${t('set.save')}</button><button type="button" class="btn" id="testn">${t('set.sendtest')}</button></div>`;
+    $('#auto').innerHTML = `<h2>${t('set.auto')}</h2>
+      <label class="check"><input type="checkbox" name="auto_update_scan" ${s.auto_update_scan === '1' ? 'checked' : ''}><div>${t('set.auto.scan')}</div></label>
+      <label class="check"><input type="checkbox" name="auto_update_agent" ${s.auto_update_agent === '1' ? 'checked' : ''}><div>${t('set.auto.agent')}<br><span class="muted small">${t('set.auto.agent.sub')}</span></div></label>
+      <button class="btn primary" style="align-self:flex-start">${t('set.save')}</button>`;
     $('#testn').onclick = async () => {
       const b = $('#testn'); b.disabled = true;
-      try { await save(false); await api('/api/settings/test-notification', { method: 'POST' }); toast('Test notification sent'); } catch (e) { toast(e.message, true); } finally { b.disabled = false; }
+      try { await save(false); await api('/api/settings/test-notification', { method: 'POST' }); toast(t('set.t.testsent')); } catch (e) { toast(e.message, true); } finally { b.disabled = false; }
     };
-    $('#ai').innerHTML = `<h2>AI diagnostics</h2>
-      <p class="note">Point KEM at a local <b>OpenAI-compatible</b> model (Ollama, llama.cpp, LM Studio, vLLM). "Diagnose" on a device page sends that device's <b>health data only</b> — never the signed-in user, IP or serial — and shows the model's advice. Suggestions only; review before acting.</p>
-      <label>Endpoint base URL<input name="ai_base_url" value="${esc(s.ai_base_url)}" placeholder="http://localhost:11434/v1" spellcheck="false"></label>
+    $('#ai').innerHTML = `<h2>${t('set.ai')}</h2>
+      <p class="note">${t('set.ai.note')}</p>
+      <label>${t('set.f.aiurl')}<input name="ai_base_url" value="${esc(s.ai_base_url)}" placeholder="http://localhost:11434/v1" spellcheck="false"></label>
       <div class="form-2">
-        <label>Model<input name="ai_model" value="${esc(s.ai_model)}" placeholder="llama3.1" spellcheck="false"></label>
-        <label>API key (optional)<input name="ai_api_key" type="password" autocomplete="new-password" placeholder="${s.ai_api_key_set ? '•••••• (saved — leave blank to keep)' : 'only if your endpoint needs one'}"></label>
+        <label>${t('set.f.aimodel')}<input name="ai_model" value="${esc(s.ai_model)}" placeholder="llama3.1" spellcheck="false"></label>
+        <label>${t('set.f.aikey')}<input name="ai_api_key" type="password" autocomplete="new-password" placeholder="${s.ai_api_key_set ? esc(t('set.pwsaved')) : esc(t('set.ai.key.need'))}"></label>
       </div>
-      <label class="check"><input type="checkbox" name="ai_enabled" ${s.ai_enabled ? 'checked' : ''}><div>Enable AI diagnostics<br><span class="muted small">Keep the endpoint on localhost or your LAN; data leaves KEM only to the URL above.</span></div></label>
-      <div class="row"><button class="btn primary">Save</button><button type="button" class="btn" id="testai">Test connection</button></div>`;
+      <label class="check"><input type="checkbox" name="ai_enabled" ${s.ai_enabled ? 'checked' : ''}><div>${t('set.ai.enable')}<br><span class="muted small">${t('set.ai.enable.sub')}</span></div></label>
+      <div class="row"><button class="btn primary">${t('set.save')}</button><button type="button" class="btn" id="testai">${t('set.testconn')}</button></div>`;
     $('#testai').onclick = async () => {
       const b = $('#testai'); b.disabled = true;
-      try { await save(false); const r = await api('/api/ai/test', { method: 'POST' }); toast(`AI reachable (${r.model}): ${r.reply}`); } catch (e) { toast(e.message, true); } finally { b.disabled = false; }
+      try { await save(false); const r = await api('/api/ai/test', { method: 'POST' }); toast(`${t('set.ai.reachable')} (${r.model}): ${r.reply}`); } catch (e) { toast(e.message, true); } finally { b.disabled = false; }
     };
   };
   const collect = () => {
@@ -1390,7 +1408,7 @@ async function viewSettings() {
       ai_base_url: ai.ai_base_url.value.trim(), ai_model: ai.ai_model.value.trim(), ai_api_key: ai.ai_api_key.value, ai_enabled: ai.ai_enabled.checked,
     };
   };
-  const save = async (announce = true) => { s = await api('/api/settings', { method: 'PUT', body: collect() }); render(); if (announce) toast('Settings saved'); };
+  const save = async (announce = true) => { s = await api('/api/settings', { method: 'PUT', body: collect() }); render(); if (announce) toast(t('set.t.saved')); };
   render();
   $('#notif').onsubmit = (e) => { e.preventDefault(); save().catch((err) => toast(err.message, true)); };
   $('#auto').onsubmit = (e) => { e.preventDefault(); save().catch((err) => toast(err.message, true)); };
@@ -1398,11 +1416,11 @@ async function viewSettings() {
 
   const loadLog = async () => {
     const rows = await api('/api/notifications');
-    $('#notiflog').innerHTML = rows.length ? `<div class="table-wrap"><table class="grid"><thead><tr><th class="nowrap">Time</th><th>Device</th><th>Event</th><th>Message</th><th>Delivery</th></tr></thead><tbody>${
+    $('#notiflog').innerHTML = rows.length ? `<div class="table-wrap"><table class="grid"><thead><tr><th class="nowrap">${t('set.col.time')}</th><th>${t('set.col.device')}</th><th>${t('set.col.event')}</th><th>${t('set.col.message')}</th><th>${t('set.col.delivery')}</th></tr></thead><tbody>${
       rows.map((r) => `<tr><td class="small nowrap">${fmtDate(r.ts)}</td><td>${r.device_id ? `<a href="#/device/${esc(r.device_id)}">${esc(r.hostname)}</a>` : esc(r.hostname)}</td>
         <td><span class="pill">${esc(r.event.replace('_', ' '))}</span></td><td class="small">${esc(r.text)}</td>
         <td>${statusPill(r.status)}${r.error ? `<div class="small muted">${esc(r.error)}</div>` : ''}</td></tr>`).join('')}</tbody></table></div>`
-      : '<div class="empty">Nothing sent yet.</div>';
+      : `<div class="empty">${t('set.notiflog.none')}</div>`;
   };
   loadLog().catch(() => {});
   every(() => loadLog().catch(() => {}), 15000);
