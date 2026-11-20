@@ -156,6 +156,7 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
 | 30 | Reports & auditing | ✅ | audit log + notification log, exportable reports (devices / licensing / incidents) as CSV and print-to-PDF HTML, **and scheduled reports** (daily/weekly/monthly) with stored history + webhook/e-mail delivery, all scoped per role |
 | 31 | Multi-language | 🟡 | agent & server UTF-8/Hebrew-safe **and** a dashboard i18n framework (English + Hebrew, full RTL, persisted); shell, all page headers/subtitles, role labels, the Devices page and modal chrome translated; deep table/card bodies on other views still English (incremental) |
 | 32 | Secure offline operation | ✅ | agent re-asserts policy offline **and** the gateway store-and-forwards student check-ins/results during a central outage, replaying them on recovery (enrollment stays online-only); verified with an up→down→up harness (8 checks) |
+| 33 | Software packages / baselines | ✅ | define a named desired app-set (e.g. "Student station" = Windows + Office + Chrome; "iTest" = +iTest) scoped global/municipality/school/lab; apply to a device = install the missing set members and (optionally) uninstall apps outside the set, protecting Windows/drivers/security/runtimes/the KEM agent; a dry-run **plan preview** (install / remove / keep / protected) before anything is queued; scoped to admins/school-managers, RBAC-enforced (19 checks); device-side exec reuses install/uninstall handlers (pending hardware) |
 
 ## Phases (spec §21)
 

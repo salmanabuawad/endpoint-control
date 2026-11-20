@@ -123,6 +123,10 @@ CREATE TABLE IF NOT EXISTS images(
   sha256 TEXT DEFAULT '', source_url TEXT DEFAULT '', notes TEXT DEFAULT '',
   scope_type TEXT DEFAULT 'global', scope_id TEXT, created REAL, created_by TEXT DEFAULT '');
 CREATE INDEX IF NOT EXISTS ix_images_scope ON images(scope_type, scope_id);
+CREATE TABLE IF NOT EXISTS packages(
+  id TEXT PRIMARY KEY, name TEXT, scope_type TEXT DEFAULT 'global', scope_id TEXT,
+  items TEXT DEFAULT '[]', notes TEXT DEFAULT '', created REAL, created_by TEXT DEFAULT '');
+CREATE INDEX IF NOT EXISTS ix_packages_scope ON packages(scope_type, scope_id);
 """
 # Columns added after v1.0 (ALTER TABLE on existing databases).
 MIGRATIONS = [
@@ -231,6 +235,7 @@ def role_capabilities(role: str) -> dict:
         "view_incidents": role in ROLES, "manage_incidents": admin or role == "school_manager",
         "run_diagnostics": admin or role == "school_manager", "view_reports": role in ROLES,
         "view_images": admin or role == "school_manager", "manage_images": admin,
+        "view_packages": admin or role == "school_manager", "manage_packages": admin or role == "school_manager",
         "view_licensing": admin or role == "school_manager", "manage_licensing": admin,
         "commands": sorted(COMMAND_TYPES) if admin else
                     sorted(COMMAND_TYPES - SCHOOL_MANAGER_BLOCKED) if role == "school_manager" else
@@ -2175,6 +2180,139 @@ def assign_lab_image(lab_id: str, request: Request, body: dict = Body(...), user
         con.execute("UPDATE labs SET image_id=? WHERE id=?", (image_id, lab_id))
         audit(con, user["username"], client_ip(request), "lab_image_set", lab_id, {"image_id": image_id or ""})
     return {"ok": True, "lab_id": lab_id, "image_id": image_id}
+
+
+# ---------------------------------------------------------------- software packages (baselines)
+# A package is a named desired app-set for a station. Applying it installs the package apps that are
+# missing and (optionally) removes third-party apps not in the set. Windows, drivers, runtimes,
+# security tooling and the KEM agent are always protected from removal. It queues the existing
+# install_software / uninstall_software commands, so the agent needs nothing new.
+
+PROTECTED_NAME_RE = re.compile(
+    r"(?i)\b(windows|microsoft edge|edge webview|onedrive|visual c\+\+|\.net|runtime|redistributable|"
+    r"directx|app installer|microsoft store|xbox|widgets|web experience|update for|security update|"
+    r"hevc|heif|vp9|av1|webp|raw image|microsoft teams|click-to-run|onenote)\b")
+PROTECTED_PUB_RE = re.compile(
+    r"(?i)(nvidia|intel\(r\)|intel corporation|realtek|advanced micro devices|qualcomm|synaptics|conexant|driver|"
+    r"crowdstrike|sentinelone|\beset\b|kaspersky|bitdefender|symantec|norton|mcafee|trend micro|sophos|webroot)")
+
+
+def _is_protected(name: str, publisher: str) -> bool:
+    if "kem" in (name or "").lower():
+        return True
+    return bool(PROTECTED_NAME_RE.search(name or "") or PROTECTED_PUB_RE.search(publisher or ""))
+
+
+def validate_package_items(raw) -> list[dict]:
+    if not isinstance(raw, list) or not raw or len(raw) > 200:
+        raise HTTPException(400, "A package needs 1-200 items")
+    items = []
+    for it in raw:
+        if not isinstance(it, dict):
+            raise HTTPException(400, "each item must be an object")
+        label = clean(it.get("label"), 120)
+        match = clean(it.get("match"), 200)
+        if not label or not match or "\n" in match or "\r" in match:
+            raise HTTPException(400, "each item needs a label and a one-line match term")
+        install = validate_params("install_software", it["install"]) if it.get("install") else None
+        items.append({"label": label, "match": match, "install": install})
+    return items
+
+
+def serialize_package(con, row) -> dict:
+    d = dict(row)
+    d["items"] = jload(d.get("items"), [])
+    d["scope_name"] = scope_name(con, d["scope_type"], d["scope_id"])
+    return d
+
+
+def package_plan(device_row, pkg_row, remove_extras: bool) -> dict:
+    sw = [s for s in jload(device_row["software"], []) if isinstance(s, dict) and s.get("name")]
+    items = jload(pkg_row["items"], [])
+    terms = [(it.get("match") or "").lower() for it in items if it.get("match")]
+    in_pkg = lambda name: any(tm in name.lower() for tm in terms)  # noqa: E731
+    install = [{"label": it["label"], "install": it["install"]} for it in items
+               if it.get("install") and not any(it["match"].lower() in (s.get("name") or "").lower() for s in sw)]
+    keep, remove, protected = [], [], []
+    for s in sw:
+        name = s.get("name", "")
+        if in_pkg(name):
+            keep.append(name)
+        elif not remove_extras:
+            continue
+        elif _is_protected(name, s.get("publisher", "")):
+            protected.append(name)
+        else:
+            remove.append(name)
+    return {"install": install, "remove": remove, "keep": keep, "protected": protected}
+
+
+def require_packages(request: Request) -> dict:
+    u = _authenticate(request)
+    if u["role"] not in ADMIN_ROLES and u["role"] != "school_manager":
+        raise HTTPException(403, "Not allowed to manage packages")
+    return u
+
+
+@app.get("/api/packages")
+def list_packages(user: dict = Depends(current_user)):
+    if not (user["role"] in ADMIN_ROLES or user["role"] == "school_manager"):
+        raise HTTPException(403, "Not allowed")
+    with db() as con:
+        rows = con.execute("SELECT * FROM packages ORDER BY created DESC").fetchall()
+        out = [serialize_package(con, r) for r in rows if entitlement_in_scope(con, user, r)]
+    return out
+
+
+@app.post("/api/packages")
+def create_package(request: Request, body: dict = Body(...), user: dict = Depends(require_packages)):
+    name = clean(body.get("name"), 120)
+    if not name:
+        raise HTTPException(400, "A name is required")
+    items = validate_package_items(body.get("items"))
+    with db() as con:
+        st, sid = _image_scope(con, user, body)
+        pid = uuid.uuid4().hex
+        con.execute("INSERT INTO packages(id,name,scope_type,scope_id,items,notes,created,created_by) VALUES(?,?,?,?,?,?,?,?)",
+                    (pid, name, st, sid, json.dumps(items), clean(body.get("notes"), 500), now(), user["username"]))
+        audit(con, user["username"], client_ip(request), "package_created", name, {"items": len(items)})
+        out = serialize_package(con, con.execute("SELECT * FROM packages WHERE id=?", (pid,)).fetchone())
+    return out
+
+
+@app.delete("/api/packages/{pid}")
+def delete_package(pid: str, request: Request, user: dict = Depends(require_packages)):
+    with db() as con:
+        row = con.execute("SELECT * FROM packages WHERE id=?", (pid,)).fetchone()
+        if not row or not entitlement_in_scope(con, user, row):
+            raise HTTPException(404, "Package not found")
+        con.execute("DELETE FROM packages WHERE id=?", (pid,))
+        audit(con, user["username"], client_ip(request), "package_deleted", row["name"])
+    return {"ok": True}
+
+
+@app.post("/api/devices/{device_id}/apply-package")
+def apply_package(device_id: str, request: Request, body: dict = Body(...), user: dict = Depends(require_packages)):
+    remove_extras = bool(body.get("remove_extras"))
+    dry = body.get("dry_run", True)
+    with db() as con:
+        dev = con.execute("SELECT * FROM devices WHERE id=?", (device_id,)).fetchone()
+        if not dev or not device_in_scope(con, user, dev["lab_id"]):
+            raise HTTPException(404, "Device not found")
+        pkg = con.execute("SELECT * FROM packages WHERE id=?", (clean(body.get("package_id"), 64),)).fetchone()
+        if not pkg or not entitlement_in_scope(con, user, pkg):
+            raise HTTPException(404, "Package not found")
+        plan = package_plan(dev, pkg, remove_extras)
+        if dry:
+            return {"dry_run": True, "package": pkg["name"], **plan}
+        created = []
+        for ins in plan["install"]:
+            created += _enqueue(con, user, [{"id": device_id}], "install_software", ins["install"])
+        for appname in plan["remove"]:
+            created += _enqueue(con, user, [{"id": device_id}], "uninstall_software", {"name": appname})
+        audit(con, user["username"], client_ip(request), "package_applied", dev["hostname"],
+              {"package": pkg["name"], "install": len(plan["install"]), "remove": len(plan["remove"]), "remove_extras": remove_extras})
+    return {"dry_run": False, "package": pkg["name"], "queued": len(created), **plan}
 
 
 # ---------------------------------------------------------------- organization (municipality/school/lab)

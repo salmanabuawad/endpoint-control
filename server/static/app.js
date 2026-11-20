@@ -162,6 +162,18 @@ const I18N = {
     'sw.name': 'Name', 'sw.version': 'Version', 'sw.publisher': 'Publisher', 'sw.installed': 'Installed', 'sw.peruser': 'per-user',
     'sw.programs': 'programs', 'sw.collected': 'collected', 'sw.notcollected': 'Not collected yet', 'sw.none': 'Nothing to show',
     'sw.uninstallsel': 'Uninstall selected', 'sw.confirm': 'Uninstall {n} program(s)? This runs their uninstaller on the device.', 'sw.t.queued': 'Uninstall queued for {n} program(s)',
+    'nav.packages': 'Packages',
+    'pkg.title': 'Software packages', 'pkg.sub': 'Desired app sets for stations — install the set, optionally remove the rest',
+    'pkg.new': '＋ New package', 'pkg.name': 'Name', 'pkg.items': 'Apps (one per line)',
+    'pkg.items.help': 'Format:  Label | match | winget:Id   or   Label | match | url:https://…   — "match" is text found in the installed name. Leave the 3rd part blank to only keep it (e.g.  Windows | windows | ).',
+    'pkg.create': 'Create package', 'pkg.scope': 'Scope', 'pkg.scopetarget': 'Scope target', 'pkg.notes': 'Notes',
+    'pkg.col.name': 'Package', 'pkg.col.scope': 'Scope', 'pkg.col.items': 'Apps', 'pkg.del': 'delete', 'pkg.none': 'No packages yet.',
+    'pkg.confirm.del': 'Delete this package?', 'pkg.t.created': 'Package created', 'pkg.t.deleted': 'Package deleted',
+    'pkg.applybtn': 'Apply package', 'pkg.apply.title': 'Apply a package', 'pkg.apply': 'Apply', 'pkg.pkg': 'Package',
+    'pkg.removeextras': 'Also remove apps not in the package (keeps Windows, drivers, security, runtimes)',
+    'pkg.previewhint': 'Pick a package to preview the plan.', 'pkg.note': 'Preview first. Installs/removals run on the device as the agent processes them.',
+    'pkg.install': 'Install', 'pkg.remove': 'Remove', 'pkg.keep': 'Keep', 'pkg.protected': 'Protected',
+    'pkg.t.applied': 'Queued {n} action(s)', 'pkg.none.apply': 'No packages defined — create one first.', 'pkg.badline': 'Bad line (use Label | match | winget:Id or url:…): ',
   },
   he: {
     'app.title': 'KEM · ניהול עמדות',
@@ -283,6 +295,18 @@ const I18N = {
     'sw.name': 'שם', 'sw.version': 'גרסה', 'sw.publisher': 'יצרן', 'sw.installed': 'הותקן', 'sw.peruser': 'למשתמש',
     'sw.programs': 'תוכנות', 'sw.collected': 'נאסף', 'sw.notcollected': 'עדיין לא נאסף', 'sw.none': 'אין מה להציג',
     'sw.uninstallsel': 'הסר נבחרות', 'sw.confirm': 'להסיר {n} תוכנות? פעולה זו מריצה את מסיר ההתקנה במחשב.', 'sw.t.queued': 'הסרה נשלחה עבור {n} תוכנות',
+    'nav.packages': 'חבילות',
+    'pkg.title': 'חבילות תוכנה', 'pkg.sub': 'מערכי תוכנה רצויים לעמדות — התקנת המערך, ואופציונלית הסרת השאר',
+    'pkg.new': '＋ חבילה חדשה', 'pkg.name': 'שם', 'pkg.items': 'אפליקציות (אחת בשורה)',
+    'pkg.items.help': 'מבנה:  תווית | התאמה | winget:Id   או   תווית | התאמה | url:https://…   — "התאמה" = טקסט שמופיע בשם המותקן. השאירו את החלק השלישי ריק כדי רק לשמור (למשל  Windows | windows | ).',
+    'pkg.create': 'צור חבילה', 'pkg.scope': 'הרשאה', 'pkg.scopetarget': 'יעד ההרשאה', 'pkg.notes': 'הערות',
+    'pkg.col.name': 'חבילה', 'pkg.col.scope': 'הרשאה', 'pkg.col.items': 'אפליקציות', 'pkg.del': 'מחק', 'pkg.none': 'אין עדיין חבילות.',
+    'pkg.confirm.del': 'למחוק את החבילה?', 'pkg.t.created': 'החבילה נוצרה', 'pkg.t.deleted': 'החבילה נמחקה',
+    'pkg.applybtn': 'החל חבילה', 'pkg.apply.title': 'החלת חבילה', 'pkg.apply': 'החל', 'pkg.pkg': 'חבילה',
+    'pkg.removeextras': 'הסר גם אפליקציות שאינן בחבילה (שומר על Windows, מנהלי התקנים, אבטחה, רכיבי ריצה)',
+    'pkg.previewhint': 'בחרו חבילה כדי לצפות בתוכנית.', 'pkg.note': 'צפו תחילה. ההתקנות וההסרות ירוצו במחשב כשהסוכן יעבד אותן.',
+    'pkg.install': 'התקנה', 'pkg.remove': 'הסרה', 'pkg.keep': 'שמירה', 'pkg.protected': 'מוגן',
+    'pkg.t.applied': 'נשלחו {n} פעולות', 'pkg.none.apply': 'לא הוגדרו חבילות — צרו אחת תחילה.', 'pkg.badline': 'שורה שגויה (השתמשו ב‑תווית | התאמה | winget:Id או url:…): ',
   },
 };
 
@@ -367,7 +391,7 @@ function cmdSummary(c) {
   const p = c.params || {};
   switch (c.type) {
     case 'install_software': return p.method === 'winget' ? `winget: ${p.package_id}` : p.url;
-    case 'uninstall_software': return `winget: ${p.package_id}`;
+    case 'uninstall_software': return p.name ? p.name : `winget: ${p.package_id}`;
     case 'block_internet': return p.allow_lan ? 'LAN still allowed' : 'Management server only';
     case 'run_script': return (p.script || '').split('\n')[0].slice(0, 80);
     case 'reboot': return `in ${p.delay}s${p.message ? ' · ' + p.message : ''}`;
@@ -695,8 +719,8 @@ function route() {
   const [, name = 'devices', arg] = (location.hash || '#/devices').split('/');
   setNav(name === 'device' ? 'devices' : name);
   const views = { devices: viewDevices, device: () => viewDevice(arg), enroll: viewEnroll, activity: viewActivity,
-    audit: viewAudit, settings: viewSettings, org: viewOrg, users: viewUsers, gateways: viewGateways, licensing: viewLicensing, incidents: viewIncidents, reports: viewReports, images: viewImages };
-  const needs = { org: 'manage_org', users: 'manage_users', gateways: 'manage_gateways', enroll: 'manage_tokens', audit: 'view_audit', licensing: 'view_licensing', incidents: 'view_incidents', reports: 'view_reports', images: 'view_images' };
+    audit: viewAudit, settings: viewSettings, org: viewOrg, users: viewUsers, gateways: viewGateways, licensing: viewLicensing, incidents: viewIncidents, reports: viewReports, images: viewImages, packages: viewPackages };
+  const needs = { org: 'manage_org', users: 'manage_users', gateways: 'manage_gateways', enroll: 'manage_tokens', audit: 'view_audit', licensing: 'view_licensing', incidents: 'view_incidents', reports: 'view_reports', images: 'view_images', packages: 'view_packages' };
   if (needs[name] && !cap(needs[name])) { location.hash = '#/devices'; return; }
   (views[name] || viewDevices)();
 }
@@ -1137,6 +1161,7 @@ async function viewDevice(id) {
       <div class="actions">
         ${dev.isolated ? '<button class="btn" data-act="unblock_internet">🌐 Restore internet</button>' : '<button class="btn ghost-danger" data-act="block_internet">⛔ Block internet</button>'}
         <button class="btn primary" data-act="install_software">⬇ Install software</button>
+        ${cap('manage_packages') ? `<button class="btn" id="applypkg">📦 ${t('pkg.applybtn')}</button>` : ''}
         <button class="btn" data-act="send_message">💬 Message</button>
         <button class="btn" data-act="lock_session">🔒 Lock</button>
         <button class="btn" data-act="run_script">›_ Script</button>
@@ -1149,6 +1174,7 @@ async function viewDevice(id) {
       body: `<label>Group<input name="group" value="${esc(dev.group)}" placeholder="e.g. Office, Sales, Warehouse"></label><label>Notes<textarea name="notes" style="min-height:90px;font-family:inherit">${esc(dev.notes)}</textarea></label>`,
       onSubmit: async (f) => { await api(`/api/devices/${id}`, { method: 'PATCH', body: { group: f.group.value, notes: f.notes.value } }); load(); },
     });
+    if ($('#applypkg')) $('#applypkg').onclick = () => applyPackageModal(id);
     if ($('#placelab')) $('#placelab').onclick = async () => {
       let org; try { org = await api('/api/org'); } catch (e) { toast(e.message, true); return; }
       const { labs } = orgFlat(org);
@@ -1974,6 +2000,92 @@ async function imageForm(done) {
     form.scope_id.innerHTML = opts.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('');
   };
   form.scope_type.onchange = sync; sync();
+}
+
+// ------------------------------------------------------------------ software packages
+async function viewPackages() {
+  const manage = cap('manage_packages');
+  view.innerHTML = `<div class="page-head"><div><h1>${t('pkg.title')}</h1><p class="sub">${t('pkg.sub')}</p></div>
+      ${manage ? `<button class="btn primary" id="newpkg">${t('pkg.new')}</button>` : ''}</div>
+    <div class="card table-wrap"><table class="grid"><thead><tr><th>${t('pkg.col.name')}</th><th>${t('pkg.col.scope')}</th><th>${t('pkg.col.items')}</th>${manage ? '<th></th>' : ''}</tr></thead>
+      <tbody id="pkgrows"><tr><td colspan="4" class="empty">${t('common.loading')}</td></tr></tbody></table></div>`;
+  const load = async () => {
+    let pkgs; try { pkgs = await api('/api/packages'); } catch (e) { toast(e.message, true); return; }
+    $('#pkgrows').innerHTML = pkgs.length ? pkgs.map((p) => `<tr>
+      <td><b>${esc(p.name)}</b>${p.notes ? `<br><small class="muted">${esc(p.notes)}</small>` : ''}</td>
+      <td class="small">${esc(p.scope_name || '')}</td>
+      <td class="small">${p.items.map((i) => esc(i.label)).join(', ')}</td>
+      ${manage ? `<td class="nowrap"><button class="link small danger-link" data-del="${esc(p.id)}">${t('pkg.del')}</button></td>` : ''}</tr>`).join('')
+      : `<tr><td colspan="4" class="empty">${t('pkg.none')}</td></tr>`;
+    if (manage) $$('#pkgrows [data-del]').forEach((b) => (b.onclick = () => modal({
+      title: t('pkg.col.name'), submit: t('common.delete'), danger: true, body: `<p class="note">${t('pkg.confirm.del')}</p>`,
+      onSubmit: async () => { await api(`/api/packages/${b.dataset.del}`, { method: 'DELETE' }); toast(t('pkg.t.deleted')); load(); },
+    })));
+  };
+  if (manage) $('#newpkg').onclick = () => packageForm(load);
+  await load();
+}
+
+async function packageForm(done) {
+  let org; try { org = await api('/api/org'); } catch { org = { municipalities: [] }; }
+  const { munis, schools, labs } = orgFlat(org);
+  const scopes = { global: [['', t('lic.covers.global')]], municipality: munis, school: schools, lab: labs };
+  const form = modal({
+    title: t('pkg.create'), submit: t('pkg.create'), wide: true,
+    body: `<label>${t('pkg.name')}<input name="name" maxlength="120" required placeholder="Student station"></label>
+      <label>${t('pkg.items')}<textarea name="items" required spellcheck="false" style="min-height:130px;font-family:ui-monospace,Consolas,monospace;font-size:13px" placeholder="Windows | windows |&#10;Microsoft 365 | microsoft 365 | winget:Microsoft.Office&#10;Google Chrome | chrome | winget:Google.Chrome"></textarea></label>
+      <p class="note">${t('pkg.items.help')}</p>
+      <div class="form-2">
+        <label>${t('pkg.scope')}<select name="scope_type">${['global', 'municipality', 'school', 'lab'].filter((s) => s !== 'global' || state.me.role === 'superadmin').map((s) => `<option value="${s}">${t('lic.covers.' + s)}</option>`).join('')}</select></label>
+        <label>${t('pkg.scopetarget')}<select name="scope_id"></select></label>
+      </div>
+      <label>${t('pkg.notes')}<input name="notes" maxlength="500"></label>`,
+    onSubmit: async (f) => {
+      const items = f.items.value.split('\n').map((l) => l.trim()).filter(Boolean).map((l) => {
+        const parts = l.split('|').map((x) => x.trim());
+        const label = parts[0], match = parts[1] || parts[0], spec = (parts[2] || '').trim();
+        if (!label || !match) throw new Error(t('pkg.badline') + l);
+        let install = null;
+        if (spec) {
+          const mm = spec.match(/^(winget|url)\s*:\s*(.+)$/i);
+          if (!mm) throw new Error(t('pkg.badline') + l);
+          install = mm[1].toLowerCase() === 'winget' ? { method: 'winget', package_id: mm[2].trim() } : { method: 'url', url: mm[2].trim() };
+        }
+        return { label, match, install };
+      });
+      await api('/api/packages', { method: 'POST', body: { name: f.name.value, items, notes: f.notes.value, scope_type: f.scope_type.value, scope_id: f.scope_id.value } });
+      toast(t('pkg.t.created')); done();
+    },
+  });
+  const sync = () => { const o = scopes[form.scope_type.value] || [['', '—']]; form.scope_id.innerHTML = o.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join(''); };
+  form.scope_type.onchange = sync; sync();
+}
+
+async function applyPackageModal(deviceId) {
+  let pkgs; try { pkgs = await api('/api/packages'); } catch (e) { toast(e.message, true); return; }
+  if (!pkgs.length) { toast(t('pkg.none.apply'), true); return; }
+  const form = modal({
+    title: t('pkg.apply.title'), submit: t('pkg.apply'), danger: true,
+    body: `<label>${t('pkg.pkg')}<select name="pkg">${pkgs.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select></label>
+      <label class="check"><input type="checkbox" name="rm"> ${t('pkg.removeextras')}</label>
+      <div id="planbox" class="pkgplan"><div class="muted">${t('pkg.previewhint')}</div></div>
+      <p class="note">${t('pkg.note')}</p>`,
+    onSubmit: async (f) => {
+      const r = await api(`/api/devices/${deviceId}/apply-package`, { method: 'POST', body: { package_id: f.pkg.value, remove_extras: f.rm.checked, dry_run: false } });
+      toast(t('pkg.t.applied').replace('{n}', r.queued));
+    },
+  });
+  const preview = async () => {
+    try {
+      const r = await api(`/api/devices/${deviceId}/apply-package`, { method: 'POST', body: { package_id: form.pkg.value, remove_extras: form.rm.checked, dry_run: true } });
+      $('#planbox').innerHTML = `
+        <div><b>${t('pkg.install')}</b> (${r.install.length}): ${r.install.map((i) => esc(i.label)).join(', ') || '—'}</div>
+        <div class="${r.remove.length ? 'crit-text' : ''}"><b>${t('pkg.remove')}</b> (${r.remove.length}): ${r.remove.map(esc).join(', ') || '—'}</div>
+        <div class="muted small" style="margin-top:4px">${t('pkg.keep')}: ${r.keep.length} · ${t('pkg.protected')}: ${r.protected.length}</div>`;
+    } catch (e) { $('#planbox').innerHTML = `<div class="banner crit">⚠ ${esc(e.message)}</div>`; }
+  };
+  form.pkg.onchange = preview; form.rm.onchange = preview;
+  preview();
 }
 
 async function boot() {
