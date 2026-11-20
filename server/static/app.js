@@ -15,7 +15,7 @@ const CMD = {
   uninstall_agent: 'Remove agent', scan_updates: 'Scan for updates', install_updates: 'Install Windows updates',
   set_web_filter: 'Web filter', usb_storage: 'USB storage', list_processes: 'List processes', kill_process: 'End process',
   list_services: 'List services', service_action: 'Service control', send_message: 'Message user', lock_session: 'Lock / sign out',
-  update_agent: 'Update agent',
+  update_agent: 'Update agent', distribute_file: 'Distribute file', set_app_policy: 'Application allowlist',
 };
 const USB_LABEL = { allow: 'Allowed', read_only: 'Read-only', block: 'Blocked' };
 const WEB_PRESETS = [
@@ -58,8 +58,8 @@ const I18N = {
     'bulk.selected': 'selected', 'bulk.clear': 'Clear selection',
     'act.block_internet': '⛔ Block internet', 'act.unblock_internet': '🌐 Restore internet', 'act.install_software': '⬇ Install software',
     'act.distribute_file': '📄 Distribute file', 'act.install_updates': '⟳ Windows updates', 'act.set_web_filter': '🚫 Web filter',
-    'act.usb_storage': '🔌 USB', 'act.send_message': '💬 Message', 'act.lock_session': '🔒 Lock', 'act.run_script': '›_ Run script',
-    'act.defender_scan': '🛡 Scan', 'act.reboot': '↻ Reboot',
+    'act.usb_storage': '🔌 USB', 'act.set_app_policy': '🛡 Allowlist', 'act.send_message': '💬 Message', 'act.lock_session': '🔒 Lock',
+    'act.run_script': '›_ Run script', 'act.defender_scan': '🛡 Scan', 'act.reboot': '↻ Reboot',
     'pill.blocked': '⛔ Blocked', 'pill.working': 'Working…', 'pill.filter': '🚫 Filter', 'pill.healthy': 'Healthy',
     'devices.none': 'No devices yet.', 'devices.nomatch': 'No devices match this filter.', 'common.loading': 'Loading…',
   },
@@ -78,8 +78,8 @@ const I18N = {
     'bulk.selected': 'נבחרו', 'bulk.clear': 'ניקוי הבחירה',
     'act.block_internet': '⛔ חסום אינטרנט', 'act.unblock_internet': '🌐 שחזר אינטרנט', 'act.install_software': '⬇ התקן תוכנה',
     'act.distribute_file': '📄 הפץ קובץ', 'act.install_updates': '⟳ עדכוני Windows', 'act.set_web_filter': '🚫 סינון אתרים',
-    'act.usb_storage': '🔌 USB', 'act.send_message': '💬 הודעה', 'act.lock_session': '🔒 נעילה', 'act.run_script': '›_ הרצת סקריפט',
-    'act.defender_scan': '🛡 סריקה', 'act.reboot': '↻ הפעלה מחדש',
+    'act.usb_storage': '🔌 USB', 'act.set_app_policy': '🛡 רשימת היתר', 'act.send_message': '💬 הודעה', 'act.lock_session': '🔒 נעילה',
+    'act.run_script': '›_ הרצת סקריפט', 'act.defender_scan': '🛡 סריקה', 'act.reboot': '↻ הפעלה מחדש',
     'pill.blocked': '⛔ חסום', 'pill.working': 'פועל…', 'pill.filter': '🚫 סינון', 'pill.healthy': 'תקין',
     'devices.none': 'אין עדיין עמדות.', 'devices.nomatch': 'אין עמדות התואמות לסינון זה.', 'common.loading': 'טוען…',
   },
@@ -298,6 +298,31 @@ const ACTIONS = {
       onSubmit: (f) => queue(ids, 'distribute_file', { url: f.url.value.trim(), dest: f.dest.value.trim(), filename: f.filename.value.trim(), sha256: f.sha256.value.trim(), overwrite: f.overwrite.checked }),
     });
   },
+  set_app_policy(ids) {
+    modal({
+      title: 'Application allowlist (AppLocker)', submit: 'Apply policy', danger: true,
+      body: `${targetLine(ids)}
+        <label>Mode<select name="mode">
+          <option value="audit">Audit — log blocked apps only (safe to start)</option>
+          <option value="enforce">Enforce — actually block apps not on the list</option>
+          <option value="off">Off — remove the allowlist</option></select></label>
+        <label>Allowed apps — one per line<textarea name="rules" spellcheck="false" style="min-height:120px;font-family:ui-monospace,Consolas,monospace;font-size:13px" placeholder="file: chrome.exe&#10;path: C:\\Program Files\\MyApp\\*&#10;path: %PROGRAMFILES%\\Zoom\\*"></textarea></label>
+        <p class="note">Windows and everything in <b>Program Files</b> stay allowed automatically. <b>Enforce blocks every other executable</b> — start in Audit and review first. Needs Windows Enterprise/Education + the App Identity service. <b>Not yet tested on real hardware — try it on a spare PC before a lab.</b></p>`,
+      onSubmit: (f) => {
+        const mode = f.mode.value;
+        let rules = [];
+        if (mode !== 'off') {
+          rules = f.rules.value.split('\n').map((l) => l.trim()).filter(Boolean).map((l) => {
+            const m = l.match(/^(path|file|filename)\s*:\s*(.+)$/i);
+            if (m) return { type: m[1].toLowerCase() === 'path' ? 'path' : 'filename', value: m[2].trim() };
+            return { type: /^([A-Za-z]:\\|%|\*)/.test(l) ? 'path' : 'filename', value: l };
+          });
+          if (!rules.length) throw new Error('Add at least one allowed app, or choose Off.');
+        }
+        return queue(ids, 'set_app_policy', { mode, rules });
+      },
+    });
+  },
   run_script(ids) {
     modal({
       title: 'Run PowerShell script', submit: 'Run', wide: true,
@@ -460,7 +485,7 @@ function every(fn, ms) { refreshCurrent = fn; state.timer = setInterval(() => { 
 // ------------------------------------------------------------------ devices list
 async function viewDevices() {
   const bulkActs = ['block_internet', 'unblock_internet', 'install_software', 'distribute_file', 'install_updates',
-    'set_web_filter', 'usb_storage', 'send_message', 'lock_session', 'run_script', 'defender_scan', 'reboot'];
+    'set_web_filter', 'usb_storage', 'set_app_policy', 'send_message', 'lock_session', 'run_script', 'defender_scan', 'reboot'];
   view.innerHTML = `
     <div class="page-head"><div><h1>${t('devices.title')}</h1><p class="sub">${state.me.role === 'teacher' ? t('devices.sub.lab') : t('devices.sub.server')}${state.me.scope_label && state.me.role !== 'superadmin' ? ' · ' + esc(state.me.scope_label) : ''}</p></div>
       ${cap('manage_tokens') ? `<a class="btn primary" href="#/enroll">${t('devices.add')}</a>` : ''}</div>

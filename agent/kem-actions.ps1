@@ -909,6 +909,51 @@ function Copy-KemDistributedFile($P) {
     }
 }
 
+function Set-KemAppPolicy($P) {
+    # Apply an AppLocker executable allowlist. ALWAYS keeps the Windows default allow-rules
+    # (Program Files, Windows dir, Administrators) so the OS and installed apps keep running,
+    # and defaults to AuditOnly (log, do not block). Only Exe is configured; MSI/Script/DLL stay
+    # NotConfigured (allowed). WARNING: not yet exercised on real hardware - test off-production first.
+    $mode = "$($P.mode)"
+    $xmlFile = Join-Path $script:KemDataDir 'applocker.xml'
+    if ($mode -eq 'off') {
+        try {
+            Set-Content -Path $xmlFile -Value '<AppLockerPolicy Version="1"></AppLockerPolicy>' -Encoding ASCII
+            Set-AppLockerPolicy -XmlPolicy $xmlFile -ErrorAction Stop
+            return @{ status = 'success'; output = 'Application allowlist removed (AppLocker policy cleared).' }
+        } catch { return @{ status = 'failed'; output = "Could not clear AppLocker: $_" } }
+    }
+    try { Set-Service AppIDSvc -StartupType Automatic -ErrorAction SilentlyContinue; Start-Service AppIDSvc -ErrorAction SilentlyContinue } catch {}
+    $enforce = if ($mode -eq 'enforce') { 'Enabled' } else { 'AuditOnly' }
+    $esc = {
+        param($s)
+        ("$s") -replace '&', '&amp;' -replace '<', '&lt;' -replace '>', '&gt;' -replace "'", '&apos;' -replace '"', '&quot;'
+    }
+    $rule = {
+        param($name, $sid, $path)
+        $id = [guid]::NewGuid().ToString()
+        "<FilePathRule Id='$id' Name='$(& $esc $name)' Description='KEM' UserOrGroupSid='$sid' Action='Allow'><Conditions><FilePathCondition Path='$(& $esc $path)' /></Conditions></FilePathRule>"
+    }
+    $rulesXml = ''
+    $rulesXml += & $rule 'KEM default: Program Files' 'S-1-1-0' '%PROGRAMFILES%\*'
+    $rulesXml += & $rule 'KEM default: Windows' 'S-1-1-0' '%WINDIR%\*'
+    $rulesXml += & $rule 'KEM default: Administrators' 'S-1-5-32-544' '*'
+    foreach ($r in @($P.rules)) {
+        $v = "$($r.value)"
+        if ("$($r.type)" -eq 'filename') { $rulesXml += & $rule "KEM allow $v" 'S-1-1-0' "*\$v" }
+        else { $rulesXml += & $rule "KEM allow $v" 'S-1-1-0' $v }
+    }
+    $xml = "<AppLockerPolicy Version='1'><RuleCollection Type='Exe' EnforcementMode='$enforce'>$rulesXml</RuleCollection></AppLockerPolicy>"
+    try {
+        Set-Content -Path $xmlFile -Value $xml -Encoding ASCII
+        Set-AppLockerPolicy -XmlPolicy $xmlFile -ErrorAction Stop
+        $n = @($P.rules).Count
+        return @{ status = 'success'; output = "Applied AppLocker allowlist (mode: $enforce) - $n custom allow rule(s) plus the Windows defaults." }
+    } catch {
+        return @{ status = 'failed'; output = "Could not apply AppLocker policy: $_" }
+    }
+}
+
 function Invoke-KemCommand($Command, [string]$Server) {
     $p = $Command.params
     switch ($Command.type) {
@@ -924,6 +969,7 @@ function Invoke-KemCommand($Command, [string]$Server) {
         'set_web_filter'     { return @{ status = 'success'; output = (Set-KemWebFilter $p) } }
         'usb_storage'        { return @{ status = 'success'; output = (Set-KemUsbStorage "$($p.mode)") } }
         'distribute_file'    { return Copy-KemDistributedFile $p }
+        'set_app_policy'     { return Set-KemAppPolicy $p }
         'list_processes'     { return Get-KemProcessList }
         'kill_process'       { return @{ status = 'success'; output = (Stop-KemProcess $p) } }
         'list_services'      { return Get-KemServiceList }

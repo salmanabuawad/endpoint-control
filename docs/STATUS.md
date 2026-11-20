@@ -37,6 +37,16 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
   content-type/BOM/rows, HTML table, licensing + incident contents, format/kind validation, and
   RBAC/scope — a teacher sees only their lab and cannot pull the licensing report) plus a live
   dashboard (report cards + the rendered printable report).
+* 🟡🧪 **Application allowlisting**: a `set_app_policy` command pushes an AppLocker executable
+  allowlist (mode audit / enforce / off, plus path and filename allow-rules) to the targeted
+  stations. Built brick-safe: the generated policy **always keeps the Windows default allow-rules**
+  (Program Files, Windows dir, Administrators) and **defaults to audit (log-only)** — enforce is an
+  explicit, warned opt-in; MSI/Script/DLL are left unconfigured (allowed). The server side —
+  mode/rule validation, per-role authorisation (admins + school managers, not teachers), scoping and
+  queueing — is verified by 15 checks, and the generated AppLocker XML was validated as well-formed;
+  the agent handler is written, syntax-checked (ASCII) and the XML builder validated, **but AppLocker
+  itself is not yet exercised on real hardware — test off-production first** (needs Windows
+  Enterprise/Education + the App Identity service).
 * 🟡 **Dashboard multi-language + RTL**: an i18n framework (`t()` + English/Hebrew string tables, a
   language switcher that persists per browser) with a full **right-to-left** layout flip for Hebrew.
   The app shell (navigation, login, sidebar) and the Devices page are translated; other views fall
@@ -102,7 +112,7 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
 | 11 | Internet control | ✅ | firewall isolation (`block/unblock_internet`) + per-domain web filter |
 | 12 | USB / SD restrictions | ✅ | `usb_storage` allow/read-only/block |
 | 13 | Software install restrictions | 🟡🧪 | installs via winget/MSI exist; enforced *blocking* of unapproved installers (AppLocker/App Control) not yet built |
-| 14 | Application allowlisting | ⬜ | planned (AppLocker/WDAC policy push) |
+| 14 | Application allowlisting | 🟡🧪 | `set_app_policy` pushes an AppLocker executable allowlist (audit/enforce/off; path + filename rules), brick-safe (keeps Windows defaults, audit by default); server validation/RBAC/scope verified (15 checks) + XML validated well-formed; AppLocker not yet run on hardware |
 | 15 | Approved application launching | 🟡 | `install_software` from a catalog; "launch for user" not yet separated |
 | 16 | Remote assistance | ⬜ | not built |
 | 17 | File distribution | 🟡🧪 | `distribute_file` command: download a URL (SHA-256 checked) to a folder on targeted stations; server validation/RBAC/scope/queueing verified (15 checks), agent handler written + syntax-checked but not yet run on hardware |
@@ -129,8 +139,8 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
   restart, screen lock, command delivery through the gateway, and a central Local-AI integration
   **all working**. Phase 1 foundation is essentially complete.
 * **Phase 2 — classroom control & endpoint security** 🟡: internet/USB/web-filter/messaging/lock
-  and **examination mode** done; **file distribution** server-side done (agent handler pending
-  hardware); live monitoring, broadcast, remote assistance and allowlisting pending.
+  and **examination mode** done; **file distribution** and **application allowlisting** server-side
+  done (agent handlers pending hardware); live monitoring, broadcast and remote assistance pending.
 * **Phase 3 — health & licensing** ✅: health + alerts + **incident workflow** + **license registry
   & compliance findings** + **local AI diagnostics** + **exportable & scheduled reports** all done.
 * **Phase 4 — recovery infrastructure** 🟡🧪: Windows Restore (L1) + factory wipe exist; local
@@ -152,7 +162,8 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
   currently visible to all admins (not yet per-municipality filtered).
 * **Not yet exercised on real Windows hardware** (need an elevated agent / lab): applying web
   filter, USB policy, service start/stop, message/lock on a live station, Windows-update install,
-  baseline restore, factory reset, **file distribution (`distribute_file`)**, and the gateway
+  baseline restore, factory reset, **file distribution (`distribute_file`)**, **application
+  allowlisting (`set_app_policy` / AppLocker)**, and the gateway
   installed as a Windows boot task. The gateway
   **relay logic itself** is verified (student enrolls through it, attribution lands on central).
 * **Gateway offline caching** is not implemented — the relay forwards live; if central is down the

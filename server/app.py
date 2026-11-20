@@ -146,6 +146,8 @@ COMMAND_TYPES = {
     "update_agent",
     # file distribution
     "distribute_file",
+    # application allowlisting (AppLocker)
+    "set_app_policy",
 }
 # Destructive commands: one device at a time, admin must type the hostname.
 CONFIRM_TYPES = {"reset_device", "uninstall_agent"}
@@ -1060,6 +1062,31 @@ def validate_params(ctype: str, p: Any) -> dict:
         if sha and not re.fullmatch(r"[0-9a-f]{64}", sha):
             raise HTTPException(400, "SHA-256 must be 64 hex characters")
         return {"url": url, "dest": dest, "filename": filename, "sha256": sha, "overwrite": bool(p.get("overwrite"))}
+    if ctype == "set_app_policy":
+        mode = p.get("mode")
+        if mode not in ("audit", "enforce", "off"):
+            raise HTTPException(400, "mode must be audit, enforce or off")
+        raw = p.get("rules") or []
+        if not isinstance(raw, list) or len(raw) > 500:
+            raise HTTPException(400, "rules must be a list (max 500)")
+        rules = []
+        for r in raw:
+            if not isinstance(r, dict):
+                raise HTTPException(400, "each rule must be an object")
+            rt = r.get("type")
+            if rt not in ("path", "filename"):
+                raise HTTPException(400, "rule type must be 'path' or 'filename'")
+            val = clean(r.get("value"), 400)
+            if not val or "\n" in val or "\r" in val:
+                raise HTTPException(400, "each rule needs a one-line value")
+            if rt == "filename" and not re.fullmatch(r'[^<>:"/\\|?*\x00]{1,200}', val):
+                raise HTTPException(400, f"'{val}' is not a valid file name")
+            if rt == "path" and not re.match(r"^([A-Za-z]:\\|%[A-Za-z0-9_()]+%|\*)", val):
+                raise HTTPException(400, f"path rule must start with a drive, %VAR% or * ('{val}')")
+            rules.append({"type": rt, "value": val})
+        if mode != "off" and not rules:
+            raise HTTPException(400, "Add at least one allow rule, or choose 'off' to remove the policy")
+        return {"mode": mode, "rules": rules}
     if ctype == "kill_process":
         if p.get("pid") not in (None, ""):
             return {"pid": _int(p, "pid", 0, 5, 2**31 - 1)}
