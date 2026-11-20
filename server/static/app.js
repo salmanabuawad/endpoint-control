@@ -1071,13 +1071,18 @@ async function viewDevice(id) {
     if (all) { all.checked = sw.length > 0 && sw.every((s) => ui.softSel.has(s.name)); all.onchange = () => { sw.forEach((s) => (all.checked ? ui.softSel.add(s.name) : ui.softSel.delete(s.name))); renderSoftware(); }; }
     $$('#softlist [data-sw]').forEach((c) => (c.onchange = () => { c.checked ? ui.softSel.add(c.dataset.sw) : ui.softSel.delete(c.dataset.sw); renderSoftware(); }));
     if ($('#swclear')) $('#swclear').onclick = () => { ui.softSel.clear(); renderSoftware(); };
-    if ($('#swuninstall')) $('#swuninstall').onclick = async () => {
+    if ($('#swuninstall')) $('#swuninstall').onclick = () => {
       const sel = [...ui.softSel];
-      if (!sel.length || !confirm(t('sw.confirm').replace('{n}', sel.length))) return;
-      try {
-        for (const n of sel) await api('/api/commands', { method: 'POST', body: { device_ids: [id], type: 'uninstall_software', params: { name: n } } });
-        toast(t('sw.t.queued').replace('{n}', sel.length)); ui.softSel.clear(); refreshCurrent();
-      } catch (e) { toast(e.message, true); }
+      if (!sel.length) return;
+      modal({
+        title: t('sw.uninstallsel'), submit: t('sw.uninstallsel'), danger: true,
+        body: `<p class="note">${t('sw.confirm').replace('{n}', sel.length)}</p>
+          <ul class="checklist">${sel.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>`,
+        onSubmit: async () => {
+          for (const n of sel) await api('/api/commands', { method: 'POST', body: { device_ids: [id], type: 'uninstall_software', params: { name: n } } });
+          toast(t('sw.t.queued').replace('{n}', sel.length)); ui.softSel.clear(); refreshCurrent();
+        },
+      });
     };
   }
 
