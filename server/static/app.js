@@ -41,6 +41,72 @@ const isAdmin = () => ['superadmin', 'municipality_admin'].includes(state.me && 
 const roleLabel = (r) => ROLE_LABEL[r] || r;
 const placeText = (d) => (d.place && d.place.lab ? `${d.place.school ? d.place.school + ' · ' : ''}${d.place.lab}` : '');
 
+// ------------------------------------------------------------------ i18n (English + Hebrew/RTL)
+const I18N = {
+  en: {
+    'app.title': 'KEM Endpoint Manager',
+    'nav.devices': 'Devices', 'nav.activity': 'Activity', 'nav.incidents': 'Incidents', 'nav.org': 'Organization',
+    'nav.gateways': 'Gateways', 'nav.users': 'Users', 'nav.licensing': 'Licensing', 'nav.reports': 'Reports',
+    'nav.enroll': 'Add devices', 'nav.audit': 'Audit log', 'nav.settings': 'Settings',
+    'login.username': 'Username', 'login.password': 'Password', 'login.signin': 'Sign in', 'sidebar.signout': 'Sign out',
+    'devices.title': 'Devices', 'devices.sub.server': 'Stations managed by this server', 'devices.sub.lab': 'Your lab',
+    'devices.add': '＋ Add devices', 'devices.search': 'Search hostname, user, IP, OS, model…', 'devices.allgroups': 'All groups',
+    'tile.all': 'Total devices', 'tile.online': 'Online', 'tile.offline': 'Offline', 'tile.isolated': 'Internet blocked',
+    'tile.updates': 'Missing security updates', 'tile.alerts': 'Need attention',
+    'col.device': 'Device', 'col.user': 'User', 'col.os': 'OS', 'col.ip': 'IP', 'col.cpu': 'CPU', 'col.ram': 'RAM',
+    'col.disk': 'Disk', 'col.lastseen': 'Last seen', 'col.status': 'Status',
+    'bulk.selected': 'selected', 'bulk.clear': 'Clear selection',
+    'act.block_internet': '⛔ Block internet', 'act.unblock_internet': '🌐 Restore internet', 'act.install_software': '⬇ Install software',
+    'act.distribute_file': '📄 Distribute file', 'act.install_updates': '⟳ Windows updates', 'act.set_web_filter': '🚫 Web filter',
+    'act.usb_storage': '🔌 USB', 'act.send_message': '💬 Message', 'act.lock_session': '🔒 Lock', 'act.run_script': '›_ Run script',
+    'act.defender_scan': '🛡 Scan', 'act.reboot': '↻ Reboot',
+    'pill.blocked': '⛔ Blocked', 'pill.working': 'Working…', 'pill.filter': '🚫 Filter', 'pill.healthy': 'Healthy',
+    'devices.none': 'No devices yet.', 'devices.nomatch': 'No devices match this filter.', 'common.loading': 'Loading…',
+  },
+  he: {
+    'app.title': 'KEM · ניהול עמדות',
+    'nav.devices': 'עמדות', 'nav.activity': 'פעילות', 'nav.incidents': 'תקריות', 'nav.org': 'ארגון',
+    'nav.gateways': 'שערים', 'nav.users': 'משתמשים', 'nav.licensing': 'רישוי', 'nav.reports': 'דוחות',
+    'nav.enroll': 'הוספת עמדות', 'nav.audit': 'יומן ביקורת', 'nav.settings': 'הגדרות',
+    'login.username': 'שם משתמש', 'login.password': 'סיסמה', 'login.signin': 'כניסה', 'sidebar.signout': 'התנתקות',
+    'devices.title': 'עמדות', 'devices.sub.server': 'עמדות המנוהלות על ידי שרת זה', 'devices.sub.lab': 'המעבדה שלך',
+    'devices.add': '＋ הוספת עמדות', 'devices.search': 'חיפוש לפי שם, משתמש, IP, מערכת הפעלה, דגם…', 'devices.allgroups': 'כל הקבוצות',
+    'tile.all': 'סך העמדות', 'tile.online': 'מחוברות', 'tile.offline': 'מנותקות', 'tile.isolated': 'אינטרנט חסום',
+    'tile.updates': 'עדכוני אבטחה חסרים', 'tile.alerts': 'דורשות טיפול',
+    'col.device': 'עמדה', 'col.user': 'משתמש', 'col.os': 'מערכת הפעלה', 'col.ip': 'כתובת IP', 'col.cpu': 'מעבד', 'col.ram': 'זיכרון',
+    'col.disk': 'דיסק', 'col.lastseen': 'נראתה לאחרונה', 'col.status': 'מצב',
+    'bulk.selected': 'נבחרו', 'bulk.clear': 'ניקוי הבחירה',
+    'act.block_internet': '⛔ חסום אינטרנט', 'act.unblock_internet': '🌐 שחזר אינטרנט', 'act.install_software': '⬇ התקן תוכנה',
+    'act.distribute_file': '📄 הפץ קובץ', 'act.install_updates': '⟳ עדכוני Windows', 'act.set_web_filter': '🚫 סינון אתרים',
+    'act.usb_storage': '🔌 USB', 'act.send_message': '💬 הודעה', 'act.lock_session': '🔒 נעילה', 'act.run_script': '›_ הרצת סקריפט',
+    'act.defender_scan': '🛡 סריקה', 'act.reboot': '↻ הפעלה מחדש',
+    'pill.blocked': '⛔ חסום', 'pill.working': 'פועל…', 'pill.filter': '🚫 סינון', 'pill.healthy': 'תקין',
+    'devices.none': 'אין עדיין עמדות.', 'devices.nomatch': 'אין עמדות התואמות לסינון זה.', 'common.loading': 'טוען…',
+  },
+};
+let LANG = (() => { try { return localStorage.getItem('kem.lang') === 'he' ? 'he' : 'en'; } catch { return 'en'; } })();
+const t = (key) => (I18N[LANG] && I18N[LANG][key]) || I18N.en[key] || key;
+
+function applyStaticI18n() {
+  $$('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
+  $$('[data-i18n-ph]').forEach((el) => { el.setAttribute('placeholder', t(el.dataset.i18nPh)); });
+  document.title = t('app.title');
+  $$('.langsw [data-lang]').forEach((b) => b.classList.toggle('on', b.dataset.lang === LANG));
+}
+
+function applyDir() {
+  document.documentElement.lang = LANG;
+  document.documentElement.dir = LANG === 'he' ? 'rtl' : 'ltr';
+}
+
+function setLang(lang) {
+  LANG = lang === 'he' ? 'he' : 'en';
+  try { localStorage.setItem('kem.lang', LANG); } catch { /* private mode */ }
+  applyDir();
+  applyStaticI18n();
+  if (state.me) route();  // re-render the current view in the new language
+}
+
 // ------------------------------------------------------------------ utils
 async function api(path, opts = {}) {
   const o = { method: opts.method || 'GET', headers: { 'X-KEM': '1' }, credentials: 'same-origin' };
@@ -393,36 +459,27 @@ function every(fn, ms) { refreshCurrent = fn; state.timer = setInterval(() => { 
 
 // ------------------------------------------------------------------ devices list
 async function viewDevices() {
+  const bulkActs = ['block_internet', 'unblock_internet', 'install_software', 'distribute_file', 'install_updates',
+    'set_web_filter', 'usb_storage', 'send_message', 'lock_session', 'run_script', 'defender_scan', 'reboot'];
   view.innerHTML = `
-    <div class="page-head"><div><h1>Devices</h1><p class="sub">${state.me.role === 'teacher' ? 'Your lab' : 'Stations managed by this server'}${state.me.scope_label && state.me.role !== 'superadmin' ? ' · ' + esc(state.me.scope_label) : ''}</p></div>
-      ${cap('manage_tokens') ? '<a class="btn primary" href="#/enroll">＋ Add devices</a>' : ''}</div>
+    <div class="page-head"><div><h1>${t('devices.title')}</h1><p class="sub">${state.me.role === 'teacher' ? t('devices.sub.lab') : t('devices.sub.server')}${state.me.scope_label && state.me.role !== 'superadmin' ? ' · ' + esc(state.me.scope_label) : ''}</p></div>
+      ${cap('manage_tokens') ? `<a class="btn primary" href="#/enroll">${t('devices.add')}</a>` : ''}</div>
     <div id="classbar"></div>
     <div id="exambar"></div>
     <section class="tiles" id="tiles"></section>
     <div class="toolbar">
-      <input id="q" type="search" placeholder="Search hostname, user, IP, OS, model…" value="${esc(state.filter.q)}">
+      <input id="q" type="search" placeholder="${esc(t('devices.search'))}" value="${esc(state.filter.q)}">
       <select id="fgroup"></select>
     </div>
     <div class="bulkbar hidden" id="bulk">
       <b id="bulkcount"></b>
-      <button class="btn small" data-act="block_internet">⛔ Block internet</button>
-      <button class="btn small" data-act="unblock_internet">🌐 Restore internet</button>
-      <button class="btn small" data-act="install_software">⬇ Install software</button>
-      <button class="btn small" data-act="distribute_file">📄 Distribute file</button>
-      <button class="btn small" data-act="install_updates">⟳ Windows updates</button>
-      <button class="btn small" data-act="set_web_filter">🚫 Web filter</button>
-      <button class="btn small" data-act="usb_storage">🔌 USB</button>
-      <button class="btn small" data-act="send_message">💬 Message</button>
-      <button class="btn small" data-act="lock_session">🔒 Lock</button>
-      <button class="btn small" data-act="run_script">›_ Run script</button>
-      <button class="btn small" data-act="defender_scan">🛡 Scan</button>
-      <button class="btn small" data-act="reboot">↻ Reboot</button>
-      <button class="link small" id="bulkclear" style="margin-left:auto">Clear selection</button>
+      ${bulkActs.map((a) => `<button class="btn small" data-act="${a}">${t('act.' + a)}</button>`).join('')}
+      <button class="link small" id="bulkclear" style="margin-inline-start:auto">${t('bulk.clear')}</button>
     </div>
     <div class="card table-wrap"><table class="grid">
-      <thead><tr><th style="width:32px"><input type="checkbox" id="selall" aria-label="Select all"></th><th>Device</th><th>User</th><th>OS</th><th>IP</th>
-      <th>CPU</th><th>RAM</th><th>Disk</th><th class="nowrap">Last seen</th><th>Status</th></tr></thead>
-      <tbody id="rows"><tr><td colspan="10" class="empty">Loading…</td></tr></tbody></table></div>`;
+      <thead><tr><th style="width:32px"><input type="checkbox" id="selall" aria-label="Select all"></th><th>${t('col.device')}</th><th>${t('col.user')}</th><th>${t('col.os')}</th><th>${t('col.ip')}</th>
+      <th>${t('col.cpu')}</th><th>${t('col.ram')}</th><th>${t('col.disk')}</th><th class="nowrap">${t('col.lastseen')}</th><th>${t('col.status')}</th></tr></thead>
+      <tbody id="rows"><tr><td colspan="10" class="empty">${t('common.loading')}</td></tr></tbody></table></div>`;
 
   $('#q').oninput = (e) => { state.filter.q = e.target.value; renderDevices(); };
   $('#fgroup').onchange = (e) => { state.filter.group = e.target.value; renderDevices(); };
@@ -470,26 +527,26 @@ function renderDevices() {
     isolated: all.filter((d) => d.isolated).length, alerts: all.filter((d) => d.alerts.some((a) => a.level !== 'info')).length,
     updates: all.filter((d) => d.updates && d.updates.security).length,
   };
-  const tiles = [['all', 'Total devices', ''], ['online', 'Online', '<span class="dot on"></span>'], ['offline', 'Offline', '<span class="dot"></span>'],
-    ['isolated', 'Internet blocked', '⛔'], ['updates', 'Missing security updates', '⟳'], ['alerts', 'Need attention', '⚠']];
+  const tiles = [['all', t('tile.all'), ''], ['online', t('tile.online'), '<span class="dot on"></span>'], ['offline', t('tile.offline'), '<span class="dot"></span>'],
+    ['isolated', t('tile.isolated'), '⛔'], ['updates', t('tile.updates'), '⟳'], ['alerts', t('tile.alerts'), '⚠']];
   $('#tiles').innerHTML = tiles.map(([k, l, ic]) => `<button class="tile ${state.filter.status === k ? 'on' : ''}" data-k="${k}"><div class="l">${ic}${l}</div><div class="n">${counts[k]}</div></button>`).join('');
   $$('#tiles .tile').forEach((t) => (t.onclick = () => { state.filter.status = state.filter.status === t.dataset.k ? 'all' : t.dataset.k; renderDevices(); }));
 
   const groups = [...new Set(all.map((d) => d.group).filter(Boolean))].sort();
   const gsel = $('#fgroup');
-  gsel.innerHTML = `<option value="">All groups</option>` + groups.map((g) => `<option ${g === state.filter.group ? 'selected' : ''}>${esc(g)}</option>`).join('');
+  gsel.innerHTML = `<option value="">${t('devices.allgroups')}</option>` + groups.map((g) => `<option ${g === state.filter.group ? 'selected' : ''}>${esc(g)}</option>`).join('');
   gsel.classList.toggle('hidden', !groups.length);
 
   const list = filtered();
   $('#selall').checked = list.length > 0 && list.every((d) => state.selected.has(d.id));
   $('#bulk').classList.toggle('hidden', !state.selected.size);
-  $('#bulkcount').textContent = `${state.selected.size} selected`;
+  $('#bulkcount').textContent = `${state.selected.size} ${t('bulk.selected')}`;
 
   if (!all.length) {
-    $('#rows').innerHTML = `<tr><td colspan="10" class="empty">No devices yet. <a href="#/enroll">Create a registration token</a> and install the agent on a laptop or desktop.</td></tr>`;
+    $('#rows').innerHTML = `<tr><td colspan="10" class="empty">${t('devices.none')} <a href="#/enroll">${t('nav.enroll')}</a></td></tr>`;
     return;
   }
-  if (!list.length) { $('#rows').innerHTML = `<tr><td colspan="10" class="empty">No devices match this filter.</td></tr>`; return; }
+  if (!list.length) { $('#rows').innerHTML = `<tr><td colspan="10" class="empty">${t('devices.nomatch')}</td></tr>`; return; }
   $('#rows').innerHTML = list.map((d) => `
     <tr class="click" data-id="${esc(d.id)}">
       <td class="sel"><input type="checkbox" ${state.selected.has(d.id) ? 'checked' : ''} aria-label="Select ${esc(d.hostname)}"></td>
@@ -500,11 +557,11 @@ function renderDevices() {
       <td class="mono small">${dash((d.ips || [])[0])}</td>
       <td class="nowrap">${meter(d.online ? d.cpu : null)}</td><td class="nowrap">${meter(d.online ? d.mem : null)}</td><td class="nowrap">${meter(d.disk)}</td>
       <td class="nowrap small muted">${ago(d.last_seen)}</td>
-      <td><div class="flags">${d.isolated ? '<span class="pill crit">⛔ Blocked</span>' : ''}${d.busy ? '<span class="pill blue">Working…</span>' : ''}
-        ${d.web_filter ? `<span class="pill" title="Web filter: ${d.web_filter} domains blocked">🚫 Filter</span>` : ''}
+      <td><div class="flags">${d.isolated ? `<span class="pill crit">${t('pill.blocked')}</span>` : ''}${d.busy ? `<span class="pill blue">${t('pill.working')}</span>` : ''}
+        ${d.web_filter ? `<span class="pill" title="Web filter: ${d.web_filter} domains blocked">${t('pill.filter')}</span>` : ''}
         ${d.usb && d.usb !== 'allow' ? `<span class="pill" title="USB storage ${esc(USB_LABEL[d.usb])}">🔌 USB ${d.usb === 'block' ? 'off' : 'RO'}</span>` : ''}
         ${d.alerts.filter((a) => a.level !== 'info').slice(0, 2).map((a) => `<span class="pill ${a.level}" title="${esc(a.text)}">${esc(a.text)}</span>`).join('')}
-        ${!d.isolated && !d.alerts.some((a) => a.level !== 'info') ? '<span class="pill ok">Healthy</span>' : ''}</div></td>
+        ${!d.isolated && !d.alerts.some((a) => a.level !== 'info') ? `<span class="pill ok">${t('pill.healthy')}</span>` : ''}</div></td>
     </tr>`).join('');
 }
 
@@ -1575,6 +1632,7 @@ async function boot() {
   const m = state.me;
   $('#me').innerHTML = `${esc(m.display_name || m.user)}<br><small class="muted">${esc(roleLabel(m.role))}${m.scope_label ? ' · ' + esc(m.scope_label) : ''}</small>`;
   $$('.side nav a[data-cap]').forEach((a) => a.classList.toggle('hidden', !cap(a.dataset.cap)));
+  applyStaticI18n();
   if (location.hash.startsWith('#/class') && m.role !== 'teacher') location.hash = '#/devices';
   route();
   if (cap('view_incidents')) { refreshIncidentBadge(); setInterval(() => { if (!document.hidden) refreshIncidentBadge(); }, 30000); }
@@ -1593,4 +1651,7 @@ async function refreshIncidentBadge() {
 
 window.addEventListener('hashchange', route);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('#modal-root').innerHTML = ''; });
+document.addEventListener('click', (e) => { const b = e.target.closest('.langsw [data-lang]'); if (b) setLang(b.dataset.lang); });
+applyDir();
+applyStaticI18n();
 boot();

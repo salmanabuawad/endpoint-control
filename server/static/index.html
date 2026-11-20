@@ -11,10 +11,11 @@
   <div id="login" class="login hidden">
     <form id="login-form" class="login-card">
       <div class="brand big"><span class="logo"></span><div><b>KEM</b><small>Endpoint Manager</small></div></div>
-      <label>Username<input name="username" autocomplete="username" required value="admin"></label>
-      <label>Password<input name="password" type="password" autocomplete="current-password" required autofocus></label>
+      <label><span data-i18n="login.username">Username</span><input name="username" autocomplete="username" required value="admin"></label>
+      <label><span data-i18n="login.password">Password</span><input name="password" type="password" autocomplete="current-password" required autofocus></label>
       <p class="err" id="login-err"></p>
-      <button class="btn primary wide" type="submit">Sign in</button>
+      <button class="btn primary wide" type="submit" data-i18n="login.signin">Sign in</button>
+      <div class="langsw login-lang"><button type="button" data-lang="en">EN</button><button type="button" data-lang="he">עברית</button></div>
     </form>
   </div>
 
@@ -22,19 +23,21 @@
     <aside class="side">
       <div class="brand"><span class="logo"></span><div><b>KEM</b><small>Endpoint Manager</small></div></div>
       <nav>
-        <a href="#/devices" data-nav="devices"><i>▣</i>Devices</a>
-        <a href="#/activity" data-nav="activity"><i>≡</i>Activity</a>
-        <a href="#/incidents" data-nav="incidents" data-cap="view_incidents"><i>⚠</i>Incidents<span class="navbadge hidden" id="inc-badge"></span></a>
-        <a href="#/org" data-nav="org" data-cap="manage_org"><i>▤</i>Organization</a>
-        <a href="#/gateways" data-nav="gateways" data-cap="manage_gateways"><i>⇄</i>Gateways</a>
-        <a href="#/users" data-nav="users" data-cap="manage_users"><i>☻</i>Users</a>
-        <a href="#/licensing" data-nav="licensing" data-cap="view_licensing"><i>©</i>Licensing</a>
-        <a href="#/reports" data-nav="reports" data-cap="view_reports"><i>▦</i>Reports</a>
-        <a href="#/enroll" data-nav="enroll" data-cap="manage_tokens"><i>＋</i>Add devices</a>
-        <a href="#/audit" data-nav="audit" data-cap="view_audit"><i>◷</i>Audit log</a>
-        <a href="#/settings" data-nav="settings"><i>⚙</i>Settings</a>
+        <a href="#/devices" data-nav="devices"><i>▣</i><span data-i18n="nav.devices">Devices</span></a>
+        <a href="#/activity" data-nav="activity"><i>≡</i><span data-i18n="nav.activity">Activity</span></a>
+        <a href="#/incidents" data-nav="incidents" data-cap="view_incidents"><i>⚠</i><span data-i18n="nav.incidents">Incidents</span><span class="navbadge hidden" id="inc-badge"></span></a>
+        <a href="#/org" data-nav="org" data-cap="manage_org"><i>▤</i><span data-i18n="nav.org">Organization</span></a>
+        <a href="#/gateways" data-nav="gateways" data-cap="manage_gateways"><i>⇄</i><span data-i18n="nav.gateways">Gateways</span></a>
+        <a href="#/users" data-nav="users" data-cap="manage_users"><i>☻</i><span data-i18n="nav.users">Users</span></a>
+        <a href="#/licensing" data-nav="licensing" data-cap="view_licensing"><i>©</i><span data-i18n="nav.licensing">Licensing</span></a>
+        <a href="#/reports" data-nav="reports" data-cap="view_reports"><i>▦</i><span data-i18n="nav.reports">Reports</span></a>
+        <a href="#/enroll" data-nav="enroll" data-cap="manage_tokens"><i>＋</i><span data-i18n="nav.enroll">Add devices</span></a>
+        <a href="#/audit" data-nav="audit" data-cap="view_audit"><i>◷</i><span data-i18n="nav.audit">Audit log</span></a>
+        <a href="#/settings" data-nav="settings"><i>⚙</i><span data-i18n="nav.settings">Settings</span></a>
       </nav>
-      <div class="side-foot"><span id="me"></span><button class="link" id="logout">Sign out</button></div>
+      <div class="side-foot"><span id="me"></span>
+        <div class="langsw"><button type="button" data-lang="en">EN</button><button type="button" data-lang="he">עברית</button></div>
+        <button class="link" id="logout" data-i18n="sidebar.signout">Sign out</button></div>
     </aside>
     <main id="view"></main>
   </div>

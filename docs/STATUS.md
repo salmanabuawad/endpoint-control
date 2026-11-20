@@ -37,6 +37,11 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
   content-type/BOM/rows, HTML table, licensing + incident contents, format/kind validation, and
   RBAC/scope — a teacher sees only their lab and cannot pull the licensing report) plus a live
   dashboard (report cards + the rendered printable report).
+* 🟡 **Dashboard multi-language + RTL**: an i18n framework (`t()` + English/Hebrew string tables, a
+  language switcher that persists per browser) with a full **right-to-left** layout flip for Hebrew.
+  The app shell (navigation, login, sidebar) and the Devices page are translated; other views fall
+  back to English and can be translated incrementally. Verified live (login, nav and the Devices
+  list render correctly in Hebrew RTL). The server/agent were already UTF-8/Hebrew-safe.
 * ✅ **Scheduled reports**: admins schedule any report to run daily/weekly/monthly at a chosen time;
   the monitor thread generates each due report at the creator's scope, saves a downloadable snapshot
   in history, and delivers it through the existing channels (webhook summary and/or e-mail with the
@@ -114,7 +119,7 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
 | 28 | Automatic & manual recovery | 🟡🧪 | `reset_device` = restore baseline / MDM factory wipe; policy-driven auto-recovery not built |
 | 29 | Local AI diagnostics | ✅ | per-device diagnosis via an admin-configured OpenAI-compatible endpoint (Ollama/llama.cpp/LM Studio); PII-stripped prompt, advice-only output, scoped to admins/school managers; model quality depends on the endpoint the admin points at |
 | 30 | Reports & auditing | ✅ | audit log + notification log, exportable reports (devices / licensing / incidents) as CSV and print-to-PDF HTML, **and scheduled reports** (daily/weekly/monthly) with stored history + webhook/e-mail delivery, all scoped per role |
-| 31 | Multi-language | 🟡 | agent & server are UTF-8/Hebrew-safe (ASCII JSON for PS 5.1); dashboard i18n (RTL) not built |
+| 31 | Multi-language | 🟡 | agent & server UTF-8/Hebrew-safe (ASCII JSON for PS 5.1) **and** a dashboard i18n framework with English + Hebrew and full RTL layout, persisted per browser; the app shell (nav, login, sidebar) and the Devices page are translated, remaining views fall back to English (translatable incrementally) |
 | 32 | Secure offline operation | 🟡 | agent re-asserts policy offline; gateway task-caching while central is down not built (relay forwards live) |
 
 ## Phases (spec §21)
