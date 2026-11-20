@@ -159,6 +159,9 @@ const I18N = {
     'exam.mode': 'Exam mode', 'exam.mode.desc': "lock a lab's stations for a test", 'exam.needclass': '(needs an active class)', 'exam.name.ph': 'Exam name',
     'exam.internet': 'internet', 'exam.usb': 'USB', 'exam.start': 'Start exam', 'exam.nolabs': 'No labs with stations to run an exam on yet.',
     'exam.t.ended': 'Exam ended', 'exam.t.started': 'Exam started',
+    'sw.name': 'Name', 'sw.version': 'Version', 'sw.publisher': 'Publisher', 'sw.installed': 'Installed', 'sw.peruser': 'per-user',
+    'sw.programs': 'programs', 'sw.collected': 'collected', 'sw.notcollected': 'Not collected yet', 'sw.none': 'Nothing to show',
+    'sw.uninstallsel': 'Uninstall selected', 'sw.confirm': 'Uninstall {n} program(s)? This runs their uninstaller on the device.', 'sw.t.queued': 'Uninstall queued for {n} program(s)',
   },
   he: {
     'app.title': 'KEM · ניהול עמדות',
@@ -277,6 +280,9 @@ const I18N = {
     'exam.mode': 'מצב מבחן', 'exam.mode.desc': 'נעלו את עמדות המעבדה למבחן', 'exam.needclass': '(דורש שיעור פעיל)', 'exam.name.ph': 'שם המבחן',
     'exam.internet': 'אינטרנט', 'exam.usb': 'USB', 'exam.start': 'התחל מבחן', 'exam.nolabs': 'אין עדיין מעבדות עם עמדות להרצת מבחן.',
     'exam.t.ended': 'המבחן הסתיים', 'exam.t.started': 'המבחן התחיל',
+    'sw.name': 'שם', 'sw.version': 'גרסה', 'sw.publisher': 'יצרן', 'sw.installed': 'הותקן', 'sw.peruser': 'למשתמש',
+    'sw.programs': 'תוכנות', 'sw.collected': 'נאסף', 'sw.notcollected': 'עדיין לא נאסף', 'sw.none': 'אין מה להציג',
+    'sw.uninstallsel': 'הסר נבחרות', 'sw.confirm': 'להסיר {n} תוכנות? פעולה זו מריצה את מסיר ההתקנה במחשב.', 'sw.t.queued': 'הסרה נשלחה עבור {n} תוכנות',
   },
 };
 
@@ -881,7 +887,7 @@ async function renderExamBar() {
 // ------------------------------------------------------------------ device page
 async function viewDevice(id) {
   const TABS = [['commands', 'Activity'], ['updates', 'Windows updates'], ['software', 'Installed software'], ['processes', 'Processes'], ['services', 'Services']];
-  const ui = { tab: 'commands', softQ: '', softAt: null, updSig: null, open: new Set(), loaded: {}, busy: {}, sel: new Set(),
+  const ui = { tab: 'commands', softQ: '', softAt: null, updSig: null, open: new Set(), loaded: {}, busy: {}, sel: new Set(), softSel: new Set(),
     procQ: '', procSort: 'mem', procs: null, procAt: null, svcQ: '', svcFilter: 'all', svcs: null, svcAt: null };
   view.innerHTML = `<p><a href="#/devices">← All devices</a></p><div id="dhead"></div><div id="dbanner"></div><div class="cards" id="dcards"></div><div id="aicard"></div>
     <div class="card" style="margin-bottom:16px"><div class="tabs">${TABS.map(([k, l], i) => `<button data-t="${k}" class="${i ? '' : 'on'}">${l}<span class="tcount" id="tc-${k}"></span></button>`).join('')}</div>
@@ -1049,11 +1055,30 @@ async function viewDevice(id) {
   }
 
   function renderSoftware() {
+    const canUn = (state.me.capabilities.commands || []).includes('uninstall_software');
     const sw = (dev.software || []).filter((s) => !ui.softQ || `${s.name} ${s.publisher}`.toLowerCase().includes(ui.softQ));
-    $('#softmeta').textContent = dev.software_at ? `${dev.software.length} programs · collected ${ago(dev.software_at)}` : 'Not collected yet';
-    $('#softlist').innerHTML = `<table class="grid"><thead><tr><th>Name</th><th>Version</th><th>Publisher</th><th>Installed</th></tr></thead><tbody>${
-      sw.map((s) => `<tr><td>${esc(s.name)}${s.scope === 'user' ? ' <span class="pill">per-user</span>' : ''}</td><td class="mono small">${dash(s.version)}</td><td class="small">${dash(s.publisher)}</td><td class="small muted">${dash(s.installed)}</td></tr>`).join('')
-      || '<tr><td colspan="4" class="empty">Nothing to show</td></tr>'}</tbody></table>`;
+    const names = new Set((dev.software || []).map((s) => s.name));
+    [...ui.softSel].forEach((n) => { if (!names.has(n)) ui.softSel.delete(n); });
+    $('#softmeta').textContent = dev.software_at ? `${dev.software.length} ${t('sw.programs')} · ${t('sw.collected')} ${ago(dev.software_at)}` : t('sw.notcollected');
+    const cols = canUn ? 5 : 4;
+    const head = `<tr>${canUn ? '<th style="width:30px"><input type="checkbox" id="swall" aria-label="select all"></th>' : ''}<th>${t('sw.name')}</th><th>${t('sw.version')}</th><th>${t('sw.publisher')}</th><th>${t('sw.installed')}</th></tr>`;
+    const rows = sw.map((s) => `<tr>${canUn ? `<td class="sel"><input type="checkbox" data-sw="${esc(s.name)}" ${ui.softSel.has(s.name) ? 'checked' : ''}></td>` : ''}<td>${esc(s.name)}${s.scope === 'user' ? ` <span class="pill">${t('sw.peruser')}</span>` : ''}</td><td class="mono small">${dash(s.version)}</td><td class="small">${dash(s.publisher)}</td><td class="small muted">${dash(s.installed)}</td></tr>`).join('')
+      || `<tr><td colspan="${cols}" class="empty">${t('sw.none')}</td></tr>`;
+    const bulk = (canUn && ui.softSel.size) ? `<div class="bulkbar" style="margin-bottom:10px"><b>${ui.softSel.size}</b><button class="btn small danger" id="swuninstall">🗑 ${t('sw.uninstallsel')}</button><button class="link small" id="swclear" style="margin-inline-start:auto">${t('bulk.clear')}</button></div>` : '';
+    $('#softlist').innerHTML = bulk + `<table class="grid"><thead>${head}</thead><tbody>${rows}</tbody></table>`;
+    if (!canUn) return;
+    const all = $('#swall');
+    if (all) { all.checked = sw.length > 0 && sw.every((s) => ui.softSel.has(s.name)); all.onchange = () => { sw.forEach((s) => (all.checked ? ui.softSel.add(s.name) : ui.softSel.delete(s.name))); renderSoftware(); }; }
+    $$('#softlist [data-sw]').forEach((c) => (c.onchange = () => { c.checked ? ui.softSel.add(c.dataset.sw) : ui.softSel.delete(c.dataset.sw); renderSoftware(); }));
+    if ($('#swclear')) $('#swclear').onclick = () => { ui.softSel.clear(); renderSoftware(); };
+    if ($('#swuninstall')) $('#swuninstall').onclick = async () => {
+      const sel = [...ui.softSel];
+      if (!sel.length || !confirm(t('sw.confirm').replace('{n}', sel.length))) return;
+      try {
+        for (const n of sel) await api('/api/commands', { method: 'POST', body: { device_ids: [id], type: 'uninstall_software', params: { name: n } } });
+        toast(t('sw.t.queued').replace('{n}', sel.length)); ui.softSel.clear(); refreshCurrent();
+      } catch (e) { toast(e.message, true); }
+    };
   }
 
   function renderUpdates(pending) {

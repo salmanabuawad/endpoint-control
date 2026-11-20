@@ -145,7 +145,7 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
 | 19 | Restart / shutdown | ✅ | `reboot` with user warning |
 | 20 | Examination mode | ✅ | per-lab exam = internet isolation + USB block (+ optional web filter) applied to every station and reverted on end; scope/role-enforced, audited; app allowlisting (#14) not yet part of the bundle |
 | 21 | Computer health monitoring | ✅ | CPU/RAM/disk, Defender, firewall, BitLocker, updates, alerts |
-| 22 | Software inventory | ✅ | collected per device |
+| 22 | Software inventory | ✅ | collected per device; the device page lists every installed app (searchable) and lets an admin/school-manager tick apps and uninstall the selected ones (agent uninstalls via each app's registry uninstall string, winget-by-name fallback — device-side exec pending hardware) |
 | 23 | Software license compliance | ✅ | entitlement registry + findings engine (compliant / verification required / potential gap / confirmed issue / not applicable), scoped; seat & expiry checks; heuristic commercial-software detection |
 | 24 | Alerts & incidents | ✅ | webhook/email alerts + delivery log **and** an incident workflow: alerts auto-open/auto-resolve incidents, with acknowledge/resolve/reopen, assignee, notes, scoped views and a dashboard |
 | 25 | Central image repository | 🟡 | catalog/control plane done: register images by location + SHA-256, scoped, with per-lab target assignment (21 checks + dashboard); image file storage not in KEM (by design — images live on a share/URL) |
@@ -189,7 +189,8 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
 * **Not yet exercised on real Windows hardware** (need an elevated agent / lab): applying web
   filter, USB policy, service start/stop, message/lock on a live station, Windows-update install,
   baseline restore, factory reset, **file distribution (`distribute_file`)**, **application
-  allowlisting (`set_app_policy` / AppLocker)**, **app launching (`launch_app`)**, and the gateway
+  allowlisting (`set_app_policy` / AppLocker)**, **app launching (`launch_app`)**, **uninstall by
+  name (`uninstall_software` via the registry uninstall string)**, and the gateway
   installed as a Windows boot task. The gateway
   **relay logic itself** is verified (student enrolls through it, attribution lands on central).
 * **Gateway offline caching** is implemented (store-and-forward): during a central outage the relay

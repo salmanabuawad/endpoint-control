@@ -1002,7 +1002,12 @@ def validate_params(ctype: str, p: Any) -> dict:
             return {"method": "url", "url": url, "args": args, "sha256": sha}
         raise HTTPException(400, "method must be 'winget' or 'url'")
     if ctype == "uninstall_software":
-        return {"package_id": _winget_id(p)}
+        if p.get("package_id") not in (None, ""):
+            return {"package_id": _winget_id(p)}
+        name = clean(p.get("name"), 200)
+        if not name:
+            raise HTTPException(400, "Give a winget package id or a program name to uninstall")
+        return {"name": name}
     if ctype == "run_script":
         script = str(p.get("script") or "")
         if not script.strip() or len(script) > 50_000:

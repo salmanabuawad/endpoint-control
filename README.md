@@ -47,7 +47,8 @@ The single-tenant feature set every role builds on:
 | See every machine | RMM inventory & monitoring | Online status, CPU/RAM/disk (24h chart), OS/build, model, serial, user, IPs, MACs, battery, installed software |
 | Security posture | EDR / anti-malware view, patch status | Defender on/real-time/signature age, firewall profiles, BitLocker, last hotfix, pending reboot, alert badges, on-demand Defender scan |
 | **Block a station's internet** | Network isolation / URL filtering | Firewall block rules for everything except the management server (+ DNS/DHCP/NTP, optional LAN). Agent re-applies them if tampered with |
-| **Install software** | Software deployment | winget catalog (Chrome, Office, Zoom, …) or any MSI/EXE URL with silent args + SHA-256 check; uninstall via winget |
+| **Install software** | Software deployment | winget catalog (Chrome, Office, Zoom, …) or any MSI/EXE URL with silent args + SHA-256 check |
+| **Installed-app inventory & uninstall** | Software management | Every endpoint's installed programs are listed and searchable on its page; tick apps and uninstall the selected ones (by winget id, or by name via each program's own uninstall string) |
 | **Patch management** | Update management | Scan each device for missing Windows updates (daily, automatic), install security / all / selected updates with controlled reboot; driver updates optional |
 | **Website filtering** | URL filtering | Block domains per device (hosts file, all browsers; DNS-over-HTTPS disabled by policy so it can't be bypassed in-browser). One-click presets: social, video, games, gambling, file-sharing, AI chatbots |
 | **Device lockdown** | Device control | Block or make read-only USB mass storage (keeps keyboards/mice/printers); re-applied if tampered with |

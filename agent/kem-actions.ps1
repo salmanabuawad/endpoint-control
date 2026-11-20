@@ -360,8 +360,31 @@ function Install-KemSoftware($P) {
 }
 
 function Uninstall-KemSoftware($P) {
+    if ($P.package_id) {
+        $winget = Get-KemWinget
+        $r = Invoke-KemProcess $winget "uninstall --id `"$($P.package_id)`" --exact --silent --accept-source-agreements --disable-interactivity" 1800
+        return @{ status = $(if ($r.exit_code -eq 0) { 'success' } else { 'failed' }); exit_code = $r.exit_code; output = $r.output }
+    }
+    $name = "$($P.name)"
+    if (-not $name) { return @{ status = 'failed'; output = 'No package id or program name given.' } }
+    # Uninstall a registry-listed program by its DisplayName, using its own uninstall string.
+    $paths = @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')
+    $app = Get-ItemProperty $paths -ErrorAction SilentlyContinue | Where-Object { "$($_.DisplayName)".Trim() -eq $name } | Select-Object -First 1
+    if ($app) {
+        $cmd = if ($app.QuietUninstallString) { "$($app.QuietUninstallString)" } else { "$($app.UninstallString)" }
+        if (-not $cmd) { return @{ status = 'failed'; output = "No uninstall command recorded for '$name'." } }
+        if ($cmd -match 'msiexec') {
+            $cmd = $cmd -replace '(?i)/I', '/X'
+            if ($cmd -notmatch '(?i)/q') { $cmd = "$cmd /qn /norestart" }
+        }
+        $r = Invoke-KemProcess 'cmd.exe' "/c $cmd" 1800
+        $ok = $r.exit_code -in @(0, 3010, 1605, 1614)
+        return @{ status = $(if ($ok) { 'success' } else { 'failed' }); exit_code = $r.exit_code; output = "Uninstalled '$name' via its uninstaller. $($r.output)" }
+    }
+    # Not in the registry list - try winget by name as a fallback.
     $winget = Get-KemWinget
-    $r = Invoke-KemProcess $winget "uninstall --id `"$($P.package_id)`" --exact --silent --accept-source-agreements --disable-interactivity" 1800
+    $r = Invoke-KemProcess $winget "uninstall --name `"$name`" --silent --accept-source-agreements --disable-interactivity" 1800
     return @{ status = $(if ($r.exit_code -eq 0) { 'success' } else { 'failed' }); exit_code = $r.exit_code; output = $r.output }
 }
 
