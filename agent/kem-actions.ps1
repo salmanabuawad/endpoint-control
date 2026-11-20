@@ -1,7 +1,7 @@
 # KEM agent - action library (dot-sourced by kem-agent.ps1, install.ps1 and background jobs).
 # Windows PowerShell 5.1, runs as SYSTEM.
 
-$script:KemVersion  = '1.1.0'
+$script:KemVersion  = '1.2.0'
 $script:KemTaskName = 'KEM Agent'
 $script:KemRuleGroup = 'KEM-Isolation'
 if (-not $script:KemDataDir) { $script:KemDataDir = Join-Path $env:ProgramData 'KEM' }
