@@ -47,7 +47,7 @@ const I18N = {
     'app.title': 'KEM Endpoint Manager',
     'nav.devices': 'Devices', 'nav.activity': 'Activity', 'nav.incidents': 'Incidents', 'nav.org': 'Organization',
     'nav.gateways': 'Gateways', 'nav.users': 'Users', 'nav.licensing': 'Licensing', 'nav.reports': 'Reports',
-    'nav.enroll': 'Add devices', 'nav.audit': 'Audit log', 'nav.settings': 'Settings',
+    'nav.enroll': 'Add devices', 'nav.audit': 'Audit log', 'nav.settings': 'Settings', 'nav.images': 'Images',
     'login.username': 'Username', 'login.password': 'Password', 'login.signin': 'Sign in', 'sidebar.signout': 'Sign out',
     'devices.title': 'Devices', 'devices.sub.server': 'Stations managed by this server', 'devices.sub.lab': 'Your lab',
     'devices.add': '＋ Add devices', 'devices.search': 'Search hostname, user, IP, OS, model…', 'devices.allgroups': 'All groups',
@@ -67,7 +67,7 @@ const I18N = {
     'app.title': 'KEM · ניהול עמדות',
     'nav.devices': 'עמדות', 'nav.activity': 'פעילות', 'nav.incidents': 'תקריות', 'nav.org': 'ארגון',
     'nav.gateways': 'שערים', 'nav.users': 'משתמשים', 'nav.licensing': 'רישוי', 'nav.reports': 'דוחות',
-    'nav.enroll': 'הוספת עמדות', 'nav.audit': 'יומן ביקורת', 'nav.settings': 'הגדרות',
+    'nav.enroll': 'הוספת עמדות', 'nav.audit': 'יומן ביקורת', 'nav.settings': 'הגדרות', 'nav.images': 'תמונות מערכת',
     'login.username': 'שם משתמש', 'login.password': 'סיסמה', 'login.signin': 'כניסה', 'sidebar.signout': 'התנתקות',
     'devices.title': 'עמדות', 'devices.sub.server': 'עמדות המנוהלות על ידי שרת זה', 'devices.sub.lab': 'המעבדה שלך',
     'devices.add': '＋ הוספת עמדות', 'devices.search': 'חיפוש לפי שם, משתמש, IP, מערכת הפעלה, דגם…', 'devices.allgroups': 'כל הקבוצות',
@@ -474,8 +474,8 @@ function route() {
   const [, name = 'devices', arg] = (location.hash || '#/devices').split('/');
   setNav(name === 'device' ? 'devices' : name);
   const views = { devices: viewDevices, device: () => viewDevice(arg), enroll: viewEnroll, activity: viewActivity,
-    audit: viewAudit, settings: viewSettings, org: viewOrg, users: viewUsers, gateways: viewGateways, licensing: viewLicensing, incidents: viewIncidents, reports: viewReports };
-  const needs = { org: 'manage_org', users: 'manage_users', gateways: 'manage_gateways', enroll: 'manage_tokens', audit: 'view_audit', licensing: 'view_licensing', incidents: 'view_incidents', reports: 'view_reports' };
+    audit: viewAudit, settings: viewSettings, org: viewOrg, users: viewUsers, gateways: viewGateways, licensing: viewLicensing, incidents: viewIncidents, reports: viewReports, images: viewImages };
+  const needs = { org: 'manage_org', users: 'manage_users', gateways: 'manage_gateways', enroll: 'manage_tokens', audit: 'view_audit', licensing: 'view_licensing', incidents: 'view_incidents', reports: 'view_reports', images: 'view_images' };
   if (needs[name] && !cap(needs[name])) { location.hash = '#/devices'; return; }
   (views[name] || viewDevices)();
 }
@@ -1648,6 +1648,96 @@ function schedForm(reports, done) {
       done();
     },
   });
+}
+
+// ------------------------------------------------------------------ image repository
+function fmtBytes(n) {
+  n = +n || 0;
+  if (!n) return '—';
+  const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0; while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+  return `${n.toFixed(i >= 2 ? 1 : 0)} ${u[i]}`;
+}
+
+async function viewImages() {
+  const manage = cap('manage_images');
+  view.innerHTML = `<div class="page-head"><div><h1>Image repository</h1><p class="sub">Golden OS images referenced by location + checksum, and the image each lab should run. <b>Distribution &amp; reimaging need boot media and are not built yet.</b></p></div>
+      ${manage ? '<button class="btn primary" id="newimg">＋ Register image</button>' : ''}</div>
+    <div class="card table-wrap"><table class="grid"><thead><tr><th>Image</th><th>OS / version</th><th>Size</th><th>Scope</th><th>Source</th><th>SHA-256</th>${manage ? '<th></th>' : ''}</tr></thead>
+      <tbody id="imgrows"><tr><td colspan="7" class="empty">${t('common.loading')}</td></tr></tbody></table></div>
+    <h2 style="margin:22px 0 10px">Per-lab target image</h2>
+    <div class="card table-wrap"><table class="grid"><thead><tr><th>School</th><th>Lab</th><th>Target image</th></tr></thead>
+      <tbody id="labimgrows"><tr><td colspan="3" class="empty">${t('common.loading')}</td></tr></tbody></table></div>`;
+
+  let images = [];
+  const loadImages = async () => {
+    try { images = await api('/api/images'); } catch (e) { toast(e.message, true); return; }
+    $('#imgrows').innerHTML = images.length ? images.map((i) => `<tr>
+        <td><b>${esc(i.name)}</b>${i.notes ? `<br><small class="muted">${esc(i.notes)}</small>` : ''}</td>
+        <td class="small">${esc(i.os || '—')}${i.version ? ' · ' + esc(i.version) : ''}</td>
+        <td class="small">${fmtBytes(i.size_bytes)}</td>
+        <td class="small">${esc(i.scope_name || '')}</td>
+        <td class="small mono" style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${esc(i.source_url || '—')}</td>
+        <td class="small mono">${i.sha256 ? esc(i.sha256.slice(0, 12)) + '…' : '—'}</td>
+        ${manage ? `<td class="nowrap"><button class="link small danger-link" data-del="${esc(i.id)}">Delete</button></td>` : ''}</tr>`).join('')
+      : `<tr><td colspan="7" class="empty">No images registered${manage ? ' — click “Register image”.' : '.'}</td></tr>`;
+    if (manage) $$('#imgrows [data-del]').forEach((b) => (b.onclick = () => modal({
+      title: 'Delete image', submit: 'Delete', danger: true,
+      body: '<p class="note">Remove this image from the repository? Labs pointing at it will have their target cleared.</p>',
+      onSubmit: async () => { await api(`/api/images/${b.dataset.del}`, { method: 'DELETE' }); toast('Image deleted'); loadImages(); loadLabs(); },
+    })));
+  };
+  const loadLabs = async () => {
+    let labs; try { labs = await api('/api/lab-images'); } catch (e) { toast(e.message, true); return; }
+    $('#labimgrows').innerHTML = labs.length ? labs.map((l) => `<tr>
+        <td class="small">${esc(l.school)}</td><td><b>${esc(l.lab)}</b></td>
+        <td><select data-lab="${esc(l.lab_id)}"><option value="">— none —</option>${images.map((i) => `<option value="${esc(i.id)}" ${l.image_id === i.id ? 'selected' : ''}>${esc(i.name)}</option>`).join('')}</select></td></tr>`).join('')
+      : '<tr><td colspan="3" class="empty">No labs in your scope.</td></tr>';
+    $$('#labimgrows select[data-lab]').forEach((s) => (s.onchange = async () => {
+      try { await api(`/api/labs/${s.dataset.lab}/image`, { method: 'POST', body: { image_id: s.value } }); toast('Target image updated'); }
+      catch (e) { toast(e.message, true); loadLabs(); }
+    }));
+  };
+  if (manage) $('#newimg').onclick = () => imageForm(() => { loadImages(); loadLabs(); });
+  await loadImages();
+  await loadLabs();
+}
+
+async function imageForm(done) {
+  let org; try { org = await api('/api/org'); } catch { org = { municipalities: [] }; }
+  const { munis, schools, labs } = orgFlat(org);
+  const scopes = { global: [['', 'All (global)']], municipality: munis, school: schools, lab: labs };
+  const form = modal({
+    title: 'Register an image', submit: 'Register',
+    body: `<label>Name<input name="name" maxlength="120" required placeholder="e.g. Win11 Edu 23H2 - Lab baseline"></label>
+      <div class="form-2">
+        <label>Operating system<input name="os" maxlength="100" placeholder="Windows 11 Education"></label>
+        <label>Version<input name="version" maxlength="60" placeholder="23H2 / build 22631"></label>
+      </div>
+      <label>Source (URL or share path)<input name="source_url" spellcheck="false" placeholder="https://images.lan/win11-edu.wim or \\\\nas\\images\\win11.wim"></label>
+      <div class="form-2">
+        <label>Size (bytes)<input name="size_bytes" type="number" min="0" placeholder="e.g. 5368709120"></label>
+        <label>SHA-256 (optional)<input name="sha256" class="mono" placeholder="64 hex"></label>
+      </div>
+      <div class="form-2">
+        <label>Scope<select name="scope_type">${['global', 'municipality', 'school', 'lab'].filter((s) => s !== 'global' || state.me.role === 'superadmin').map((s) => `<option value="${s}">${s}</option>`).join('')}</select></label>
+        <label>Scope target<select name="scope_id"></select></label>
+      </div>
+      <label>Notes<textarea name="notes" maxlength="1000" style="min-height:60px;font-family:inherit;font-size:14px"></textarea></label>
+      <p class="note">The image file itself is not uploaded — KEM stores a reference (location + checksum). Gateway distribution and reimaging are not built yet.</p>`,
+    onSubmit: async (f) => {
+      await api('/api/images', { method: 'POST', body: {
+        name: f.name.value, os: f.os.value, version: f.version.value, source_url: f.source_url.value.trim(),
+        size_bytes: +f.size_bytes.value || 0, sha256: f.sha256.value.trim(),
+        scope_type: f.scope_type.value, scope_id: f.scope_id.value, notes: f.notes.value } });
+      toast('Image registered'); done();
+    },
+  });
+  const sync = () => {
+    const opts = scopes[form.scope_type.value] || [['', '—']];
+    form.scope_id.innerHTML = opts.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('');
+  };
+  form.scope_type.onchange = sync; sync();
 }
 
 async function boot() {

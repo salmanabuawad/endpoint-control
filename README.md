@@ -26,6 +26,7 @@ but trimmed down to what a small IT team actually needs.
 | **Reports** | Device inventory, licence compliance and incident reports, scoped per role, as CSV (opens in Excel) or a print-ready HTML page (Save as PDF); **schedule** them daily/weekly/monthly with saved history and webhook/e-mail delivery |
 | **File distribution** | Push a file from a URL (SHA-256 verified) to a folder on selected stations; admins and school managers only. *Agent handler not yet hardware-tested.* |
 | **Application allowlisting** | Push an AppLocker executable allowlist (audit / enforce / off; path and filename rules); always keeps the Windows defaults and starts in audit mode. *AppLocker not yet hardware-tested — try off-production first.* |
+| **Image repository** | A catalog of golden OS images (by URL/share path + SHA-256), scoped per municipality/school/lab, with a per-lab target image. *Catalog only — image distribution and reimaging need boot media and are not built.* |
 | **License compliance** | Entitlement registry + a findings engine comparing installed commercial software against licences owned (seats, expiry), scoped per school; findings: compliant / verify / potential gap / confirmed issue |
 
 An existing single-tenant KEM database upgrades in place: the lone admin becomes a `superadmin`,

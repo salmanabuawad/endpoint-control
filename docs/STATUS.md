@@ -37,6 +37,12 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
   content-type/BOM/rows, HTML table, licensing + incident contents, format/kind validation, and
   RBAC/scope — a teacher sees only their lab and cannot pull the licensing report) plus a live
   dashboard (report cards + the rendered printable report).
+* 🟡 **Central image repository (catalog)**: a repository of golden OS images referenced by location
+  (URL or share path) + size + SHA-256, scoped to a municipality/school/lab/global, plus a per-lab
+  "target image" assignment. CRUD + assignment + scope + RBAC (admins register; admins & school
+  managers assign within scope; teachers denied) verified by 21 checks and a live dashboard. This is
+  the **control plane only** — the image files are not uploaded/stored by KEM, and actual gateway
+  distribution (#26) and reimaging need boot media, which is not built.
 * ✅ **Gateway offline operation**: the Teacher Gateway relay now does **store-and-forward**. When
   the central server is unreachable, the gateway caches each student check-in/result to a local disk
   spool and returns a synthesized "keep cycling, no new commands" reply, so stations stay managed
@@ -130,8 +136,8 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
 | 22 | Software inventory | ✅ | collected per device |
 | 23 | Software license compliance | ✅ | entitlement registry + findings engine (compliant / verification required / potential gap / confirmed issue / not applicable), scoped; seat & expiry checks; heuristic commercial-software detection |
 | 24 | Alerts & incidents | ✅ | webhook/email alerts + delivery log **and** an incident workflow: alerts auto-open/auto-resolve incidents, with acknowledge/resolve/reopen, assignee, notes, scoped views and a dashboard |
-| 25 | Central image repository | ⬜ | planned (Phase 4) |
-| 26 | Gateway image distribution | ⬜ | planned (Phase 4) — relay transport exists, image serving does not |
+| 25 | Central image repository | 🟡 | catalog/control plane done: register images by location + SHA-256, scoped, with per-lab target assignment (21 checks + dashboard); image file storage not in KEM (by design — images live on a share/URL) |
+| 26 | Gateway image distribution | ⬜ | the image catalog (#25) names what to distribute, but the gateway serving/caching of image files and station reimaging need boot media — not built |
 | 27 | Local recovery image per station | 🟡🧪 | System Restore baseline exists (Level 1); dedicated recovery partition/WinRE image (Level 2) not built |
 | 28 | Automatic & manual recovery | 🟡🧪 | `reset_device` = restore baseline / MDM factory wipe; policy-driven auto-recovery not built |
 | 29 | Local AI diagnostics | ✅ | per-device diagnosis via an admin-configured OpenAI-compatible endpoint (Ollama/llama.cpp/LM Studio); PII-stripped prompt, advice-only output, scoped to admins/school managers; model quality depends on the endpoint the admin points at |
@@ -150,8 +156,9 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
   done (agent handlers pending hardware); live monitoring, broadcast and remote assistance pending.
 * **Phase 3 — health & licensing** ✅: health + alerts + **incident workflow** + **license registry
   & compliance findings** + **local AI diagnostics** + **exportable & scheduled reports** all done.
-* **Phase 4 — recovery infrastructure** 🟡🧪: Windows Restore (L1) + factory wipe exist; local
-  recovery image (L2), recovery boot env, central image catalog, gateway image delivery pending.
+* **Phase 4 — recovery infrastructure** 🟡🧪: Windows Restore (L1) + factory wipe exist, and the
+  **central image catalog + per-lab assignment** (control plane) is built; local recovery image (L2),
+  recovery boot env, image-file distribution via the gateway and reimaging pending (need boot media).
 * **Phase 5 — exams & automation** 🟡: examination mode (lock/revert a lab) done; policy-driven
   automation (scheduled exams, auto-recovery triggers) pending.
 * **Phase 6 — production hardening** 🟡: signed installers/updates & cert rotation pending; the

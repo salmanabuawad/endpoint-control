@@ -118,6 +118,11 @@ CREATE TABLE IF NOT EXISTS report_runs(
   id TEXT PRIMARY KEY, schedule_id TEXT, kind TEXT, fmt TEXT, scope_label TEXT, rows INTEGER DEFAULT 0,
   bytes INTEGER DEFAULT 0, content TEXT, generated REAL, status TEXT DEFAULT 'generated', note TEXT DEFAULT '');
 CREATE INDEX IF NOT EXISTS ix_runs_sched ON report_runs(schedule_id, generated);
+CREATE TABLE IF NOT EXISTS images(
+  id TEXT PRIMARY KEY, name TEXT, os TEXT DEFAULT '', version TEXT DEFAULT '', size_bytes INTEGER DEFAULT 0,
+  sha256 TEXT DEFAULT '', source_url TEXT DEFAULT '', notes TEXT DEFAULT '',
+  scope_type TEXT DEFAULT 'global', scope_id TEXT, created REAL, created_by TEXT DEFAULT '');
+CREATE INDEX IF NOT EXISTS ix_images_scope ON images(scope_type, scope_id);
 """
 # Columns added after v1.0 (ALTER TABLE on existing databases).
 MIGRATIONS = [
@@ -134,6 +139,7 @@ MIGRATIONS = [
     ("commands", "via_role", "TEXT DEFAULT ''"),
     ("devices", "ai_diagnosis", "TEXT"),
     ("devices", "ai_diagnosis_at", "REAL"),
+    ("labs", "image_id", "TEXT"),
 ]
 
 COMMAND_TYPES = {
@@ -222,6 +228,7 @@ def role_capabilities(role: str) -> dict:
         "manage_exams": role in ROLES,  # teacher (during class), school_manager, admins; API re-checks scope
         "view_incidents": role in ROLES, "manage_incidents": admin or role == "school_manager",
         "run_diagnostics": admin or role == "school_manager", "view_reports": role in ROLES,
+        "view_images": admin or role == "school_manager", "manage_images": admin,
         "view_licensing": admin or role == "school_manager", "manage_licensing": admin,
         "commands": sorted(COMMAND_TYPES) if admin else
                     sorted(COMMAND_TYPES - SCHOOL_MANAGER_BLOCKED) if role == "school_manager" else
@@ -2020,6 +2027,128 @@ def download_report_run(rid: str, user: dict = Depends(require_admin_user)):
     fname = f"kem-{r['kind']}-{time.strftime('%Y%m%d%H%M', time.localtime(r['generated']))}"
     return Response(content="﻿" + (r["content"] or ""), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{fname}.csv"'})
+
+
+# ---------------------------------------------------------------- central image repository (catalog)
+# The repository is a catalog of OS images referenced by location + checksum (images are multi-GB
+# and live on a share/URL, not in the DB) plus a per-lab "target image" assignment. Actually storing,
+# distributing (via the gateway) and applying an image needs boot media / imaging infrastructure and
+# is NOT built here - this is the control plane that such distribution would consume.
+
+
+def serialize_image(con, row) -> dict:
+    d = dict(row)
+    d["scope_name"] = scope_name(con, d["scope_type"], d["scope_id"])
+    return d
+
+
+def require_images(request: Request) -> dict:
+    u = _authenticate(request)
+    if u["role"] not in ADMIN_ROLES:
+        raise HTTPException(403, "Only administrators manage the image repository")
+    return u
+
+
+def _image_scope(con, user: dict, body: dict) -> tuple[str, str | None]:
+    st = body.get("scope_type", "global")
+    if st not in ("global", "municipality", "school", "lab"):
+        raise HTTPException(400, "scope_type must be global, municipality, school or lab")
+    if st == "global":
+        if user["role"] != "superadmin":
+            raise HTTPException(403, "Only a superadmin can register a global image")
+        return st, None
+    sid = clean(body.get("scope_id"), 64) or None
+    if not sid:
+        raise HTTPException(400, "scope_id is required for this scope")
+    table = {"municipality": "municipalities", "school": "schools", "lab": "labs"}[st]
+    if not con.execute(f"SELECT 1 FROM {table} WHERE id=?", (sid,)).fetchone():
+        raise HTTPException(404, f"{st} not found")
+    if not entitlement_in_scope(con, user, {"scope_type": st, "scope_id": sid}):
+        raise HTTPException(403, "That scope is outside your reach")
+    return st, sid
+
+
+@app.get("/api/images")
+def list_images(user: dict = Depends(current_user)):
+    if not (user["role"] in ADMIN_ROLES or user["role"] == "school_manager"):
+        raise HTTPException(403, "Not allowed")
+    with db() as con:
+        rows = con.execute("SELECT * FROM images ORDER BY created DESC").fetchall()
+        out = [serialize_image(con, r) for r in rows if entitlement_in_scope(con, user, r)]
+    return out
+
+
+@app.post("/api/images")
+def create_image(request: Request, body: dict = Body(...), user: dict = Depends(require_images)):
+    name = clean(body.get("name"), 120)
+    if not name:
+        raise HTTPException(400, "A name is required")
+    url = clean(body.get("source_url"), 500)
+    if url and not re.match(r"^(https?://|[A-Za-z]:\\|\\\\)", url):
+        raise HTTPException(400, "source_url must be an http(s) URL or a Windows/UNC path")
+    sha = clean(body.get("sha256"), 64).lower()
+    if sha and not re.fullmatch(r"[0-9a-f]{64}", sha):
+        raise HTTPException(400, "SHA-256 must be 64 hex characters")
+    try:
+        size = max(0, int(body.get("size_bytes") or 0))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "size_bytes must be a number")
+    with db() as con:
+        st, sid = _image_scope(con, user, body)
+        iid = uuid.uuid4().hex
+        con.execute(
+            "INSERT INTO images(id,name,os,version,size_bytes,sha256,source_url,notes,scope_type,scope_id,created,created_by)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            (iid, name, clean(body.get("os"), 100), clean(body.get("version"), 60), size, sha, url,
+             clean(body.get("notes"), 1000), st, sid, now(), user["username"]))
+        audit(con, user["username"], client_ip(request), "image_created", name, {"scope": st})
+        out = serialize_image(con, con.execute("SELECT * FROM images WHERE id=?", (iid,)).fetchone())
+    return out
+
+
+@app.delete("/api/images/{iid}")
+def delete_image(iid: str, request: Request, user: dict = Depends(require_images)):
+    with db() as con:
+        row = con.execute("SELECT * FROM images WHERE id=?", (iid,)).fetchone()
+        if not row or not entitlement_in_scope(con, user, row):
+            raise HTTPException(404, "Image not found")
+        con.execute("DELETE FROM images WHERE id=?", (iid,))
+        con.execute("UPDATE labs SET image_id=NULL WHERE image_id=?", (iid,))
+        audit(con, user["username"], client_ip(request), "image_deleted", row["name"])
+    return {"ok": True}
+
+
+@app.get("/api/lab-images")
+def lab_images(user: dict = Depends(current_user)):
+    if not (user["role"] in ADMIN_ROLES or user["role"] == "school_manager"):
+        raise HTTPException(403, "Not allowed")
+    with db() as con:
+        allowed = allowed_lab_ids(con, user)
+        rows = con.execute(
+            "SELECT l.id, l.name, l.image_id, s.name AS school, i.name AS image_name "
+            "FROM labs l JOIN schools s ON s.id=l.school_id LEFT JOIN images i ON i.id=l.image_id "
+            "ORDER BY s.name, l.name").fetchall()
+        out = [{"lab_id": r["id"], "lab": r["name"], "school": r["school"],
+                "image_id": r["image_id"], "image_name": r["image_name"]}
+               for r in rows if allowed is None or r["id"] in allowed]
+    return out
+
+
+@app.post("/api/labs/{lab_id}/image")
+def assign_lab_image(lab_id: str, request: Request, body: dict = Body(...), user: dict = Depends(current_user)):
+    if not (user["role"] in ADMIN_ROLES or user["role"] == "school_manager"):
+        raise HTTPException(403, "Not allowed")
+    image_id = clean(body.get("image_id"), 64) or None
+    with db() as con:
+        if not con.execute("SELECT 1 FROM labs WHERE id=?", (lab_id,)).fetchone() or not device_in_scope(con, user, lab_id):
+            raise HTTPException(404, "Lab not found")
+        if image_id:
+            img = con.execute("SELECT * FROM images WHERE id=?", (image_id,)).fetchone()
+            if not img or not entitlement_in_scope(con, user, img):
+                raise HTTPException(404, "Image not found")
+        con.execute("UPDATE labs SET image_id=? WHERE id=?", (image_id, lab_id))
+        audit(con, user["username"], client_ip(request), "lab_image_set", lab_id, {"image_id": image_id or ""})
+    return {"ok": True, "lab_id": lab_id, "image_id": image_id}
 
 
 # ---------------------------------------------------------------- organization (municipality/school/lab)
