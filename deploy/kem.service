@@ -1,0 +1,16 @@
+[Unit]
+Description=KEM Endpoint Manager
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/kem/server
+Environment=KEM_HOST=127.0.0.1
+Environment=KEM_PORT=8170
+Environment=KEM_TRUST_PROXY=1
+Environment=KEM_DATA=/var/lib/kem
+ExecStart=/opt/kem/venv/bin/python app.py
+Restart=always
+User=kem
+
+[Install]
+WantedBy=multi-user.target
