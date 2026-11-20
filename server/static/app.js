@@ -152,6 +152,13 @@ const I18N = {
     'set.ai': 'AI diagnostics', 'set.ai.note': 'Point KEM at a local OpenAI-compatible model (Ollama, llama.cpp, LM Studio, vLLM). "Diagnose" on a device page sends that device\'s health data only — never the signed-in user, IP or serial — and shows the model\'s advice. Suggestions only; review before acting.',
     'set.f.aiurl': 'Endpoint base URL', 'set.f.aimodel': 'Model', 'set.f.aikey': 'API key (optional)', 'set.ai.key.need': 'only if your endpoint needs one', 'set.ai.enable': 'Enable AI diagnostics', 'set.ai.enable.sub': 'Keep the endpoint on localhost or your LAN; data leaves KEM only to the URL above.', 'set.testconn': 'Test connection', 'set.ai.reachable': 'AI reachable',
     'set.notiflog': 'Recent notifications', 'set.col.time': 'Time', 'set.col.device': 'Device', 'set.col.event': 'Event', 'set.col.message': 'Message', 'set.col.delivery': 'Delivery', 'set.notiflog.none': 'Nothing sent yet.',
+    'cls.active': 'Class in session', 'cls.active.sub': 'classroom controls are enabled', 'cls.start.msg': 'Start a class session to control the computers in your lab.',
+    'cls.start': 'Start class', 'cls.end': 'End class', 'cls.t.started': 'Class started', 'cls.t.ended': 'Class ended',
+    'exam.locks.internet': 'internet blocked', 'exam.locks.usb': 'USB blocked', 'exam.locks.sites': '{n} sites filtered', 'exam.locks.none': 'no restrictions',
+    'exam.label': 'Exam', 'exam.stations': 'stations', 'exam.by': 'by', 'exam.end': 'End exam',
+    'exam.mode': 'Exam mode', 'exam.mode.desc': "lock a lab's stations for a test", 'exam.needclass': '(needs an active class)', 'exam.name.ph': 'Exam name',
+    'exam.internet': 'internet', 'exam.usb': 'USB', 'exam.start': 'Start exam', 'exam.nolabs': 'No labs with stations to run an exam on yet.',
+    'exam.t.ended': 'Exam ended', 'exam.t.started': 'Exam started',
   },
   he: {
     'app.title': 'KEM · ניהול עמדות',
@@ -261,8 +268,25 @@ const I18N = {
     'set.ai': 'אבחון AI', 'set.ai.note': 'הפנו את KEM למודל מקומי תואם‑OpenAI (Ollama, llama.cpp, LM Studio, vLLM). "אבחן" בדף מחשב שולח רק את נתוני התקינות של המחשב — לעולם לא את המשתמש המחובר, כתובת ה‑IP או המספר הסריאלי — ומציג את המלצת המודל. המלצות בלבד; בדקו לפני פעולה.',
     'set.f.aiurl': 'כתובת בסיס של נקודת הקצה', 'set.f.aimodel': 'מודל', 'set.f.aikey': 'מפתח API (רשות)', 'set.ai.key.need': 'רק אם נקודת הקצה דורשת', 'set.ai.enable': 'הפעל אבחון AI', 'set.ai.enable.sub': 'השאירו את נקודת הקצה ב‑localhost או ברשת המקומית; מידע יוצא מ‑KEM רק לכתובת שלמעלה.', 'set.testconn': 'בדוק חיבור', 'set.ai.reachable': 'ה‑AI זמין',
     'set.notiflog': 'התראות אחרונות', 'set.col.time': 'זמן', 'set.col.device': 'מחשב', 'set.col.event': 'אירוע', 'set.col.message': 'הודעה', 'set.col.delivery': 'משלוח', 'set.notiflog.none': 'עדיין לא נשלח דבר.',
+    'alert.offline_3d': 'מנותק יותר מ‑3 ימים', 'alert.low_disk': 'שטח דיסק נמוך בכונן {drive}', 'alert.defender_off': 'הגנת Defender בזמן אמת כבויה',
+    'alert.av_sig': 'חתימות אנטי‑וירוס בנות {days} ימים', 'alert.fw_off': 'חומת אש כבויה ({name})', 'alert.sec_updates': '{n} עדכוני אבטחה חסרים', 'alert.reboot_pending': 'ממתין לאתחול',
+    'cls.active': 'שיעור פעיל', 'cls.active.sub': 'בקרות הכיתה מופעלות', 'cls.start.msg': 'התחילו שיעור כדי לשלוט במחשבי המעבדה שלכם.',
+    'cls.start': 'התחל שיעור', 'cls.end': 'סיים שיעור', 'cls.t.started': 'השיעור התחיל', 'cls.t.ended': 'השיעור הסתיים',
+    'exam.locks.internet': 'אינטרנט חסום', 'exam.locks.usb': 'USB חסום', 'exam.locks.sites': '{n} אתרים מסוננים', 'exam.locks.none': 'ללא הגבלות',
+    'exam.label': 'מבחן', 'exam.stations': 'עמדות', 'exam.by': 'מאת', 'exam.end': 'סיים מבחן',
+    'exam.mode': 'מצב מבחן', 'exam.mode.desc': 'נעלו את עמדות המעבדה למבחן', 'exam.needclass': '(דורש שיעור פעיל)', 'exam.name.ph': 'שם המבחן',
+    'exam.internet': 'אינטרנט', 'exam.usb': 'USB', 'exam.start': 'התחל מבחן', 'exam.nolabs': 'אין עדיין מעבדות עם עמדות להרצת מבחן.',
+    'exam.t.ended': 'המבחן הסתיים', 'exam.t.started': 'המבחן התחיל',
   },
 };
+
+// Localize a device alert from its stable code + params (English `text` is the fallback and identity).
+function alertLabel(a) {
+  if (a && a.code && LANG !== 'en' && I18N[LANG] && I18N[LANG]['alert.' + a.code]) {
+    return t('alert.' + a.code).replace(/\{(\w+)\}/g, (m, k) => (a.params && a.params[k] != null ? a.params[k] : m));
+  }
+  return a ? (a.text || '') : '';
+}
 let LANG = (() => { try { return localStorage.getItem('kem.lang') === 'he' ? 'he' : 'en'; } catch { return 'en'; } })();
 const t = (key) => (I18N[LANG] && I18N[LANG][key]) || I18N.en[key] || key;
 
@@ -776,7 +800,7 @@ function renderDevices() {
       <td><div class="flags">${d.isolated ? `<span class="pill crit">${t('pill.blocked')}</span>` : ''}${d.busy ? `<span class="pill blue">${t('pill.working')}</span>` : ''}
         ${d.web_filter ? `<span class="pill" title="Web filter: ${d.web_filter} domains blocked">${t('pill.filter')}</span>` : ''}
         ${d.usb && d.usb !== 'allow' ? `<span class="pill" title="USB storage ${esc(USB_LABEL[d.usb])}">🔌 USB ${d.usb === 'block' ? 'off' : 'RO'}</span>` : ''}
-        ${d.alerts.filter((a) => a.level !== 'info').slice(0, 2).map((a) => `<span class="pill ${a.level}" title="${esc(a.text)}">${esc(a.text)}</span>`).join('')}
+        ${d.alerts.filter((a) => a.level !== 'info').slice(0, 2).map((a) => `<span class="pill ${a.level}" title="${esc(alertLabel(a))}">${esc(alertLabel(a))}</span>`).join('')}
         ${!d.isolated && !d.alerts.some((a) => a.level !== 'info') ? `<span class="pill ok">${t('pill.healthy')}</span>` : ''}</div></td>
     </tr>`).join('');
 }
@@ -788,20 +812,20 @@ async function renderClassBar() {
   try { info = await api('/api/class/active'); } catch { return; }
   const active = info.active;
   bar.innerHTML = `<div class="classbar ${active ? 'on' : ''}">
-    <span>${active ? `<b>Class in session</b> — classroom controls are enabled${active.note ? ' · ' + esc(active.note) : ''}` : 'Start a class session to control the computers in your lab.'}</span>
-    <button class="btn ${active ? '' : 'primary'} small" id="classtoggle">${active ? 'End class' : 'Start class'}</button></div>`;
+    <span>${active ? `<b>${t('cls.active')}</b> — ${t('cls.active.sub')}${active.note ? ' · ' + esc(active.note) : ''}` : t('cls.start.msg')}</span>
+    <button class="btn ${active ? '' : 'primary'} small" id="classtoggle">${active ? t('cls.end') : t('cls.start')}</button></div>`;
   $('#classtoggle').onclick = async () => {
     try {
       if (active) await api('/api/class/stop', { method: 'POST' });
       else await api('/api/class/start', { method: 'POST', body: {} });
-      toast(active ? 'Class ended' : 'Class started');
+      toast(active ? t('cls.t.ended') : t('cls.t.started'));
       renderClassBar();
     } catch (e) { toast(e.message, true); }
   };
 }
 
-const EXAM_LOCKS = (e) => [e.lock_internet ? 'internet blocked' : null, e.lock_usb ? 'USB blocked' : null,
-  (e.web_filter && e.web_filter.length) ? `${e.web_filter.length} sites filtered` : null].filter(Boolean).join(' · ') || 'no restrictions';
+const EXAM_LOCKS = (e) => [e.lock_internet ? t('exam.locks.internet') : null, e.lock_usb ? t('exam.locks.usb') : null,
+  (e.web_filter && e.web_filter.length) ? t('exam.locks.sites').replace('{n}', e.web_filter.length) : null].filter(Boolean).join(' · ') || t('exam.locks.none');
 
 // Examination mode: lock every station in a lab into a controlled state, and lift it again.
 async function renderExamBar() {
@@ -819,29 +843,29 @@ async function renderExamBar() {
 
   const activeHtml = active.map((e) => `
     <div class="classbar exam on">
-      <span>🔒 <b>Exam: ${esc(e.name)}</b> — ${esc(e.lab_name)} · ${e.stations} station${e.stations === 1 ? '' : 's'}
-        · ${EXAM_LOCKS(e)} · by ${esc(e.started_by)} ${ago(e.started)}</span>
-      <button class="btn small" data-stop="${esc(e.id)}">End exam</button>
+      <span>🔒 <b>${t('exam.label')}: ${esc(e.name)}</b> — ${esc(e.lab_name)} · ${e.stations} ${t('exam.stations')}
+        · ${EXAM_LOCKS(e)} · ${t('exam.by')} ${esc(e.started_by)} ${ago(e.started)}</span>
+      <button class="btn small" data-stop="${esc(e.id)}">${t('exam.end')}</button>
     </div>`).join('');
 
   const labPicker = isTeacher ? '' :
     `<select name="lab_id" required>${[...labs].map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('')}</select>`;
   const startHtml = canStart ? `
     <form class="classbar exam" id="examstart">
-      <span>🎓 <b>Exam mode</b> — lock a lab's stations for a test${isTeacher ? ' (needs an active class)' : ''}:</span>
+      <span>🎓 <b>${t('exam.mode')}</b> — ${t('exam.mode.desc')}${isTeacher ? ' ' + t('exam.needclass') : ''}:</span>
       ${labPicker}
-      <input name="name" placeholder="Exam name" maxlength="120" style="flex:1;min-width:120px">
-      <label class="chk"><input type="checkbox" name="li" checked> internet</label>
-      <label class="chk"><input type="checkbox" name="lu" checked> USB</label>
-      <button class="btn primary small" type="submit">Start exam</button>
+      <input name="name" placeholder="${esc(t('exam.name.ph'))}" maxlength="120" style="flex:1;min-width:120px">
+      <label class="chk"><input type="checkbox" name="li" checked> ${t('exam.internet')}</label>
+      <label class="chk"><input type="checkbox" name="lu" checked> ${t('exam.usb')}</label>
+      <button class="btn primary small" type="submit">${t('exam.start')}</button>
     </form>` :
-    (active.length ? '' : `<div class="classbar exam"><span class="muted">No labs with stations to run an exam on yet.</span></div>`);
+    (active.length ? '' : `<div class="classbar exam"><span class="muted">${t('exam.nolabs')}</span></div>`);
 
   bar.innerHTML = activeHtml + startHtml;
 
   bar.querySelectorAll('[data-stop]').forEach((b) => (b.onclick = async () => {
     b.disabled = true;
-    try { const r = await api(`/api/exams/${b.dataset.stop}/stop`, { method: 'POST' }); toast(`Exam ended · ${r.commands} commands queued`); renderExamBar(); }
+    try { const r = await api(`/api/exams/${b.dataset.stop}/stop`, { method: 'POST' }); toast(`${t('exam.t.ended')} · ${r.commands}`); renderExamBar(); }
     catch (e) { toast(e.message, true); b.disabled = false; }
   }));
   const form = $('#examstart');
@@ -849,7 +873,7 @@ async function renderExamBar() {
     ev.preventDefault();
     const body = { name: form.name.value.trim(), lock_internet: form.li.checked, lock_usb: form.lu.checked };
     if (!isTeacher) body.lab_id = form.lab_id.value;
-    try { const r = await api('/api/exams/start', { method: 'POST', body }); toast(`Exam started · ${r.stations} stations · ${r.commands} commands queued`); renderExamBar(); }
+    try { const r = await api('/api/exams/start', { method: 'POST', body }); toast(`${t('exam.t.started')} · ${r.stations} ${t('exam.stations')}`); renderExamBar(); }
     catch (e) { toast(e.message, true); }
   };
 }
@@ -1108,7 +1132,7 @@ async function viewDevice(id) {
     };
 
     const alerts = dev.alerts.filter((a) => a.level !== 'info');
-    $('#dbanner').innerHTML = alerts.map((a) => `<div class="banner ${a.level}">⚠ ${esc(a.text)}</div>`).join('');
+    $('#dbanner').innerHTML = alerts.map((a) => `<div class="banner ${a.level}">⚠ ${esc(alertLabel(a))}</div>`).join('');
 
     const disks = (tel.disks || []).map((d) => {
       const used = d.size_gb ? Math.round(100 * (d.size_gb - d.free_gb) / d.size_gb) : 0;

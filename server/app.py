@@ -873,29 +873,31 @@ def update_summary(upd: dict, at: float | None) -> dict:
 
 
 def device_alerts(row, tel: dict, inv: dict, online: bool, upd: dict | None = None) -> list[dict]:
+    # Each alert keeps a stable English `text` (its identity for alert_state / incidents / notifications)
+    # plus a `code` and `params` the dashboard uses to show the message in the viewer's language.
     alerts = []
     t = now()
     if row["last_seen"] and not online and t - row["last_seen"] > 3 * 86400:
-        alerts.append({"level": "warn", "text": "Offline for more than 3 days"})
+        alerts.append({"level": "warn", "text": "Offline for more than 3 days", "code": "offline_3d", "params": {}})
     for d in tel.get("disks") or []:
         if isinstance(d, dict) and d.get("size_gb") and (d.get("free_gb") or 0) / d["size_gb"] < 0.10:
-            alerts.append({"level": "crit", "text": f"Low disk space on {d.get('drive')}"})
+            alerts.append({"level": "crit", "text": f"Low disk space on {d.get('drive')}", "code": "low_disk", "params": {"drive": d.get("drive")}})
     av = inv.get("defender") or {}
     if av:
         if av.get("realtime") is False:
-            alerts.append({"level": "crit", "text": "Defender real-time protection off"})
+            alerts.append({"level": "crit", "text": "Defender real-time protection off", "code": "defender_off", "params": {}})
         age = av.get("signature_age_days")
         if isinstance(age, (int, float)) and age > 7:
-            alerts.append({"level": "warn", "text": f"AV signatures {int(age)} days old"})
+            alerts.append({"level": "warn", "text": f"AV signatures {int(age)} days old", "code": "av_sig", "params": {"days": int(age)}})
     for prof in inv.get("firewall") or []:
         if isinstance(prof, dict) and prof.get("enabled") is False:
-            alerts.append({"level": "warn", "text": f"Firewall off ({prof.get('name')})"})
+            alerts.append({"level": "warn", "text": f"Firewall off ({prof.get('name')})", "code": "fw_off", "params": {"name": prof.get("name")}})
             break
     sec = update_summary(upd or {}, None)["security"]
     if sec:
-        alerts.append({"level": "warn", "text": f"{sec} security update{'s' if sec > 1 else ''} missing"})
+        alerts.append({"level": "warn", "text": f"{sec} security update{'s' if sec > 1 else ''} missing", "code": "sec_updates", "params": {"n": sec}})
     if inv.get("pending_reboot"):
-        alerts.append({"level": "info", "text": "Reboot pending"})
+        alerts.append({"level": "info", "text": "Reboot pending", "code": "reboot_pending", "params": {}})
     return alerts
 
 
