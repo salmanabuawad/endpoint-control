@@ -37,6 +37,13 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
   content-type/BOM/rows, HTML table, licensing + incident contents, format/kind validation, and
   RBAC/scope — a teacher sees only their lab and cannot pull the licensing report) plus a live
   dashboard (report cards + the rendered printable report).
+* ✅ **Gateway offline operation**: the Teacher Gateway relay now does **store-and-forward**. When
+  the central server is unreachable, the gateway caches each student check-in/result to a local disk
+  spool and returns a synthesized "keep cycling, no new commands" reply, so stations stay managed
+  during an outage; a background thread replays the spool to central (oldest first) once it returns.
+  Enrollment stays online-only (it needs central to mint a secret). Verified end to end with a
+  central up→down→up harness (8 checks: online forwarding, cached reply + disk spool while down,
+  enrollment refused offline, and the queued check-in landing on central after recovery).
 * 🟡🧪 **Application allowlisting**: a `set_app_policy` command pushes an AppLocker executable
   allowlist (mode audit / enforce / off, plus path and filename allow-rules) to the targeted
   stations. Built brick-safe: the generated policy **always keeps the Windows default allow-rules**
@@ -130,7 +137,7 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
 | 29 | Local AI diagnostics | ✅ | per-device diagnosis via an admin-configured OpenAI-compatible endpoint (Ollama/llama.cpp/LM Studio); PII-stripped prompt, advice-only output, scoped to admins/school managers; model quality depends on the endpoint the admin points at |
 | 30 | Reports & auditing | ✅ | audit log + notification log, exportable reports (devices / licensing / incidents) as CSV and print-to-PDF HTML, **and scheduled reports** (daily/weekly/monthly) with stored history + webhook/e-mail delivery, all scoped per role |
 | 31 | Multi-language | 🟡 | agent & server UTF-8/Hebrew-safe (ASCII JSON for PS 5.1) **and** a dashboard i18n framework with English + Hebrew and full RTL layout, persisted per browser; the app shell (nav, login, sidebar) and the Devices page are translated, remaining views fall back to English (translatable incrementally) |
-| 32 | Secure offline operation | 🟡 | agent re-asserts policy offline; gateway task-caching while central is down not built (relay forwards live) |
+| 32 | Secure offline operation | ✅ | agent re-asserts policy offline **and** the gateway store-and-forwards student check-ins/results during a central outage, replaying them on recovery (enrollment stays online-only); verified with an up→down→up harness (8 checks) |
 
 ## Phases (spec §21)
 
@@ -166,5 +173,6 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
   allowlisting (`set_app_policy` / AppLocker)**, and the gateway
   installed as a Windows boot task. The gateway
   **relay logic itself** is verified (student enrolls through it, attribution lands on central).
-* **Gateway offline caching** is not implemented — the relay forwards live; if central is down the
-  student's call gets a 502 and the agent retries on its next cycle.
+* **Gateway offline caching** is implemented (store-and-forward): during a central outage the relay
+  caches student check-ins/results to disk and replays them when central returns, so stations keep
+  cycling instead of erroring. Enrollment still needs central online (it mints the per-device secret).

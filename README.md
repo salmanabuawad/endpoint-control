@@ -17,7 +17,7 @@ but trimmed down to what a small IT team actually needs.
 |---|---|
 | **Tenant hierarchy** | Municipalities, schools, labs; stations and gateways are placed in a lab |
 | **Roles (RBAC)** | `superadmin`, `municipality_admin`, `school_manager`, `teacher` — scope enforced in the API, not just the UI |
-| **Teacher Gateway** | One relay per lab (`gateway/relay.py`); students connect to it and it forwards to the server with its own credentials; never lets students reach the server directly |
+| **Teacher Gateway** | One relay per lab (`gateway/relay.py`); students connect to it and it forwards to the server with its own credentials; never lets students reach the server directly. **Offline resilient:** caches check-ins during a central outage and replays them on recovery |
 | **Class sessions** | A teacher must start a class session before classroom commands on their lab are accepted |
 | **Examination mode** | Lock a whole lab for a test in one action (internet isolation + USB block, optionally a web filter), reverted when the exam ends; one exam per lab, scope- and role-enforced, audited |
 | **Users** | Admins create/disable/delete scoped users and reset passwords |
