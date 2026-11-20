@@ -109,6 +109,20 @@ const I18N = {
     'cad.daily': 'Daily', 'cad.weekly': 'Weekly', 'cad.monthly': 'Monthly', 'cad.at': 'at',
     'cad.weekly.on': 'Weekly on', 'cad.weekly.suffix': 's', 'cad.monthly.on': 'Monthly on day',
     'weekday.0': 'Monday', 'weekday.1': 'Tuesday', 'weekday.2': 'Wednesday', 'weekday.3': 'Thursday', 'weekday.4': 'Friday', 'weekday.5': 'Saturday', 'weekday.6': 'Sunday',
+    'usr.add': '＋ Add user', 'usr.new': 'New user', 'usr.username': 'Username', 'usr.display': 'Display name', 'usr.display.ph': 'optional',
+    'usr.password': 'Password (10+ characters)', 'usr.role': 'Role', 'usr.scope': 'Scope', 'usr.create': 'Create user', 'usr.scope.none': '(create one in Organization first)',
+    'usr.col.user': 'User', 'usr.col.role': 'Role', 'usr.col.scope': 'Scope', 'usr.col.last': 'Last login', 'usr.col.status': 'Status',
+    'usr.never': 'never', 'usr.active': 'active', 'usr.disabled': 'disabled', 'usr.pw': 'password', 'usr.enable': 'enable', 'usr.disable': 'disable', 'usr.none': 'No users.',
+    'usr.t.created': 'User created', 'usr.t.deleted': 'User deleted', 'usr.t.pwreset': 'Password reset', 'usr.confirm.del': 'Delete this user?', 'usr.prompt.pw': 'New password (10+ characters):',
+    'org.addmuni': '＋ Add municipality', 'org.addschool': '+ school', 'org.addlab': '+ lab', 'org.del': 'delete',
+    'org.nolabs': 'no labs yet', 'org.noschools': 'no schools yet', 'org.nomunis': 'No municipalities yet.', 'org.devices': 'devices', 'org.gateways': 'gateways',
+    'org.unplaced': 'unplaced devices — assign on each device page',
+    'org.p.muni': 'New municipality name:', 'org.p.school': 'New school name:', 'org.p.lab': 'New lab name:',
+    'org.c.muni': 'Delete this municipality? It must be empty.', 'org.c.school': 'Delete this school? It must be empty.', 'org.c.lab': 'Delete this lab? Move its devices out first.',
+    'org.t.added': 'Added', 'org.t.deleted': 'Deleted',
+    'gw.token': 'Create gateway token', 'gw.col.gateway': 'Gateway', 'gw.col.lab': 'Lab', 'gw.col.devices': 'Devices', 'gw.col.version': 'Version', 'gw.col.last': 'Last seen', 'gw.col.status': 'Status',
+    'gw.online': 'online', 'gw.offline': 'offline', 'gw.remove': 'remove', 'gw.none': 'No gateways enrolled yet.', 'gw.never': 'never',
+    'gw.confirm.remove': 'Remove this gateway? Its devices stay enrolled but lose the relay link.', 'gw.t.removed': 'Gateway removed',
   },
   he: {
     'app.title': 'KEM · ניהול עמדות',
@@ -175,6 +189,20 @@ const I18N = {
     'cad.daily': 'מדי יום', 'cad.weekly': 'שבועי', 'cad.monthly': 'חודשי', 'cad.at': 'בשעה',
     'cad.weekly.on': 'מדי שבוע ביום', 'cad.weekly.suffix': '', 'cad.monthly.on': 'מדי חודש ביום',
     'weekday.0': 'שני', 'weekday.1': 'שלישי', 'weekday.2': 'רביעי', 'weekday.3': 'חמישי', 'weekday.4': 'שישי', 'weekday.5': 'שבת', 'weekday.6': 'ראשון',
+    'usr.add': '＋ הוסף משתמש', 'usr.new': 'משתמש חדש', 'usr.username': 'שם משתמש', 'usr.display': 'שם לתצוגה', 'usr.display.ph': 'רשות',
+    'usr.password': 'סיסמה (10+ תווים)', 'usr.role': 'תפקיד', 'usr.scope': 'הרשאה', 'usr.create': 'צור משתמש', 'usr.scope.none': '(צרו אחת תחילה בארגון)',
+    'usr.col.user': 'משתמש', 'usr.col.role': 'תפקיד', 'usr.col.scope': 'הרשאה', 'usr.col.last': 'כניסה אחרונה', 'usr.col.status': 'מצב',
+    'usr.never': 'מעולם לא', 'usr.active': 'פעיל', 'usr.disabled': 'מושבת', 'usr.pw': 'סיסמה', 'usr.enable': 'הפעל', 'usr.disable': 'השבת', 'usr.none': 'אין משתמשים.',
+    'usr.t.created': 'המשתמש נוצר', 'usr.t.deleted': 'המשתמש נמחק', 'usr.t.pwreset': 'הסיסמה אופסה', 'usr.confirm.del': 'למחוק את המשתמש הזה?', 'usr.prompt.pw': 'סיסמה חדשה (10+ תווים):',
+    'org.addmuni': '＋ הוסף עירייה', 'org.addschool': '+ בית ספר', 'org.addlab': '+ מעבדה', 'org.del': 'מחק',
+    'org.nolabs': 'אין עדיין מעבדות', 'org.noschools': 'אין עדיין בתי ספר', 'org.nomunis': 'אין עדיין עיריות.', 'org.devices': 'מחשבים', 'org.gateways': 'שערים',
+    'org.unplaced': 'מחשבים לא משויכים — שייכו בדף כל מחשב',
+    'org.p.muni': 'שם העירייה החדשה:', 'org.p.school': 'שם בית הספר החדש:', 'org.p.lab': 'שם המעבדה החדשה:',
+    'org.c.muni': 'למחוק את העירייה? היא חייבת להיות ריקה.', 'org.c.school': 'למחוק את בית הספר? הוא חייב להיות ריק.', 'org.c.lab': 'למחוק את המעבדה? העבירו ממנה קודם את המחשבים.',
+    'org.t.added': 'נוסף', 'org.t.deleted': 'נמחק',
+    'gw.token': 'צור אסימון שער', 'gw.col.gateway': 'שער', 'gw.col.lab': 'מעבדה', 'gw.col.devices': 'מחשבים', 'gw.col.version': 'גרסה', 'gw.col.last': 'נראה לאחרונה', 'gw.col.status': 'מצב',
+    'gw.online': 'מחובר', 'gw.offline': 'מנותק', 'gw.remove': 'הסר', 'gw.none': 'עדיין לא נרשמו שערים.', 'gw.never': 'מעולם לא',
+    'gw.confirm.remove': 'להסיר את השער? המחשבים יישארו רשומים אך יאבדו את קישור הממסר.', 'gw.t.removed': 'השער הוסר',
   },
 };
 let LANG = (() => { try { return localStorage.getItem('kem.lang') === 'he' ? 'he' : 'en'; } catch { return 'en'; } })();
@@ -1360,25 +1388,25 @@ async function viewOrg() {
   try { org = await api('/api/org'); } catch (e) { toast(e.message, true); return; }
   const reload = () => viewOrg();
   const canEdit = org.can_edit;
-  const labRow = (l) => `<div class="orgl orgrow"><span>▸ ${esc(l.name)} <span class="muted small">${l.devices} device${l.devices === 1 ? '' : 's'}${l.gateways ? ` · ${l.gateways} gateway` : ''}</span></span>${canEdit ? `<button class="link small danger-link" data-dellab="${l.id}">delete</button>` : ''}</div>`;
-  const schoolRow = (s) => `<div class="orgs"><div class="orgrow"><span><b>${esc(s.name)}</b></span>${canEdit ? `<span class="orgacts"><button class="link small" data-addlab="${s.id}">+ lab</button> <button class="link small danger-link" data-dels="${s.id}">delete</button></span>` : ''}</div>${(s.labs || []).map(labRow).join('') || '<div class="orgl muted small">no labs yet</div>'}</div>`;
-  const muniRow = (m) => `<div class="orgm"><div class="orgrow"><span><b style="font-size:16px">${esc(m.name)}</b></span>${canEdit ? `<span class="orgacts"><button class="link small" data-addschool="${m.id}">+ school</button> ${state.me.role === 'superadmin' ? `<button class="link small danger-link" data-delm="${m.id}">delete</button>` : ''}</span>` : ''}</div>${(m.schools || []).map(schoolRow).join('') || '<div class="orgs muted small">no schools yet</div>'}</div>`;
-  const tree = (org.municipalities || []).map(muniRow).join('') || '<div class="empty">No municipalities yet.</div>';
-  $('#orgwrap').innerHTML = `<div class="pad">${state.me.role === 'superadmin' ? '<button class="btn small" id="addmuni">＋ Add municipality</button>' : ''}${org.unassigned_devices ? `<span class="pill" style="margin-left:10px">${org.unassigned_devices} unplaced device${org.unassigned_devices === 1 ? '' : 's'} — assign on each device page</span>` : ''}</div><div class="orgtree">${tree}</div>`;
-  const ask = (label, url, extra) => async () => { const name = prompt(label); if (!name) return; try { await api(url, { method: 'POST', body: { name, ...extra } }); toast('Added'); reload(); } catch (e) { toast(e.message, true); } };
-  const del = (url, msg) => async () => { if (!confirm(msg)) return; try { await api(url, { method: 'DELETE' }); toast('Deleted'); reload(); } catch (e) { toast(e.message, true); } };
-  if ($('#addmuni')) $('#addmuni').onclick = ask('New municipality name:', '/api/municipalities', {});
-  $$('[data-addschool]').forEach((b) => (b.onclick = ask('New school name:', '/api/schools', { municipality_id: b.dataset.addschool })));
-  $$('[data-addlab]').forEach((b) => (b.onclick = ask('New lab name:', '/api/labs', { school_id: b.dataset.addlab })));
-  $$('[data-delm]').forEach((b) => (b.onclick = del(`/api/municipalities/${b.dataset.delm}`, 'Delete this municipality? It must be empty.')));
-  $$('[data-dels]').forEach((b) => (b.onclick = del(`/api/schools/${b.dataset.dels}`, 'Delete this school? It must be empty.')));
-  $$('[data-dellab]').forEach((b) => (b.onclick = del(`/api/labs/${b.dataset.dellab}`, 'Delete this lab? Move its devices out first.')));
+  const labRow = (l) => `<div class="orgl orgrow"><span>▸ ${esc(l.name)} <span class="muted small">${l.devices} ${t('org.devices')}${l.gateways ? ` · ${l.gateways} ${t('org.gateways')}` : ''}</span></span>${canEdit ? `<button class="link small danger-link" data-dellab="${l.id}">${t('org.del')}</button>` : ''}</div>`;
+  const schoolRow = (s) => `<div class="orgs"><div class="orgrow"><span><b>${esc(s.name)}</b></span>${canEdit ? `<span class="orgacts"><button class="link small" data-addlab="${s.id}">${t('org.addlab')}</button> <button class="link small danger-link" data-dels="${s.id}">${t('org.del')}</button></span>` : ''}</div>${(s.labs || []).map(labRow).join('') || `<div class="orgl muted small">${t('org.nolabs')}</div>`}</div>`;
+  const muniRow = (m) => `<div class="orgm"><div class="orgrow"><span><b style="font-size:16px">${esc(m.name)}</b></span>${canEdit ? `<span class="orgacts"><button class="link small" data-addschool="${m.id}">${t('org.addschool')}</button> ${state.me.role === 'superadmin' ? `<button class="link small danger-link" data-delm="${m.id}">${t('org.del')}</button>` : ''}</span>` : ''}</div>${(m.schools || []).map(schoolRow).join('') || `<div class="orgs muted small">${t('org.noschools')}</div>`}</div>`;
+  const tree = (org.municipalities || []).map(muniRow).join('') || `<div class="empty">${t('org.nomunis')}</div>`;
+  $('#orgwrap').innerHTML = `<div class="pad">${state.me.role === 'superadmin' ? `<button class="btn small" id="addmuni">${t('org.addmuni')}</button>` : ''}${org.unassigned_devices ? `<span class="pill" style="margin-inline-start:10px">${org.unassigned_devices} ${t('org.unplaced')}</span>` : ''}</div><div class="orgtree">${tree}</div>`;
+  const ask = (label, url, extra) => async () => { const name = prompt(label); if (!name) return; try { await api(url, { method: 'POST', body: { name, ...extra } }); toast(t('org.t.added')); reload(); } catch (e) { toast(e.message, true); } };
+  const del = (url, msg) => async () => { if (!confirm(msg)) return; try { await api(url, { method: 'DELETE' }); toast(t('org.t.deleted')); reload(); } catch (e) { toast(e.message, true); } };
+  if ($('#addmuni')) $('#addmuni').onclick = ask(t('org.p.muni'), '/api/municipalities', {});
+  $$('[data-addschool]').forEach((b) => (b.onclick = ask(t('org.p.school'), '/api/schools', { municipality_id: b.dataset.addschool })));
+  $$('[data-addlab]').forEach((b) => (b.onclick = ask(t('org.p.lab'), '/api/labs', { school_id: b.dataset.addlab })));
+  $$('[data-delm]').forEach((b) => (b.onclick = del(`/api/municipalities/${b.dataset.delm}`, t('org.c.muni'))));
+  $$('[data-dels]').forEach((b) => (b.onclick = del(`/api/schools/${b.dataset.dels}`, t('org.c.school'))));
+  $$('[data-dellab]').forEach((b) => (b.onclick = del(`/api/labs/${b.dataset.dellab}`, t('org.c.lab'))));
 }
 
 // ------------------------------------------------------------------ users
 async function viewUsers() {
   view.innerHTML = `<div class="page-head"><div><h1>${t('page.users.title')}</h1><p class="sub">${t('page.users.sub')}</p></div>
-      <button class="btn primary" id="adduser">＋ Add user</button></div>
+      <button class="btn primary" id="adduser">${t('usr.add')}</button></div>
     <div class="card pad hidden" id="userform"></div>
     <div class="card" id="userlist"><div class="empty">Loading…</div></div>`;
   $('#adduser').onclick = () => userForm().catch((e) => toast(e.message, true));
@@ -1391,22 +1419,21 @@ async function userForm() {
   const org = await api('/api/org');
   const { munis, schools, labs } = orgFlat(org);
   const roles = state.me.role === 'superadmin'
-    ? [['municipality_admin', 'Municipality admin'], ['school_manager', 'School manager'], ['teacher', 'Teacher']]
-    : [['school_manager', 'School manager'], ['teacher', 'Teacher']];
-  const opts = (arr) => arr.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('');
+    ? ['municipality_admin', 'school_manager', 'teacher'] : ['school_manager', 'teacher'];
+  const opts = (arr) => arr.map((v) => `<option value="${v}">${esc(t('role.' + v))}</option>`).join('');
   box.classList.remove('hidden');
-  box.innerHTML = `<h2>New user</h2><form id="uform" class="form-grid">
-    <label>Username<input name="username" required autocomplete="off"></label>
-    <label>Display name<input name="display_name" placeholder="optional"></label>
-    <label>Password (10+ characters)<input name="password" type="password" required minlength="10" autocomplete="new-password"></label>
-    <label>Role<select name="role">${opts(roles)}</select></label>
-    <label id="scopewrap">Scope<select name="scope_id"></select></label>
-    <div class="row" style="grid-column:1/-1"><button class="btn primary">Create user</button><button type="button" class="btn" id="ucancel">Cancel</button></div></form>`;
+  box.innerHTML = `<h2>${t('usr.new')}</h2><form id="uform" class="form-grid">
+    <label>${t('usr.username')}<input name="username" required autocomplete="off"></label>
+    <label>${t('usr.display')}<input name="display_name" placeholder="${esc(t('usr.display.ph'))}"></label>
+    <label>${t('usr.password')}<input name="password" type="password" required minlength="10" autocomplete="new-password"></label>
+    <label>${t('usr.role')}<select name="role">${opts(roles)}</select></label>
+    <label id="scopewrap">${t('usr.scope')}<select name="scope_id"></select></label>
+    <div class="row" style="grid-column:1/-1"><button class="btn primary">${t('usr.create')}</button><button type="button" class="btn" id="ucancel">${t('common.cancel')}</button></div></form>`;
   const scopeSel = box.querySelector('[name=scope_id]');
   const syncScope = () => {
     const role = box.querySelector('[name=role]').value;
     const src = role === 'municipality_admin' ? munis : role === 'school_manager' ? schools : labs;
-    scopeSel.innerHTML = src.length ? src.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('') : '<option value="">(create one in Organization first)</option>';
+    scopeSel.innerHTML = src.length ? src.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('') : `<option value="">${t('usr.scope.none')}</option>`;
   };
   box.querySelector('[name=role]').onchange = syncScope; syncScope();
   $('#ucancel').onclick = () => box.classList.add('hidden');
@@ -1415,33 +1442,33 @@ async function userForm() {
     const f = e.target;
     try {
       await api('/api/users', { method: 'POST', body: { username: f.username.value, display_name: f.display_name.value, password: f.password.value, role: f.role.value, scope_id: f.scope_id.value } });
-      toast('User created'); box.classList.add('hidden'); loadUsers();
+      toast(t('usr.t.created')); box.classList.add('hidden'); loadUsers();
     } catch (err) { toast(err.message, true); }
   };
 }
 
 async function loadUsers() {
   const users = await api('/api/users');
-  $('#userlist').innerHTML = users.length ? `<div class="table-wrap"><table class="grid"><thead><tr><th>User</th><th>Role</th><th>Scope</th><th class="nowrap">Last login</th><th>Status</th><th></th></tr></thead><tbody>${
+  $('#userlist').innerHTML = users.length ? `<div class="table-wrap"><table class="grid"><thead><tr><th>${t('usr.col.user')}</th><th>${t('usr.col.role')}</th><th>${t('usr.col.scope')}</th><th class="nowrap">${t('usr.col.last')}</th><th>${t('usr.col.status')}</th><th></th></tr></thead><tbody>${
     users.map((u) => `<tr>
       <td><b>${esc(u.username)}</b>${u.display_name ? `<br><span class="small muted">${esc(u.display_name)}</span>` : ''}</td>
       <td><span class="pill">${esc(roleLabel(u.role))}</span></td>
       <td>${esc(u.scope_label || '—')}</td>
-      <td class="small nowrap">${u.last_login ? ago(u.last_login) : 'never'}</td>
-      <td>${u.disabled ? '<span class="pill">disabled</span>' : '<span class="pill ok">active</span>'}</td>
-      <td class="nowrap">${u.role === 'superadmin' ? '' : `<button class="link small" data-pw="${u.id}">password</button>
-        <button class="link small" data-toggle="${u.id}" data-dis="${u.disabled ? 0 : 1}">${u.disabled ? 'enable' : 'disable'}</button>
-        <button class="link small danger-link" data-deluser="${u.id}">delete</button>`}</td></tr>`).join('')
-  }</tbody></table></div>` : '<div class="empty">No users.</div>';
-  $$('[data-deluser]').forEach((b) => (b.onclick = async () => { if (!confirm('Delete this user?')) return; try { await api(`/api/users/${b.dataset.deluser}`, { method: 'DELETE' }); toast('User deleted'); loadUsers(); } catch (e) { toast(e.message, true); } }));
+      <td class="small nowrap">${u.last_login ? ago(u.last_login) : t('usr.never')}</td>
+      <td>${u.disabled ? `<span class="pill">${t('usr.disabled')}</span>` : `<span class="pill ok">${t('usr.active')}</span>`}</td>
+      <td class="nowrap">${u.role === 'superadmin' ? '' : `<button class="link small" data-pw="${u.id}">${t('usr.pw')}</button>
+        <button class="link small" data-toggle="${u.id}" data-dis="${u.disabled ? 0 : 1}">${u.disabled ? t('usr.enable') : t('usr.disable')}</button>
+        <button class="link small danger-link" data-deluser="${u.id}">${t('org.del')}</button>`}</td></tr>`).join('')
+  }</tbody></table></div>` : `<div class="empty">${t('usr.none')}</div>`;
+  $$('[data-deluser]').forEach((b) => (b.onclick = async () => { if (!confirm(t('usr.confirm.del'))) return; try { await api(`/api/users/${b.dataset.deluser}`, { method: 'DELETE' }); toast(t('usr.t.deleted')); loadUsers(); } catch (e) { toast(e.message, true); } }));
   $$('[data-toggle]').forEach((b) => (b.onclick = async () => { try { await api(`/api/users/${b.dataset.toggle}`, { method: 'PATCH', body: { disabled: !!+b.dataset.dis } }); loadUsers(); } catch (e) { toast(e.message, true); } }));
-  $$('[data-pw]').forEach((b) => (b.onclick = async () => { const p = prompt('New password (10+ characters):'); if (!p) return; try { await api(`/api/users/${b.dataset.pw}`, { method: 'PATCH', body: { password: p } }); toast('Password reset'); } catch (e) { toast(e.message, true); } }));
+  $$('[data-pw]').forEach((b) => (b.onclick = async () => { const p = prompt(t('usr.prompt.pw')); if (!p) return; try { await api(`/api/users/${b.dataset.pw}`, { method: 'PATCH', body: { password: p } }); toast(t('usr.t.pwreset')); } catch (e) { toast(e.message, true); } }));
 }
 
 // ------------------------------------------------------------------ gateways
 async function viewGateways() {
   view.innerHTML = `<div class="page-head"><div><h1>${t('page.gateways.title')}</h1><p class="sub">${t('page.gateways.sub')}</p></div>
-      <a class="btn" href="#/enroll">Create gateway token</a></div>
+      <a class="btn" href="#/enroll">${t('gw.token')}</a></div>
     <div class="card pad" style="margin-bottom:16px"><h2>How a gateway works</h2>
       <p class="note">Students connect to the gateway on their lab PC; the gateway forwards to this server and never lets students reach it directly.</p>
       <ol class="steps"><li>Create a <b>gateway token</b> for a lab under <a href="#/enroll">Add devices</a>.</li>
@@ -1451,15 +1478,15 @@ async function viewGateways() {
     <div class="card" id="gwlist"><div class="empty">Loading…</div></div>`;
   const load = async () => {
     const gws = await api('/api/gateways');
-    $('#gwlist').innerHTML = gws.length ? `<div class="table-wrap"><table class="grid"><thead><tr><th>Gateway</th><th>Lab</th><th>Devices</th><th>Version</th><th class="nowrap">Last seen</th><th>Status</th><th></th></tr></thead><tbody>${
+    $('#gwlist').innerHTML = gws.length ? `<div class="table-wrap"><table class="grid"><thead><tr><th>${t('gw.col.gateway')}</th><th>${t('gw.col.lab')}</th><th>${t('gw.col.devices')}</th><th>${t('gw.col.version')}</th><th class="nowrap">${t('gw.col.last')}</th><th>${t('gw.col.status')}</th><th></th></tr></thead><tbody>${
       gws.map((g) => `<tr><td><b>${esc(g.hostname)}</b><br><span class="small mono muted">${esc(g.public_ip || '')}</span></td>
         <td>${esc(g.place.lab || '—')}${g.place.school ? `<br><span class="small muted">${esc(g.place.school)}</span>` : ''}</td>
         <td>${g.devices}</td><td class="small">${dash(g.agent_version)}</td>
-        <td class="small nowrap">${g.last_seen ? ago(g.last_seen) : 'never'}</td>
-        <td>${g.online ? '<span class="pill ok">online</span>' : '<span class="pill">offline</span>'}</td>
-        <td><button class="link small danger-link" data-delgw="${g.id}">remove</button></td></tr>`).join('')
-    }</tbody></table></div>` : '<div class="empty">No gateways enrolled yet.</div>';
-    $$('[data-delgw]').forEach((b) => (b.onclick = async () => { if (!confirm('Remove this gateway? Its devices stay enrolled but lose the relay link.')) return; try { await api(`/api/gateways/${b.dataset.delgw}`, { method: 'DELETE' }); toast('Gateway removed'); load(); } catch (e) { toast(e.message, true); } }));
+        <td class="small nowrap">${g.last_seen ? ago(g.last_seen) : t('gw.never')}</td>
+        <td>${g.online ? `<span class="pill ok">${t('gw.online')}</span>` : `<span class="pill">${t('gw.offline')}</span>`}</td>
+        <td><button class="link small danger-link" data-delgw="${g.id}">${t('gw.remove')}</button></td></tr>`).join('')
+    }</tbody></table></div>` : `<div class="empty">${t('gw.none')}</div>`;
+    $$('[data-delgw]').forEach((b) => (b.onclick = async () => { if (!confirm(t('gw.confirm.remove'))) return; try { await api(`/api/gateways/${b.dataset.delgw}`, { method: 'DELETE' }); toast(t('gw.t.removed')); load(); } catch (e) { toast(e.message, true); } }));
   };
   await load().catch((e) => toast(e.message, true));
   every(load, 10000);
