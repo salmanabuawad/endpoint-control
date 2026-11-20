@@ -89,6 +89,26 @@ const I18N = {
     'inc.new.title': 'New incident', 'inc.create': 'Create incident', 'inc.title': 'Title', 'inc.severity': 'Severity', 'inc.device': 'Device', 'inc.detail': 'Detail',
     'inc.t.created': 'Incident created', 'inc.t.updated': 'Incident updated', 'inc.t.acknowledged': 'Incident acknowledged', 'inc.t.resolved': 'Incident resolved', 'inc.t.reopened': 'Incident reopened', 'inc.t.scanned': 'Scan complete',
     'common.save': 'Save', 'common.delete': 'Delete', 'common.notied': '— Not tied to a device —',
+    'report.devices': 'Device inventory', 'report.licensing': 'Software licence compliance', 'report.incidents': 'Incidents',
+    'rep.desc.devices': 'Every station in your scope — placement, OS, health, controls and current alerts.',
+    'rep.desc.licensing': 'Installed commercial software vs. the licences on record: seats, expiry and findings.',
+    'rep.desc.incidents': 'All incidents in your scope with severity, status, assignee and timestamps.',
+    'rep.open': 'Open (print / PDF)', 'rep.csv': 'Download CSV', 'rep.nocards': 'No reports available for your role.',
+    'rep.sched': 'Scheduled reports', 'rep.newsched': '＋ New schedule', 'rep.runs': 'Recent runs',
+    'rep.col.report': 'Report', 'rep.col.cadence': 'Cadence', 'rep.col.next': 'Next run', 'rep.col.delivery': 'Delivery',
+    'rep.col.status': 'Status', 'rep.col.when': 'When', 'rep.col.scope': 'Scope', 'rep.col.rows': 'Rows',
+    'rep.hist': 'history only', 'rep.webhook': 'webhook', 'rep.on': 'On', 'rep.off': 'Off',
+    'rep.runnow': 'Run now', 'rep.enable': 'Enable', 'rep.disable': 'Disable', 'rep.last': 'last',
+    'rep.noruns': 'No reports generated yet.', 'rep.nosched': 'No schedules yet. Create one to generate reports automatically.',
+    'rep.del.title': 'Delete schedule', 'rep.del.body': 'Remove this schedule and its stored report history?',
+    'rep.new.title': 'New scheduled report', 'rep.create': 'Create schedule',
+    'rep.f.hour': 'Hour (0–23)', 'rep.f.weekday': 'Day of week', 'rep.f.monthday': 'Day of month (1–28)',
+    'rep.f.recipients': 'E-mail recipients (optional, comma separated)', 'rep.f.webhook': 'Also post a summary to the configured webhook',
+    'rep.f.note': 'Each run is saved here for download. E-mail attaches the CSV; both need the matching channel set up in Settings.',
+    'rep.t.created': 'Schedule created', 'rep.t.deleted': 'Schedule deleted', 'rep.t.generated': 'Generated',
+    'cad.daily': 'Daily', 'cad.weekly': 'Weekly', 'cad.monthly': 'Monthly', 'cad.at': 'at',
+    'cad.weekly.on': 'Weekly on', 'cad.weekly.suffix': 's', 'cad.monthly.on': 'Monthly on day',
+    'weekday.0': 'Monday', 'weekday.1': 'Tuesday', 'weekday.2': 'Wednesday', 'weekday.3': 'Thursday', 'weekday.4': 'Friday', 'weekday.5': 'Saturday', 'weekday.6': 'Sunday',
   },
   he: {
     'app.title': 'KEM · ניהול עמדות',
@@ -135,6 +155,26 @@ const I18N = {
     'inc.new.title': 'תקרית חדשה', 'inc.create': 'צור תקרית', 'inc.title': 'כותרת', 'inc.severity': 'חומרה', 'inc.device': 'עמדה', 'inc.detail': 'פירוט',
     'inc.t.created': 'התקרית נוצרה', 'inc.t.updated': 'התקרית עודכנה', 'inc.t.acknowledged': 'התקרית אושרה', 'inc.t.resolved': 'התקרית נפתרה', 'inc.t.reopened': 'התקרית נפתחה מחדש', 'inc.t.scanned': 'הסריקה הושלמה',
     'common.save': 'שמירה', 'common.delete': 'מחיקה', 'common.notied': '— לא משויך לעמדה —',
+    'report.devices': 'מצאי עמדות', 'report.licensing': 'תאימות רישוי תוכנה', 'report.incidents': 'תקריות',
+    'rep.desc.devices': 'כל עמדה בהרשאה שלך — שיוך, מערכת הפעלה, תקינות, בקרות והתראות נוכחיות.',
+    'rep.desc.licensing': 'תוכנה מסחרית מותקנת מול הרישיונות הרשומים: מושבים, תפוגה וממצאים.',
+    'rep.desc.incidents': 'כל התקריות בהרשאה שלך עם חומרה, מצב, אחראי וחותמות זמן.',
+    'rep.open': 'פתח (הדפסה / PDF)', 'rep.csv': 'הורד CSV', 'rep.nocards': 'אין דוחות זמינים לתפקידך.',
+    'rep.sched': 'דוחות מתוזמנים', 'rep.newsched': '＋ תזמון חדש', 'rep.runs': 'ריצות אחרונות',
+    'rep.col.report': 'דוח', 'rep.col.cadence': 'תדירות', 'rep.col.next': 'ריצה הבאה', 'rep.col.delivery': 'משלוח',
+    'rep.col.status': 'מצב', 'rep.col.when': 'מתי', 'rep.col.scope': 'הרשאה', 'rep.col.rows': 'שורות',
+    'rep.hist': 'היסטוריה בלבד', 'rep.webhook': 'webhook', 'rep.on': 'פעיל', 'rep.off': 'כבוי',
+    'rep.runnow': 'הרץ עכשיו', 'rep.enable': 'הפעל', 'rep.disable': 'השבת', 'rep.last': 'אחרונה',
+    'rep.noruns': 'עדיין לא הופקו דוחות.', 'rep.nosched': 'אין עדיין תזמונים. צרו אחד כדי להפיק דוחות אוטומטית.',
+    'rep.del.title': 'מחיקת תזמון', 'rep.del.body': 'להסיר את התזמון הזה ואת היסטוריית הדוחות שלו?',
+    'rep.new.title': 'דוח מתוזמן חדש', 'rep.create': 'צור תזמון',
+    'rep.f.hour': 'שעה (0–23)', 'rep.f.weekday': 'יום בשבוע', 'rep.f.monthday': 'יום בחודש (1–28)',
+    'rep.f.recipients': 'נמעני דוא״ל (רשות, מופרדים בפסיק)', 'rep.f.webhook': 'שלח גם סיכום ל‑webhook שהוגדר',
+    'rep.f.note': 'כל ריצה נשמרת כאן להורדה. בדוא״ל מצורף קובץ ה‑CSV; שניהם דורשים הגדרת הערוץ המתאים בהגדרות.',
+    'rep.t.created': 'התזמון נוצר', 'rep.t.deleted': 'התזמון נמחק', 'rep.t.generated': 'הופק',
+    'cad.daily': 'מדי יום', 'cad.weekly': 'שבועי', 'cad.monthly': 'חודשי', 'cad.at': 'בשעה',
+    'cad.weekly.on': 'מדי שבוע ביום', 'cad.weekly.suffix': '', 'cad.monthly.on': 'מדי חודש ביום',
+    'weekday.0': 'שני', 'weekday.1': 'שלישי', 'weekday.2': 'רביעי', 'weekday.3': 'חמישי', 'weekday.4': 'שישי', 'weekday.5': 'שבת', 'weekday.6': 'ראשון',
   },
 };
 let LANG = (() => { try { return localStorage.getItem('kem.lang') === 'he' ? 'he' : 'en'; } catch { return 'en'; } })();
@@ -1622,71 +1662,65 @@ async function incForm(done) {
 }
 
 // ------------------------------------------------------------------ reports
-const REPORT_DESC = {
-  devices: "Every station in your scope — placement, OS, health, controls and current alerts.",
-  licensing: "Installed commercial software vs. the licences on record: seats, expiry and findings.",
-  incidents: "All incidents in your scope with severity, status, assignee and timestamps.",
-};
-
-const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const repLabel = (kind, fallback) => (I18N.en['report.' + kind] ? t('report.' + kind) : (fallback || kind));
 const pad2 = (n) => String(n).padStart(2, '0');
 function cadenceText(s) {
-  const at = ` at ${pad2(s.hour)}:00`;
-  if (s.cadence === 'daily') return 'Daily' + at;
-  if (s.cadence === 'weekly') return `Weekly on ${WEEKDAYS[s.weekday] || '?'}s` + at;
-  return `Monthly on day ${s.monthday}` + at;
+  const at = ` ${t('cad.at')} ${pad2(s.hour)}:00`;
+  if (s.cadence === 'daily') return t('cad.daily') + at;
+  if (s.cadence === 'weekly') return `${t('cad.weekly.on')} ${t('weekday.' + s.weekday)}${t('cad.weekly.suffix')}` + at;
+  return `${t('cad.monthly.on')} ${s.monthday}` + at;
 }
 
 async function viewReports() {
   const admin = isAdmin();
   view.innerHTML = `<div class="page-head"><div><h1>${t('page.reports.title')}</h1><p class="sub">${t('page.reports.sub')}${state.me.scope_label && state.me.role !== 'superadmin' ? ' · ' + esc(state.me.scope_label) : ''}</p></div></div>
-    <div class="cards" id="reportcards"><div class="empty">Loading…</div></div>
+    <div class="cards" id="reportcards"><div class="empty">${t('common.loading')}</div></div>
     ${admin ? `
-    <div class="card" style="margin-top:18px"><div class="pad-h row" style="justify-content:space-between;align-items:center"><h2>Scheduled reports</h2><button class="btn primary small" id="newsched">＋ New schedule</button></div>
-      <div id="schedlist"><div class="empty">Loading…</div></div></div>
-    <div class="card" style="margin-top:16px"><div class="pad-h"><h2>Recent runs</h2></div><div id="runlist"></div></div>` : ''}`;
+    <div class="card" style="margin-top:18px"><div class="pad-h row" style="justify-content:space-between;align-items:center"><h2>${t('rep.sched')}</h2><button class="btn primary small" id="newsched">${t('rep.newsched')}</button></div>
+      <div id="schedlist"><div class="empty">${t('common.loading')}</div></div></div>
+    <div class="card" style="margin-top:16px"><div class="pad-h"><h2>${t('rep.runs')}</h2></div><div id="runlist"></div></div>` : ''}`;
   let list;
   try { list = await api('/api/reports'); } catch (e) { toast(e.message, true); return; }
   $('#reportcards').innerHTML = list.map((r) => `
     <div class="card pad">
-      <h2>${esc(r.label)}</h2>
-      <p class="muted">${esc(REPORT_DESC[r.kind] || '')}</p>
+      <h2>${esc(repLabel(r.kind, r.label))}</h2>
+      <p class="muted">${esc(t('rep.desc.' + r.kind))}</p>
       <div class="row" style="margin-top:4px">
-        <a class="btn" href="/api/reports/${encodeURIComponent(r.kind)}?format=html" target="_blank" rel="noopener">Open (print / PDF)</a>
-        <a class="btn primary" href="/api/reports/${encodeURIComponent(r.kind)}?format=csv">Download CSV</a>
+        <a class="btn" href="/api/reports/${encodeURIComponent(r.kind)}?format=html" target="_blank" rel="noopener">${t('rep.open')}</a>
+        <a class="btn primary" href="/api/reports/${encodeURIComponent(r.kind)}?format=csv">${t('rep.csv')}</a>
       </div>
-    </div>`).join('') || '<div class="empty">No reports available for your role.</div>';
+    </div>`).join('') || `<div class="empty">${t('rep.nocards')}</div>`;
   if (!admin) return;
 
   const loadRuns = async () => {
     let runs; try { runs = await api('/api/report-runs'); } catch { return; }
     $('#runlist').innerHTML = runs.length ? `<div class="table-wrap"><table class="grid">
-      <thead><tr><th class="nowrap">When</th><th>Report</th><th>Scope</th><th>Rows</th><th>Delivery</th><th></th></tr></thead><tbody>${
-        runs.map((r) => `<tr><td class="small nowrap">${fmtDate(r.generated)}</td><td>${esc(REPORT_DESC[r.kind] ? (list.find((x) => x.kind === r.kind) || {}).label || r.kind : r.kind)}</td>
+      <thead><tr><th class="nowrap">${t('rep.col.when')}</th><th>${t('rep.col.report')}</th><th>${t('rep.col.scope')}</th><th>${t('rep.col.rows')}</th><th>${t('rep.col.delivery')}</th><th></th></tr></thead><tbody>${
+        runs.map((r) => `<tr><td class="small nowrap">${fmtDate(r.generated)}</td><td>${esc(repLabel(r.kind))}</td>
           <td class="small">${esc(r.scope_label || '')}</td><td>${r.rows}</td><td class="small muted">${esc(r.note || '')}</td>
           <td class="nowrap"><a class="btn small" href="/api/report-runs/${encodeURIComponent(r.id)}/download">CSV</a></td></tr>`).join('')}</tbody></table></div>`
-      : '<div class="empty">No reports generated yet.</div>';
+      : `<div class="empty">${t('rep.noruns')}</div>`;
   };
   const loadSched = async () => {
     let scheds; try { scheds = await api('/api/report-schedules'); } catch (e) { toast(e.message, true); return; }
     $('#schedlist').innerHTML = scheds.length ? `<div class="table-wrap"><table class="grid">
-      <thead><tr><th>Report</th><th>Cadence</th><th class="nowrap">Next run</th><th>Delivery</th><th>Status</th><th></th></tr></thead><tbody>${
+      <thead><tr><th>${t('rep.col.report')}</th><th>${t('rep.col.cadence')}</th><th class="nowrap">${t('rep.col.next')}</th><th>${t('rep.col.delivery')}</th><th>${t('rep.col.status')}</th><th></th></tr></thead><tbody>${
         scheds.map((s) => `<tr>
-          <td><b>${esc(s.label)}</b></td>
+          <td><b>${esc(repLabel(s.kind, s.label))}</b></td>
           <td class="small">${esc(cadenceText(s))}</td>
-          <td class="small nowrap">${fmtDate(s.next_run)}${s.last ? `<br><span class="muted">last: ${fmtDate(s.last.generated)} (${s.last.rows} rows)</span>` : ''}</td>
-          <td class="small">${[s.to_webhook ? 'webhook' : '', s.recipients ? esc(s.recipients) : ''].filter(Boolean).join('<br>') || '<span class="muted">history only</span>'}</td>
-          <td>${s.enabled ? '<span class="pill ok">On</span>' : '<span class="pill">Off</span>'}</td>
-          <td class="nowrap"><button class="btn small" data-run="${esc(s.id)}">Run now</button>
-            <button class="btn small" data-toggle="${esc(s.id)}" data-on="${s.enabled ? 1 : 0}">${s.enabled ? 'Disable' : 'Enable'}</button>
-            <button class="link small danger-link" data-del="${esc(s.id)}">Delete</button></td></tr>`).join('')}</tbody></table></div>`
-      : '<div class="empty" style="padding:16px">No schedules yet. Create one to generate reports automatically.</div>';
-    $$('#schedlist [data-run]').forEach((b) => (b.onclick = async () => { b.disabled = true; try { const r = await api(`/api/report-schedules/${b.dataset.run}/run`, { method: 'POST' }); toast(`Generated ${r.rows} rows · ${r.note}`); loadSched(); loadRuns(); } catch (e) { toast(e.message, true); b.disabled = false; } }));
+          <td class="small nowrap">${fmtDate(s.next_run)}${s.last ? `<br><span class="muted">${t('rep.last')}: ${fmtDate(s.last.generated)} (${s.last.rows})</span>` : ''}</td>
+          <td class="small">${[s.to_webhook ? t('rep.webhook') : '', s.recipients ? esc(s.recipients) : ''].filter(Boolean).join('<br>') || `<span class="muted">${t('rep.hist')}</span>`}</td>
+          <td>${s.enabled ? `<span class="pill ok">${t('rep.on')}</span>` : `<span class="pill">${t('rep.off')}</span>`}</td>
+          <td class="nowrap"><button class="btn small" data-run="${esc(s.id)}">${t('rep.runnow')}</button>
+            <button class="btn small" data-toggle="${esc(s.id)}" data-on="${s.enabled ? 1 : 0}">${s.enabled ? t('rep.disable') : t('rep.enable')}</button>
+            <button class="link small danger-link" data-del="${esc(s.id)}">${t('common.delete')}</button></td></tr>`).join('')}</tbody></table></div>`
+      : `<div class="empty" style="padding:16px">${t('rep.nosched')}</div>`;
+    $$('#schedlist [data-run]').forEach((b) => (b.onclick = async () => { b.disabled = true; try { const r = await api(`/api/report-schedules/${b.dataset.run}/run`, { method: 'POST' }); toast(`${t('rep.t.generated')} · ${r.rows}`); loadSched(); loadRuns(); } catch (e) { toast(e.message, true); b.disabled = false; } }));
     $$('#schedlist [data-toggle]').forEach((b) => (b.onclick = async () => { try { await api(`/api/report-schedules/${b.dataset.toggle}`, { method: 'PATCH', body: { enabled: b.dataset.on !== '1' } }); loadSched(); } catch (e) { toast(e.message, true); } }));
     $$('#schedlist [data-del]').forEach((b) => (b.onclick = () => modal({
-      title: 'Delete schedule', submit: 'Delete', danger: true,
-      body: '<p class="note">Remove this schedule and its stored report history?</p>',
-      onSubmit: async () => { await api(`/api/report-schedules/${b.dataset.del}`, { method: 'DELETE' }); toast('Schedule deleted'); loadSched(); loadRuns(); },
+      title: t('rep.del.title'), submit: t('common.delete'), danger: true,
+      body: `<p class="note">${t('rep.del.body')}</p>`,
+      onSubmit: async () => { await api(`/api/report-schedules/${b.dataset.del}`, { method: 'DELETE' }); toast(t('rep.t.deleted')); loadSched(); loadRuns(); },
     })));
   };
   $('#newsched').onclick = () => schedForm(list, () => { loadSched(); loadRuns(); });
@@ -1696,22 +1730,22 @@ async function viewReports() {
 
 function schedForm(reports, done) {
   modal({
-    title: 'New scheduled report', submit: 'Create schedule',
-    body: `<label>Report<select name="kind">${reports.map((r) => `<option value="${esc(r.kind)}">${esc(r.label)}</option>`).join('')}</select></label>
+    title: t('rep.new.title'), submit: t('rep.create'),
+    body: `<label>${t('rep.col.report')}<select name="kind">${reports.map((r) => `<option value="${esc(r.kind)}">${esc(repLabel(r.kind, r.label))}</option>`).join('')}</select></label>
       <div class="form-2">
-        <label>Cadence<select name="cadence"><option value="daily">Daily</option><option value="weekly" selected>Weekly</option><option value="monthly">Monthly</option></select></label>
-        <label>Hour (0–23)<input name="hour" type="number" min="0" max="23" value="7"></label>
-        <label>Day of week<select name="weekday">${WEEKDAYS.map((d, i) => `<option value="${i}">${d}</option>`).join('')}</select></label>
-        <label>Day of month (1–28)<input name="monthday" type="number" min="1" max="28" value="1"></label>
+        <label>${t('rep.col.cadence')}<select name="cadence"><option value="daily">${t('cad.daily')}</option><option value="weekly" selected>${t('cad.weekly')}</option><option value="monthly">${t('cad.monthly')}</option></select></label>
+        <label>${t('rep.f.hour')}<input name="hour" type="number" min="0" max="23" value="7"></label>
+        <label>${t('rep.f.weekday')}<select name="weekday">${[0, 1, 2, 3, 4, 5, 6].map((i) => `<option value="${i}">${t('weekday.' + i)}</option>`).join('')}</select></label>
+        <label>${t('rep.f.monthday')}<input name="monthday" type="number" min="1" max="28" value="1"></label>
       </div>
-      <label>E-mail recipients (optional, comma separated)<input name="recipients" placeholder="it@school.org"></label>
-      <label class="check"><input type="checkbox" name="to_webhook"> Also post a summary to the configured webhook</label>
-      <p class="note">Each run is saved here for download. E-mail attaches the CSV; both need the matching channel set up in Settings.</p>`,
+      <label>${t('rep.f.recipients')}<input name="recipients" placeholder="it@school.org"></label>
+      <label class="check"><input type="checkbox" name="to_webhook"> ${t('rep.f.webhook')}</label>
+      <p class="note">${t('rep.f.note')}</p>`,
     onSubmit: async (f) => {
       await api('/api/report-schedules', { method: 'POST', body: {
         kind: f.kind.value, cadence: f.cadence.value, hour: +f.hour.value, weekday: +f.weekday.value,
         monthday: +f.monthday.value, recipients: f.recipients.value.trim(), to_webhook: f.to_webhook.checked } });
-      toast('Schedule created');
+      toast(t('rep.t.created'));
       done();
     },
   });

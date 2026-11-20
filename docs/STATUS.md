@@ -69,11 +69,12 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
 * 🟡 **Dashboard multi-language + RTL**: an i18n framework (`t()` + English/Hebrew string tables, a
   language switcher that persists per browser) with a full **right-to-left** layout flip for Hebrew.
   Translated: the app shell (navigation, login, sidebar), **every page header + subtitle** across all
-  views, the **role labels**, the shared modal chrome, and the **Devices** and **Incidents** pages in
-  full (filters, table headers, severity/status pills, action buttons and dialogs). Remaining views'
-  deep table/card bodies still fall back to English (incremental), and server-generated alert text
-  stays English (it's data, not UI). Verified live in Hebrew RTL (login, nav, Devices, Users with
-  translated role pills, Settings, Incidents). The server/agent were already UTF-8/Hebrew-safe.
+  views, the **role labels**, the shared modal chrome, and the **Devices**, **Incidents** and
+  **Reports** pages in full (filters, table headers, pills, cadence text with Hebrew weekday names,
+  action buttons and dialogs). The remaining views (Organization, Users, Gateways, Licensing, Images)
+  still have English deep table/card bodies (incremental), and server-generated alert text stays
+  English (it's data, not UI). Verified live in Hebrew RTL (login, nav, Devices, Users role pills,
+  Settings, Incidents, Reports). The server/agent were already UTF-8/Hebrew-safe.
 * ✅ **Scheduled reports**: admins schedule any report to run daily/weekly/monthly at a chosen time;
   the monitor thread generates each due report at the creator's scope, saves a downloadable snapshot
   in history, and delivers it through the existing channels (webhook summary and/or e-mail with the
