@@ -123,6 +123,26 @@ const I18N = {
     'gw.token': 'Create gateway token', 'gw.col.gateway': 'Gateway', 'gw.col.lab': 'Lab', 'gw.col.devices': 'Devices', 'gw.col.version': 'Version', 'gw.col.last': 'Last seen', 'gw.col.status': 'Status',
     'gw.online': 'online', 'gw.offline': 'offline', 'gw.remove': 'remove', 'gw.none': 'No gateways enrolled yet.', 'gw.never': 'never',
     'gw.confirm.remove': 'Remove this gateway? Its devices stay enrolled but lose the relay link.', 'gw.t.removed': 'Gateway removed',
+    'fnd.confirmed_issue': 'Confirmed issue', 'fnd.potential_gap': 'Potential gap', 'fnd.verification_required': 'Verification required', 'fnd.compliant': 'Compliant', 'fnd.not_applicable': 'Not applicable',
+    'lic.addent': '＋ Add entitlement', 'lic.ents': 'Entitlements',
+    'lic.col.product': 'Product', 'lic.col.installs': 'Installs', 'lic.col.licence': 'Licence', 'lic.col.status': 'Status', 'lic.col.detail': 'Detail',
+    'lic.site': 'site', 'lic.seats': 'seats', 'lic.nofindings': 'No commercial software detected in scope yet.',
+    'lic.col.name': 'Name', 'lic.col.type': 'Type', 'lic.col.seats': 'Seats', 'lic.col.scope': 'Scope', 'lic.col.expires': 'Expires',
+    'lic.edit': 'edit', 'lic.noents': 'No entitlements recorded. Add what the school owns to turn "potential gaps" into compliance.',
+    'lic.confirm.del': 'Delete this entitlement?', 'lic.t.deleted': 'Deleted', 'lic.t.updated': 'Updated', 'lic.t.added': 'Entitlement added',
+    'lic.p.seats': 'Seats (0 = site/unlimited):', 'lic.p.expiry': 'Expiry date YYYY-MM-DD (blank = none):',
+    'lic.new': 'New entitlement', 'lic.create': 'Create entitlement', 'lic.f.name': 'Name', 'lic.f.product': 'Product', 'lic.f.other': '— Other / none —',
+    'lic.f.type': 'Licence type', 'lic.f.seats': 'Seats (0 = site / unlimited)', 'lic.f.covers': 'Covers',
+    'lic.covers.lab': 'A lab', 'lic.covers.school': 'A school', 'lic.covers.municipality': 'A municipality', 'lic.covers.global': 'All (global)',
+    'lic.f.which': 'Which', 'lic.f.expires': 'Expires (optional)', 'lic.f.notes': 'Notes', 'lic.scope.none': '(none yet)',
+    'img.register': '＋ Register image', 'img.col.image': 'Image', 'img.col.osver': 'OS / version', 'img.col.size': 'Size', 'img.col.scope': 'Scope', 'img.col.source': 'Source', 'img.col.sha': 'SHA-256', 'img.del': 'Delete',
+    'img.none.manage': 'No images registered — click “Register image”.', 'img.none': 'No images registered.',
+    'img.labtitle': 'Per-lab target image', 'img.col.school': 'School', 'img.col.lab': 'Lab', 'img.col.target': 'Target image', 'img.nolabs': 'No labs in your scope.', 'img.none.target': '— none —',
+    'img.t.updated': 'Target image updated', 'img.t.deleted': 'Image deleted', 'img.t.registered': 'Image registered',
+    'img.del.title': 'Delete image', 'img.del.body': 'Remove this image from the repository? Labs pointing at it will have their target cleared.',
+    'img.new': 'Register an image', 'img.create': 'Register', 'img.f.name': 'Name', 'img.f.os': 'Operating system', 'img.f.version': 'Version',
+    'img.f.source': 'Source (URL or share path)', 'img.f.size': 'Size (bytes)', 'img.f.sha': 'SHA-256 (optional)', 'img.f.scope': 'Scope', 'img.f.scopetarget': 'Scope target', 'img.f.notes': 'Notes',
+    'img.f.note': 'The image file itself is not uploaded — KEM stores a reference (location + checksum). Gateway distribution and reimaging are not built yet.',
   },
   he: {
     'app.title': 'KEM · ניהול עמדות',
@@ -203,6 +223,26 @@ const I18N = {
     'gw.token': 'צור אסימון שער', 'gw.col.gateway': 'שער', 'gw.col.lab': 'מעבדה', 'gw.col.devices': 'מחשבים', 'gw.col.version': 'גרסה', 'gw.col.last': 'נראה לאחרונה', 'gw.col.status': 'מצב',
     'gw.online': 'מחובר', 'gw.offline': 'מנותק', 'gw.remove': 'הסר', 'gw.none': 'עדיין לא נרשמו שערים.', 'gw.never': 'מעולם לא',
     'gw.confirm.remove': 'להסיר את השער? המחשבים יישארו רשומים אך יאבדו את קישור הממסר.', 'gw.t.removed': 'השער הוסר',
+    'fnd.confirmed_issue': 'בעיה מאומתת', 'fnd.potential_gap': 'פער אפשרי', 'fnd.verification_required': 'נדרש אימות', 'fnd.compliant': 'תקין', 'fnd.not_applicable': 'לא רלוונטי',
+    'lic.addent': '＋ הוסף רישיון', 'lic.ents': 'רישיונות',
+    'lic.col.product': 'מוצר', 'lic.col.installs': 'התקנות', 'lic.col.licence': 'רישיון', 'lic.col.status': 'מצב', 'lic.col.detail': 'פירוט',
+    'lic.site': 'אתר', 'lic.seats': 'מושבים', 'lic.nofindings': 'לא זוהתה עדיין תוכנה מסחרית בהרשאה.',
+    'lic.col.name': 'שם', 'lic.col.type': 'סוג', 'lic.col.seats': 'מושבים', 'lic.col.scope': 'הרשאה', 'lic.col.expires': 'תפוגה',
+    'lic.edit': 'עריכה', 'lic.noents': 'לא נרשמו רישיונות. הוסיפו את מה שבית הספר מחזיק כדי להפוך "פערים אפשריים" לתקינים.',
+    'lic.confirm.del': 'למחוק את הרישיון הזה?', 'lic.t.deleted': 'נמחק', 'lic.t.updated': 'עודכן', 'lic.t.added': 'הרישיון נוסף',
+    'lic.p.seats': 'מושבים (0 = אתר/ללא הגבלה):', 'lic.p.expiry': 'תאריך תפוגה YYYY-MM-DD (ריק = ללא):',
+    'lic.new': 'רישיון חדש', 'lic.create': 'צור רישיון', 'lic.f.name': 'שם', 'lic.f.product': 'מוצר', 'lic.f.other': '— אחר / ללא —',
+    'lic.f.type': 'סוג רישיון', 'lic.f.seats': 'מושבים (0 = אתר / ללא הגבלה)', 'lic.f.covers': 'מכסה',
+    'lic.covers.lab': 'מעבדה', 'lic.covers.school': 'בית ספר', 'lic.covers.municipality': 'עירייה', 'lic.covers.global': 'הכול (גלובלי)',
+    'lic.f.which': 'איזה', 'lic.f.expires': 'תפוגה (רשות)', 'lic.f.notes': 'הערות', 'lic.scope.none': '(אין עדיין)',
+    'img.register': '＋ רשום תמונה', 'img.col.image': 'תמונה', 'img.col.osver': 'מערכת הפעלה / גרסה', 'img.col.size': 'גודל', 'img.col.scope': 'הרשאה', 'img.col.source': 'מקור', 'img.col.sha': 'SHA-256', 'img.del': 'מחק',
+    'img.none.manage': 'לא נרשמו תמונות — לחצו "רשום תמונה".', 'img.none': 'לא נרשמו תמונות.',
+    'img.labtitle': 'תמונת יעד לכל מעבדה', 'img.col.school': 'בית ספר', 'img.col.lab': 'מעבדה', 'img.col.target': 'תמונת יעד', 'img.nolabs': 'אין מעבדות בהרשאה שלך.', 'img.none.target': '— ללא —',
+    'img.t.updated': 'תמונת היעד עודכנה', 'img.t.deleted': 'התמונה נמחקה', 'img.t.registered': 'התמונה נרשמה',
+    'img.del.title': 'מחיקת תמונה', 'img.del.body': 'להסיר את התמונה מהמאגר? למעבדות שמצביעות עליה תנוקה תמונת היעד.',
+    'img.new': 'רישום תמונה', 'img.create': 'רשום', 'img.f.name': 'שם', 'img.f.os': 'מערכת הפעלה', 'img.f.version': 'גרסה',
+    'img.f.source': 'מקור (כתובת URL או נתיב שיתוף)', 'img.f.size': 'גודל (בתים)', 'img.f.sha': 'SHA-256 (רשות)', 'img.f.scope': 'הרשאה', 'img.f.scopetarget': 'יעד ההרשאה', 'img.f.notes': 'הערות',
+    'img.f.note': 'קובץ התמונה עצמו אינו מועלה — KEM שומר הפניה (מיקום + סכום ביקורת). הפצה דרך השער והדמיה מחדש עדיין לא מומשו.',
   },
 };
 let LANG = (() => { try { return localStorage.getItem('kem.lang') === 'he' ? 'he' : 'en'; } catch { return 'en'; } })();
@@ -1493,47 +1533,43 @@ async function viewGateways() {
 }
 
 // ------------------------------------------------------------------ licensing
-const FINDING_META = {
-  confirmed_issue: ['crit', 'Confirmed issue'], potential_gap: ['warn', 'Potential gap'],
-  verification_required: ['blue', 'Verification required'], compliant: ['ok', 'Compliant'],
-  not_applicable: ['', 'Not applicable'],
-};
+const FINDING_CLASS = { confirmed_issue: 'crit', potential_gap: 'warn', verification_required: 'blue', compliant: 'ok', not_applicable: '' };
 async function viewLicensing() {
   view.innerHTML = `<div class="page-head"><div><h1>${t('page.licensing.title')}</h1><p class="sub">${t('page.licensing.sub')}</p></div>
-      ${cap('manage_licensing') ? '<button class="btn primary" id="addent">＋ Add entitlement</button>' : ''}</div>
+      ${cap('manage_licensing') ? `<button class="btn primary" id="addent">${t('lic.addent')}</button>` : ''}</div>
     <section class="tiles" id="lictiles"></section>
-    <div class="card" id="findings"><div class="empty">Loading…</div></div>
+    <div class="card" id="findings"><div class="empty">${t('common.loading')}</div></div>
     <div class="card pad hidden" id="entform"></div>
-    <h2 style="margin:20px 0 10px">Entitlements</h2>
-    <div class="card" id="entlist"><div class="empty">Loading…</div></div>`;
+    <h2 style="margin:20px 0 10px">${t('lic.ents')}</h2>
+    <div class="card" id="entlist"><div class="empty">${t('common.loading')}</div></div>`;
   if ($('#addent')) $('#addent').onclick = () => entForm().catch((e) => toast(e.message, true));
   const load = async () => {
     const [res, ents] = await Promise.all([api('/api/license/findings'), api('/api/entitlements')]);
     const sum = res.summary || {};
-    const tiles = [['confirmed_issue', 'Confirmed issues'], ['potential_gap', 'Potential gaps'], ['verification_required', 'Verify'], ['compliant', 'Compliant']];
-    $('#lictiles').innerHTML = tiles.map(([k, l]) => `<div class="tile"><div class="l">${FINDING_META[k][1]}</div><div class="n">${sum[k] || 0}</div></div>`).join('');
-    $('#findings').innerHTML = res.findings.length ? `<div class="table-wrap"><table class="grid"><thead><tr><th>Product</th><th>Installs</th><th>Licence</th><th>Status</th><th>Detail</th></tr></thead><tbody>${
-      res.findings.map((f) => { const [cls, lbl] = FINDING_META[f.category] || ['', f.category]; return `<tr>
+    const tileKeys = ['confirmed_issue', 'potential_gap', 'verification_required', 'compliant'];
+    $('#lictiles').innerHTML = tileKeys.map((k) => `<div class="tile"><div class="l">${t('fnd.' + k)}</div><div class="n">${sum[k] || 0}</div></div>`).join('');
+    $('#findings').innerHTML = res.findings.length ? `<div class="table-wrap"><table class="grid"><thead><tr><th>${t('lic.col.product')}</th><th>${t('lic.col.installs')}</th><th>${t('lic.col.licence')}</th><th>${t('lic.col.status')}</th><th>${t('lic.col.detail')}</th></tr></thead><tbody>${
+      res.findings.map((f) => `<tr>
         <td><b>${esc(f.label)}</b><br><span class="small muted">${esc(f.type)}</span></td>
         <td>${f.installs}</td>
-        <td>${f.site ? 'site' : (f.seats ? f.seats + ' seats' : '—')}</td>
-        <td><span class="pill ${cls}">${esc(lbl)}</span></td>
-        <td class="small">${esc(f.message)}${f.samples && f.samples.length ? `<br><span class="muted">${esc(f.samples.slice(0, 4).map((s) => s.host).join(', '))}${f.installs > 4 ? ' …' : ''}</span>` : ''}</td></tr>`; }).join('')
-    }</tbody></table></div>` : '<div class="empty">No commercial software detected in scope yet.</div>';
-    $('#entlist').innerHTML = ents.length ? `<div class="table-wrap"><table class="grid"><thead><tr><th>Name</th><th>Product</th><th>Type</th><th>Seats</th><th>Scope</th><th>Expires</th><th></th></tr></thead><tbody>${
+        <td>${f.site ? t('lic.site') : (f.seats ? f.seats + ' ' + t('lic.seats') : '—')}</td>
+        <td><span class="pill ${FINDING_CLASS[f.category] || ''}">${esc(t('fnd.' + f.category))}</span></td>
+        <td class="small">${esc(f.message)}${f.samples && f.samples.length ? `<br><span class="muted">${esc(f.samples.slice(0, 4).map((s) => s.host).join(', '))}${f.installs > 4 ? ' …' : ''}</span>` : ''}</td></tr>`).join('')
+    }</tbody></table></div>` : `<div class="empty">${t('lic.nofindings')}</div>`;
+    $('#entlist').innerHTML = ents.length ? `<div class="table-wrap"><table class="grid"><thead><tr><th>${t('lic.col.name')}</th><th>${t('lic.col.product')}</th><th>${t('lic.col.type')}</th><th>${t('lic.col.seats')}</th><th>${t('lic.col.scope')}</th><th>${t('lic.col.expires')}</th><th></th></tr></thead><tbody>${
       ents.map((e) => `<tr><td><b>${esc(e.name)}</b>${e.notes ? `<br><span class="small muted">${esc(e.notes)}</span>` : ''}</td>
         <td>${esc(e.product_label || e.product || '—')}</td><td class="small">${esc(e.license_type)}</td>
-        <td>${e.seats || '<span class="muted">site</span>'}</td><td class="small">${esc(e.scope_name)}</td>
+        <td>${e.seats || `<span class="muted">${t('lic.site')}</span>`}</td><td class="small">${esc(e.scope_name)}</td>
         <td class="small nowrap ${e.expires && e.expires * 1000 < Date.now() ? 'crit-text' : ''}">${e.expires ? fmtDate(e.expires).split(',')[0] : '—'}</td>
-        <td>${cap('manage_licensing') ? `<button class="link small" data-editent="${e.id}">edit</button> <button class="link small danger-link" data-delent="${e.id}">delete</button>` : ''}</td></tr>`).join('')
-    }</tbody></table></div>` : '<div class="empty">No entitlements recorded. Add what the school owns to turn "potential gaps" into compliance.</div>';
-    $$('[data-delent]').forEach((b) => (b.onclick = async () => { if (!confirm('Delete this entitlement?')) return; try { await api(`/api/entitlements/${b.dataset.delent}`, { method: 'DELETE' }); toast('Deleted'); load(); } catch (e) { toast(e.message, true); } }));
+        <td>${cap('manage_licensing') ? `<button class="link small" data-editent="${e.id}">${t('lic.edit')}</button> <button class="link small danger-link" data-delent="${e.id}">${t('org.del')}</button>` : ''}</td></tr>`).join('')
+    }</tbody></table></div>` : `<div class="empty">${t('lic.noents')}</div>`;
+    $$('[data-delent]').forEach((b) => (b.onclick = async () => { if (!confirm(t('lic.confirm.del'))) return; try { await api(`/api/entitlements/${b.dataset.delent}`, { method: 'DELETE' }); toast(t('lic.t.deleted')); load(); } catch (e) { toast(e.message, true); } }));
     $$('[data-editent]').forEach((b) => (b.onclick = async () => {
       const e = ents.find((x) => x.id === b.dataset.editent);
-      const seats = prompt(`Seats for "${e.name}" (0 = site/unlimited):`, e.seats); if (seats === null) return;
-      const expires = prompt('Expiry date YYYY-MM-DD (blank = none):', e.expires ? fmtDate(e.expires).split(',')[0].split('/').reverse().join('-') : '');
+      const seats = prompt(t('lic.p.seats'), e.seats); if (seats === null) return;
+      const expires = prompt(t('lic.p.expiry'), e.expires ? fmtDate(e.expires).split(',')[0].split('/').reverse().join('-') : '');
       if (expires === null) return;
-      try { await api(`/api/entitlements/${e.id}`, { method: 'PATCH', body: { seats: +seats || 0, expires } }); toast('Updated'); load(); } catch (err) { toast(err.message, true); }
+      try { await api(`/api/entitlements/${e.id}`, { method: 'PATCH', body: { seats: +seats || 0, expires } }); toast(t('lic.t.updated')); load(); } catch (err) { toast(err.message, true); }
     }));
   };
   await load().catch((e) => toast(e.message, true));
@@ -1546,22 +1582,22 @@ async function entForm() {
   const { munis, schools, labs } = orgFlat(org);
   const global = state.me.role === 'superadmin' || (state.me.role === 'municipality_admin' && state.me.scope_type === 'global');
   box.classList.remove('hidden');
-  box.innerHTML = `<h2>New entitlement</h2><form id="eform" class="form-grid">
-    <label>Name<input name="name" required placeholder="e.g. Office 365 A3 (district)"></label>
-    <label>Product<select name="product"><option value="">— Other / none —</option>${cat.products.map((p) => `<option value="${p.key}">${esc(p.label)}</option>`).join('')}</select></label>
-    <label>Licence type<select name="license_type">${cat.license_types.map((t) => `<option value="${t}">${esc(t)}</option>`).join('')}</select></label>
-    <label>Seats (0 = site / unlimited)<input name="seats" type="number" min="0" value="0"></label>
-    <label>Covers<select name="scope_type"><option value="lab">A lab</option><option value="school">A school</option><option value="municipality">A municipality</option>${global ? '<option value="global">All (global)</option>' : ''}</select></label>
-    <label id="escope">Which<select name="scope_id"></select></label>
-    <label>Expires (optional)<input name="expires" type="date"></label>
-    <label>Notes<input name="notes" placeholder="PO number, contract…"></label>
-    <div class="row" style="grid-column:1/-1"><button class="btn primary">Create entitlement</button><button type="button" class="btn" id="ecancel">Cancel</button></div></form>`;
+  box.innerHTML = `<h2>${t('lic.new')}</h2><form id="eform" class="form-grid">
+    <label>${t('lic.f.name')}<input name="name" required placeholder="e.g. Office 365 A3 (district)"></label>
+    <label>${t('lic.f.product')}<select name="product"><option value="">${t('lic.f.other')}</option>${cat.products.map((p) => `<option value="${p.key}">${esc(p.label)}</option>`).join('')}</select></label>
+    <label>${t('lic.f.type')}<select name="license_type">${cat.license_types.map((lt) => `<option value="${lt}">${esc(lt)}</option>`).join('')}</select></label>
+    <label>${t('lic.f.seats')}<input name="seats" type="number" min="0" value="0"></label>
+    <label>${t('lic.f.covers')}<select name="scope_type"><option value="lab">${t('lic.covers.lab')}</option><option value="school">${t('lic.covers.school')}</option><option value="municipality">${t('lic.covers.municipality')}</option>${global ? `<option value="global">${t('lic.covers.global')}</option>` : ''}</select></label>
+    <label id="escope">${t('lic.f.which')}<select name="scope_id"></select></label>
+    <label>${t('lic.f.expires')}<input name="expires" type="date"></label>
+    <label>${t('lic.f.notes')}<input name="notes" placeholder="PO number, contract…"></label>
+    <div class="row" style="grid-column:1/-1"><button class="btn primary">${t('lic.create')}</button><button type="button" class="btn" id="ecancel">${t('common.cancel')}</button></div></form>`;
   const sel = box.querySelector('[name=scope_id]');
   const sync = () => {
     const st = box.querySelector('[name=scope_type]').value;
     box.querySelector('#escope').style.display = st === 'global' ? 'none' : '';
     const src = st === 'municipality' ? munis : st === 'school' ? schools : labs;
-    sel.innerHTML = src.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('') || '<option value="">(none yet)</option>';
+    sel.innerHTML = src.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('') || `<option value="">${t('lic.scope.none')}</option>`;
   };
   box.querySelector('[name=scope_type]').onchange = sync; sync();
   $('#ecancel').onclick = () => box.classList.add('hidden');
@@ -1569,7 +1605,7 @@ async function entForm() {
     e.preventDefault(); const f = e.target;
     try {
       await api('/api/entitlements', { method: 'POST', body: { name: f.name.value, product: f.product.value, license_type: f.license_type.value, seats: +f.seats.value || 0, scope_type: f.scope_type.value, scope_id: f.scope_id.value, expires: f.expires.value, notes: f.notes.value } });
-      toast('Entitlement added'); box.classList.add('hidden'); viewLicensing();
+      toast(t('lic.t.added')); box.classList.add('hidden'); viewLicensing();
     } catch (err) { toast(err.message, true); }
   };
 }
@@ -1790,11 +1826,11 @@ function fmtBytes(n) {
 async function viewImages() {
   const manage = cap('manage_images');
   view.innerHTML = `<div class="page-head"><div><h1>${t('page.images.title')}</h1><p class="sub">${t('page.images.sub')} <b>${t('page.images.note')}</b></p></div>
-      ${manage ? '<button class="btn primary" id="newimg">＋ Register image</button>' : ''}</div>
-    <div class="card table-wrap"><table class="grid"><thead><tr><th>Image</th><th>OS / version</th><th>Size</th><th>Scope</th><th>Source</th><th>SHA-256</th>${manage ? '<th></th>' : ''}</tr></thead>
+      ${manage ? `<button class="btn primary" id="newimg">${t('img.register')}</button>` : ''}</div>
+    <div class="card table-wrap"><table class="grid"><thead><tr><th>${t('img.col.image')}</th><th>${t('img.col.osver')}</th><th>${t('img.col.size')}</th><th>${t('img.col.scope')}</th><th>${t('img.col.source')}</th><th>${t('img.col.sha')}</th>${manage ? '<th></th>' : ''}</tr></thead>
       <tbody id="imgrows"><tr><td colspan="7" class="empty">${t('common.loading')}</td></tr></tbody></table></div>
-    <h2 style="margin:22px 0 10px">Per-lab target image</h2>
-    <div class="card table-wrap"><table class="grid"><thead><tr><th>School</th><th>Lab</th><th>Target image</th></tr></thead>
+    <h2 style="margin:22px 0 10px">${t('img.labtitle')}</h2>
+    <div class="card table-wrap"><table class="grid"><thead><tr><th>${t('img.col.school')}</th><th>${t('img.col.lab')}</th><th>${t('img.col.target')}</th></tr></thead>
       <tbody id="labimgrows"><tr><td colspan="3" class="empty">${t('common.loading')}</td></tr></tbody></table></div>`;
 
   let images = [];
@@ -1807,22 +1843,22 @@ async function viewImages() {
         <td class="small">${esc(i.scope_name || '')}</td>
         <td class="small mono" style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${esc(i.source_url || '—')}</td>
         <td class="small mono">${i.sha256 ? esc(i.sha256.slice(0, 12)) + '…' : '—'}</td>
-        ${manage ? `<td class="nowrap"><button class="link small danger-link" data-del="${esc(i.id)}">Delete</button></td>` : ''}</tr>`).join('')
-      : `<tr><td colspan="7" class="empty">No images registered${manage ? ' — click “Register image”.' : '.'}</td></tr>`;
+        ${manage ? `<td class="nowrap"><button class="link small danger-link" data-del="${esc(i.id)}">${t('img.del')}</button></td>` : ''}</tr>`).join('')
+      : `<tr><td colspan="7" class="empty">${manage ? t('img.none.manage') : t('img.none')}</td></tr>`;
     if (manage) $$('#imgrows [data-del]').forEach((b) => (b.onclick = () => modal({
-      title: 'Delete image', submit: 'Delete', danger: true,
-      body: '<p class="note">Remove this image from the repository? Labs pointing at it will have their target cleared.</p>',
-      onSubmit: async () => { await api(`/api/images/${b.dataset.del}`, { method: 'DELETE' }); toast('Image deleted'); loadImages(); loadLabs(); },
+      title: t('img.del.title'), submit: t('common.delete'), danger: true,
+      body: `<p class="note">${t('img.del.body')}</p>`,
+      onSubmit: async () => { await api(`/api/images/${b.dataset.del}`, { method: 'DELETE' }); toast(t('img.t.deleted')); loadImages(); loadLabs(); },
     })));
   };
   const loadLabs = async () => {
     let labs; try { labs = await api('/api/lab-images'); } catch (e) { toast(e.message, true); return; }
     $('#labimgrows').innerHTML = labs.length ? labs.map((l) => `<tr>
         <td class="small">${esc(l.school)}</td><td><b>${esc(l.lab)}</b></td>
-        <td><select data-lab="${esc(l.lab_id)}"><option value="">— none —</option>${images.map((i) => `<option value="${esc(i.id)}" ${l.image_id === i.id ? 'selected' : ''}>${esc(i.name)}</option>`).join('')}</select></td></tr>`).join('')
-      : '<tr><td colspan="3" class="empty">No labs in your scope.</td></tr>';
+        <td><select data-lab="${esc(l.lab_id)}"><option value="">${t('img.none.target')}</option>${images.map((i) => `<option value="${esc(i.id)}" ${l.image_id === i.id ? 'selected' : ''}>${esc(i.name)}</option>`).join('')}</select></td></tr>`).join('')
+      : `<tr><td colspan="3" class="empty">${t('img.nolabs')}</td></tr>`;
     $$('#labimgrows select[data-lab]').forEach((s) => (s.onchange = async () => {
-      try { await api(`/api/labs/${s.dataset.lab}/image`, { method: 'POST', body: { image_id: s.value } }); toast('Target image updated'); }
+      try { await api(`/api/labs/${s.dataset.lab}/image`, { method: 'POST', body: { image_id: s.value } }); toast(t('img.t.updated')); }
       catch (e) { toast(e.message, true); loadLabs(); }
     }));
   };
@@ -1834,31 +1870,31 @@ async function viewImages() {
 async function imageForm(done) {
   let org; try { org = await api('/api/org'); } catch { org = { municipalities: [] }; }
   const { munis, schools, labs } = orgFlat(org);
-  const scopes = { global: [['', 'All (global)']], municipality: munis, school: schools, lab: labs };
+  const scopes = { global: [['', t('lic.covers.global')]], municipality: munis, school: schools, lab: labs };
   const form = modal({
-    title: 'Register an image', submit: 'Register',
-    body: `<label>Name<input name="name" maxlength="120" required placeholder="e.g. Win11 Edu 23H2 - Lab baseline"></label>
+    title: t('img.new'), submit: t('img.create'),
+    body: `<label>${t('img.f.name')}<input name="name" maxlength="120" required placeholder="e.g. Win11 Edu 23H2 - Lab baseline"></label>
       <div class="form-2">
-        <label>Operating system<input name="os" maxlength="100" placeholder="Windows 11 Education"></label>
-        <label>Version<input name="version" maxlength="60" placeholder="23H2 / build 22631"></label>
+        <label>${t('img.f.os')}<input name="os" maxlength="100" placeholder="Windows 11 Education"></label>
+        <label>${t('img.f.version')}<input name="version" maxlength="60" placeholder="23H2 / build 22631"></label>
       </div>
-      <label>Source (URL or share path)<input name="source_url" spellcheck="false" placeholder="https://images.lan/win11-edu.wim or \\\\nas\\images\\win11.wim"></label>
+      <label>${t('img.f.source')}<input name="source_url" spellcheck="false" placeholder="https://images.lan/win11-edu.wim or \\\\nas\\images\\win11.wim"></label>
       <div class="form-2">
-        <label>Size (bytes)<input name="size_bytes" type="number" min="0" placeholder="e.g. 5368709120"></label>
-        <label>SHA-256 (optional)<input name="sha256" class="mono" placeholder="64 hex"></label>
+        <label>${t('img.f.size')}<input name="size_bytes" type="number" min="0" placeholder="e.g. 5368709120"></label>
+        <label>${t('img.f.sha')}<input name="sha256" class="mono" placeholder="64 hex"></label>
       </div>
       <div class="form-2">
-        <label>Scope<select name="scope_type">${['global', 'municipality', 'school', 'lab'].filter((s) => s !== 'global' || state.me.role === 'superadmin').map((s) => `<option value="${s}">${s}</option>`).join('')}</select></label>
-        <label>Scope target<select name="scope_id"></select></label>
+        <label>${t('img.f.scope')}<select name="scope_type">${['global', 'municipality', 'school', 'lab'].filter((s) => s !== 'global' || state.me.role === 'superadmin').map((s) => `<option value="${s}">${t('lic.covers.' + s)}</option>`).join('')}</select></label>
+        <label>${t('img.f.scopetarget')}<select name="scope_id"></select></label>
       </div>
-      <label>Notes<textarea name="notes" maxlength="1000" style="min-height:60px;font-family:inherit;font-size:14px"></textarea></label>
-      <p class="note">The image file itself is not uploaded — KEM stores a reference (location + checksum). Gateway distribution and reimaging are not built yet.</p>`,
+      <label>${t('img.f.notes')}<textarea name="notes" maxlength="1000" style="min-height:60px;font-family:inherit;font-size:14px"></textarea></label>
+      <p class="note">${t('img.f.note')}</p>`,
     onSubmit: async (f) => {
       await api('/api/images', { method: 'POST', body: {
         name: f.name.value, os: f.os.value, version: f.version.value, source_url: f.source_url.value.trim(),
         size_bytes: +f.size_bytes.value || 0, sha256: f.sha256.value.trim(),
         scope_type: f.scope_type.value, scope_id: f.scope_id.value, notes: f.notes.value } });
-      toast('Image registered'); done();
+      toast(t('img.t.registered')); done();
     },
   });
   const sync = () => {
