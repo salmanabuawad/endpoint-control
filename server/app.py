@@ -132,6 +132,8 @@ COMMAND_TYPES = {
     "scan_updates", "install_updates", "set_web_filter", "usb_storage", "list_processes",
     "kill_process", "list_services", "service_action", "send_message", "lock_session",
     "update_agent",
+    # file distribution
+    "distribute_file",
 }
 # Destructive commands: one device at a time, admin must type the hostname.
 CONFIRM_TYPES = {"reset_device", "uninstall_agent"}
@@ -1026,6 +1028,24 @@ def validate_params(ctype: str, p: Any) -> dict:
         if mode not in ("allow", "read_only", "block"):
             raise HTTPException(400, "mode must be allow, read_only or block")
         return {"mode": mode}
+    if ctype == "distribute_file":
+        url = clean(p.get("url"), 2000)
+        if not re.match(r"^https?://[^\s]+$", url):
+            raise HTTPException(400, "File URL must start with https:// (or http://)")
+        dest = clean(p.get("dest"), 400)
+        if not re.match(r"^[A-Za-z]:\\", dest) or "\n" in dest or "\r" in dest:
+            raise HTTPException(400, "Destination must be a full Windows folder path, e.g. C:\\Lab\\Handouts")
+        if ".." in dest:
+            raise HTTPException(400, "Destination path may not contain '..'")
+        if re.match(r"(?i)^[A-Za-z]:\\(windows|program files)", dest):
+            raise HTTPException(400, "Choose a non-system folder (not Windows or Program Files)")
+        filename = clean(p.get("filename"), 200)
+        if filename and not re.fullmatch(r'[^<>:"/\\|?*\x00]{1,200}', filename):
+            raise HTTPException(400, "Invalid file name")
+        sha = clean(p.get("sha256"), 64).lower()
+        if sha and not re.fullmatch(r"[0-9a-f]{64}", sha):
+            raise HTTPException(400, "SHA-256 must be 64 hex characters")
+        return {"url": url, "dest": dest, "filename": filename, "sha256": sha, "overwrite": bool(p.get("overwrite"))}
     if ctype == "kill_process":
         if p.get("pid") not in (None, ""):
             return {"pid": _int(p, "pid", 0, 5, 2**31 - 1)}

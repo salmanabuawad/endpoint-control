@@ -878,6 +878,37 @@ $script:KemInlineTypes = @('block_internet', 'unblock_internet', 'refresh_invent
     'set_web_filter', 'usb_storage', 'list_processes', 'kill_process', 'list_services', 'send_message', 'lock_session',
     'update_agent')
 
+function Copy-KemDistributedFile($P) {
+    # Download a file over TLS and place it in a folder on this machine (optionally SHA-256 verified).
+    $ProgressPreference = 'SilentlyContinue'
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    $dest = "$($P.dest)"
+    if (-not $dest) { return @{ status = 'failed'; output = 'No destination folder given.' } }
+    $name = "$($P.filename)"
+    if (-not $name) { try { $name = [IO.Path]::GetFileName(([Uri]$P.url).AbsolutePath) } catch { $name = '' } }
+    if (-not $name) { return @{ status = 'failed'; output = 'Could not determine a file name; set one explicitly.' } }
+    try { New-Item -ItemType Directory -Path $dest -Force | Out-Null } catch { return @{ status = 'failed'; output = "Cannot create folder '$dest': $_" } }
+    $target = Join-Path $dest $name
+    if ((Test-Path $target) -and -not [bool]$P.overwrite) {
+        return @{ status = 'failed'; output = "A file named '$name' already exists and overwrite is off." }
+    }
+    $tmp = Join-Path $script:KemDataDir ('dist-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+    try {
+        Invoke-WebRequest -Uri $P.url -OutFile $tmp -UseBasicParsing -TimeoutSec 1800
+        $hash = (Get-FileHash $tmp -Algorithm SHA256).Hash.ToLower()
+        if ($P.sha256 -and $hash -ne "$($P.sha256)".ToLower()) {
+            Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+            return @{ status = 'failed'; output = "Checksum mismatch. Expected $($P.sha256), got $hash. File NOT placed." }
+        }
+        $size = [math]::Round((Get-Item $tmp).Length / 1MB, 2)
+        Move-Item -Path $tmp -Destination $target -Force
+        return @{ status = 'success'; output = "Placed '$name' ($size MB, sha256 $hash) in $dest" }
+    } catch {
+        Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+        return @{ status = 'failed'; output = "Download or placement failed: $_" }
+    }
+}
+
 function Invoke-KemCommand($Command, [string]$Server) {
     $p = $Command.params
     switch ($Command.type) {
@@ -892,6 +923,7 @@ function Invoke-KemCommand($Command, [string]$Server) {
         'install_updates'    { return Install-KemUpdates $p }
         'set_web_filter'     { return @{ status = 'success'; output = (Set-KemWebFilter $p) } }
         'usb_storage'        { return @{ status = 'success'; output = (Set-KemUsbStorage "$($p.mode)") } }
+        'distribute_file'    { return Copy-KemDistributedFile $p }
         'list_processes'     { return Get-KemProcessList }
         'kill_process'       { return @{ status = 'success'; output = (Stop-KemProcess $p) } }
         'list_services'      { return Get-KemServiceList }

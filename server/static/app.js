@@ -219,6 +219,19 @@ const ACTIONS = {
       onSubmit: (f) => queue(ids, 'uninstall_software', { package_id: f.package_id.value.trim() }),
     });
   },
+  distribute_file(ids) {
+    modal({
+      title: 'Distribute a file', submit: 'Send file',
+      body: `${targetLine(ids)}
+        <label>File URL<input name="url" required placeholder="https://files.example.com/handout.pdf" spellcheck="false"></label>
+        <label>Destination folder<input name="dest" class="mono" required placeholder="C:\\Lab\\Handouts"></label>
+        <label>Save as (optional)<input name="filename" placeholder="leave blank to keep the URL's file name"></label>
+        <label>SHA-256 (optional)<input name="sha256" class="mono" placeholder="64 hex — verifies the download"></label>
+        <label class="check"><input type="checkbox" name="overwrite"> Overwrite if a file with that name already exists</label>
+        <p class="note">The agent downloads the file over TLS as SYSTEM, checks the SHA-256 if given, and places it in the folder (created if missing). System folders are blocked.</p>`,
+      onSubmit: (f) => queue(ids, 'distribute_file', { url: f.url.value.trim(), dest: f.dest.value.trim(), filename: f.filename.value.trim(), sha256: f.sha256.value.trim(), overwrite: f.overwrite.checked }),
+    });
+  },
   run_script(ids) {
     modal({
       title: 'Run PowerShell script', submit: 'Run', wide: true,
@@ -395,6 +408,7 @@ async function viewDevices() {
       <button class="btn small" data-act="block_internet">⛔ Block internet</button>
       <button class="btn small" data-act="unblock_internet">🌐 Restore internet</button>
       <button class="btn small" data-act="install_software">⬇ Install software</button>
+      <button class="btn small" data-act="distribute_file">📄 Distribute file</button>
       <button class="btn small" data-act="install_updates">⟳ Windows updates</button>
       <button class="btn small" data-act="set_web_filter">🚫 Web filter</button>
       <button class="btn small" data-act="usb_storage">🔌 USB</button>

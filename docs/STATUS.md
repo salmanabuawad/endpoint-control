@@ -23,6 +23,13 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
   devices preserved) — verified against a real pre-upgrade DB
 * ✅ Role-aware dashboard: org tree, users, gateways, lab-scoped device lists, teacher console
   with class banner — verified live in a browser
+* 🟡🧪 **File distribution**: a `distribute_file` managed command downloads a file from a URL over
+  TLS (optional SHA-256 check) and places it in a chosen folder on the targeted stations. The
+  server side — validation (https-only URL, Windows folder path, no traversal, system folders
+  blocked, valid filename/hash), per-role authorisation (admins + school managers, **not** teachers),
+  lab-scope checks and command queueing — is verified by 15 checks; the agent-side handler is
+  written and syntax-checked (pure ASCII) but, like the other agent actions, **not yet exercised on
+  real hardware**.
 * ✅ **Exportable reports**: scope-aware Device inventory, Software licence compliance and Incidents
   reports, each as a **CSV** (UTF-8 BOM, opens in Excel, Hebrew-safe) and a **print-ready HTML** page
   (the browser's Save-as-PDF makes a PDF — no PDF/Excel libraries needed). Every row is filtered to
@@ -85,7 +92,7 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
 | 14 | Application allowlisting | ⬜ | planned (AppLocker/WDAC policy push) |
 | 15 | Approved application launching | 🟡 | `install_software` from a catalog; "launch for user" not yet separated |
 | 16 | Remote assistance | ⬜ | not built |
-| 17 | File distribution | ⬜ | not built (install-by-URL exists) |
+| 17 | File distribution | 🟡🧪 | `distribute_file` command: download a URL (SHA-256 checked) to a folder on targeted stations; server validation/RBAC/scope/queueing verified (15 checks), agent handler written + syntax-checked but not yet run on hardware |
 | 18 | Messaging | ✅ | `send_message` to the signed-in user |
 | 19 | Restart / shutdown | ✅ | `reboot` with user warning |
 | 20 | Examination mode | ✅ | per-lab exam = internet isolation + USB block (+ optional web filter) applied to every station and reverted on end; scope/role-enforced, audited; app allowlisting (#14) not yet part of the bundle |
@@ -109,8 +116,8 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
   restart, screen lock, command delivery through the gateway, and a central Local-AI integration
   **all working**. Phase 1 foundation is essentially complete.
 * **Phase 2 — classroom control & endpoint security** 🟡: internet/USB/web-filter/messaging/lock
-  and **examination mode** done; live monitoring, broadcast, remote assistance, allowlisting, file
-  distribution pending.
+  and **examination mode** done; **file distribution** server-side done (agent handler pending
+  hardware); live monitoring, broadcast, remote assistance and allowlisting pending.
 * **Phase 3 — health & licensing** 🟡→ mostly ✅: health + alerts + **incident workflow** + **license
   registry & compliance findings** + **local AI diagnostics** + **exportable reports** done; only
   scheduled/emailed report delivery pending.
@@ -133,7 +140,8 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
   currently visible to all admins (not yet per-municipality filtered).
 * **Not yet exercised on real Windows hardware** (need an elevated agent / lab): applying web
   filter, USB policy, service start/stop, message/lock on a live station, Windows-update install,
-  baseline restore, factory reset, and the gateway installed as a Windows boot task. The gateway
+  baseline restore, factory reset, **file distribution (`distribute_file`)**, and the gateway
+  installed as a Windows boot task. The gateway
   **relay logic itself** is verified (student enrolls through it, attribution lands on central).
 * **Gateway offline caching** is not implemented — the relay forwards live; if central is down the
   student's call gets a 502 and the agent retries on its next cycle.
