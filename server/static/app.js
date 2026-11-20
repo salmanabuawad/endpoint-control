@@ -1479,9 +1479,23 @@ const REPORT_DESC = {
   incidents: "All incidents in your scope with severity, status, assignee and timestamps.",
 };
 
+const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const pad2 = (n) => String(n).padStart(2, '0');
+function cadenceText(s) {
+  const at = ` at ${pad2(s.hour)}:00`;
+  if (s.cadence === 'daily') return 'Daily' + at;
+  if (s.cadence === 'weekly') return `Weekly on ${WEEKDAYS[s.weekday] || '?'}s` + at;
+  return `Monthly on day ${s.monthday}` + at;
+}
+
 async function viewReports() {
+  const admin = isAdmin();
   view.innerHTML = `<div class="page-head"><div><h1>Reports</h1><p class="sub">Export your scope's data — CSV opens in Excel, the HTML view prints to PDF${state.me.scope_label && state.me.role !== 'superadmin' ? ' · ' + esc(state.me.scope_label) : ''}</p></div></div>
-    <div class="cards" id="reportcards"><div class="empty">Loading…</div></div>`;
+    <div class="cards" id="reportcards"><div class="empty">Loading…</div></div>
+    ${admin ? `
+    <div class="card" style="margin-top:18px"><div class="pad-h row" style="justify-content:space-between;align-items:center"><h2>Scheduled reports</h2><button class="btn primary small" id="newsched">＋ New schedule</button></div>
+      <div id="schedlist"><div class="empty">Loading…</div></div></div>
+    <div class="card" style="margin-top:16px"><div class="pad-h"><h2>Recent runs</h2></div><div id="runlist"></div></div>` : ''}`;
   let list;
   try { list = await api('/api/reports'); } catch (e) { toast(e.message, true); return; }
   $('#reportcards').innerHTML = list.map((r) => `
@@ -1493,6 +1507,65 @@ async function viewReports() {
         <a class="btn primary" href="/api/reports/${encodeURIComponent(r.kind)}?format=csv">Download CSV</a>
       </div>
     </div>`).join('') || '<div class="empty">No reports available for your role.</div>';
+  if (!admin) return;
+
+  const loadRuns = async () => {
+    let runs; try { runs = await api('/api/report-runs'); } catch { return; }
+    $('#runlist').innerHTML = runs.length ? `<div class="table-wrap"><table class="grid">
+      <thead><tr><th class="nowrap">When</th><th>Report</th><th>Scope</th><th>Rows</th><th>Delivery</th><th></th></tr></thead><tbody>${
+        runs.map((r) => `<tr><td class="small nowrap">${fmtDate(r.generated)}</td><td>${esc(REPORT_DESC[r.kind] ? (list.find((x) => x.kind === r.kind) || {}).label || r.kind : r.kind)}</td>
+          <td class="small">${esc(r.scope_label || '')}</td><td>${r.rows}</td><td class="small muted">${esc(r.note || '')}</td>
+          <td class="nowrap"><a class="btn small" href="/api/report-runs/${encodeURIComponent(r.id)}/download">CSV</a></td></tr>`).join('')}</tbody></table></div>`
+      : '<div class="empty">No reports generated yet.</div>';
+  };
+  const loadSched = async () => {
+    let scheds; try { scheds = await api('/api/report-schedules'); } catch (e) { toast(e.message, true); return; }
+    $('#schedlist').innerHTML = scheds.length ? `<div class="table-wrap"><table class="grid">
+      <thead><tr><th>Report</th><th>Cadence</th><th class="nowrap">Next run</th><th>Delivery</th><th>Status</th><th></th></tr></thead><tbody>${
+        scheds.map((s) => `<tr>
+          <td><b>${esc(s.label)}</b></td>
+          <td class="small">${esc(cadenceText(s))}</td>
+          <td class="small nowrap">${fmtDate(s.next_run)}${s.last ? `<br><span class="muted">last: ${fmtDate(s.last.generated)} (${s.last.rows} rows)</span>` : ''}</td>
+          <td class="small">${[s.to_webhook ? 'webhook' : '', s.recipients ? esc(s.recipients) : ''].filter(Boolean).join('<br>') || '<span class="muted">history only</span>'}</td>
+          <td>${s.enabled ? '<span class="pill ok">On</span>' : '<span class="pill">Off</span>'}</td>
+          <td class="nowrap"><button class="btn small" data-run="${esc(s.id)}">Run now</button>
+            <button class="btn small" data-toggle="${esc(s.id)}" data-on="${s.enabled ? 1 : 0}">${s.enabled ? 'Disable' : 'Enable'}</button>
+            <button class="link small danger-link" data-del="${esc(s.id)}">Delete</button></td></tr>`).join('')}</tbody></table></div>`
+      : '<div class="empty" style="padding:16px">No schedules yet. Create one to generate reports automatically.</div>';
+    $$('#schedlist [data-run]').forEach((b) => (b.onclick = async () => { b.disabled = true; try { const r = await api(`/api/report-schedules/${b.dataset.run}/run`, { method: 'POST' }); toast(`Generated ${r.rows} rows · ${r.note}`); loadSched(); loadRuns(); } catch (e) { toast(e.message, true); b.disabled = false; } }));
+    $$('#schedlist [data-toggle]').forEach((b) => (b.onclick = async () => { try { await api(`/api/report-schedules/${b.dataset.toggle}`, { method: 'PATCH', body: { enabled: b.dataset.on !== '1' } }); loadSched(); } catch (e) { toast(e.message, true); } }));
+    $$('#schedlist [data-del]').forEach((b) => (b.onclick = () => modal({
+      title: 'Delete schedule', submit: 'Delete', danger: true,
+      body: '<p class="note">Remove this schedule and its stored report history?</p>',
+      onSubmit: async () => { await api(`/api/report-schedules/${b.dataset.del}`, { method: 'DELETE' }); toast('Schedule deleted'); loadSched(); loadRuns(); },
+    })));
+  };
+  $('#newsched').onclick = () => schedForm(list, () => { loadSched(); loadRuns(); });
+  await loadSched();
+  await loadRuns();
+}
+
+function schedForm(reports, done) {
+  modal({
+    title: 'New scheduled report', submit: 'Create schedule',
+    body: `<label>Report<select name="kind">${reports.map((r) => `<option value="${esc(r.kind)}">${esc(r.label)}</option>`).join('')}</select></label>
+      <div class="form-2">
+        <label>Cadence<select name="cadence"><option value="daily">Daily</option><option value="weekly" selected>Weekly</option><option value="monthly">Monthly</option></select></label>
+        <label>Hour (0–23)<input name="hour" type="number" min="0" max="23" value="7"></label>
+        <label>Day of week<select name="weekday">${WEEKDAYS.map((d, i) => `<option value="${i}">${d}</option>`).join('')}</select></label>
+        <label>Day of month (1–28)<input name="monthday" type="number" min="1" max="28" value="1"></label>
+      </div>
+      <label>E-mail recipients (optional, comma separated)<input name="recipients" placeholder="it@school.org"></label>
+      <label class="check"><input type="checkbox" name="to_webhook"> Also post a summary to the configured webhook</label>
+      <p class="note">Each run is saved here for download. E-mail attaches the CSV; both need the matching channel set up in Settings.</p>`,
+    onSubmit: async (f) => {
+      await api('/api/report-schedules', { method: 'POST', body: {
+        kind: f.kind.value, cadence: f.cadence.value, hour: +f.hour.value, weekday: +f.weekday.value,
+        monthday: +f.monthday.value, recipients: f.recipients.value.trim(), to_webhook: f.to_webhook.checked } });
+      toast('Schedule created');
+      done();
+    },
+  });
 }
 
 async function boot() {

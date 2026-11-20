@@ -7,7 +7,9 @@ reset to baseline image, ...).
 """
 from __future__ import annotations
 
+import calendar
 import csv
+import datetime as dtmod
 import hashlib
 import hmac
 import io
@@ -106,6 +108,16 @@ CREATE TABLE IF NOT EXISTS incidents(
   ack_at REAL, ack_by TEXT DEFAULT '', resolved_at REAL, resolved_by TEXT DEFAULT '', auto_resolved INTEGER DEFAULT 0);
 CREATE INDEX IF NOT EXISTS ix_incidents_status ON incidents(status, created);
 CREATE INDEX IF NOT EXISTS ix_incidents_device ON incidents(device_id, status);
+CREATE TABLE IF NOT EXISTS report_schedules(
+  id TEXT PRIMARY KEY, kind TEXT, fmt TEXT DEFAULT 'csv', cadence TEXT DEFAULT 'weekly',
+  hour INTEGER DEFAULT 7, weekday INTEGER DEFAULT 0, monthday INTEGER DEFAULT 1,
+  recipients TEXT DEFAULT '', to_webhook INTEGER DEFAULT 0,
+  role TEXT DEFAULT 'superadmin', scope_type TEXT DEFAULT 'global', scope_id TEXT,
+  enabled INTEGER DEFAULT 1, created REAL, created_by TEXT DEFAULT '', last_run REAL, next_run REAL);
+CREATE TABLE IF NOT EXISTS report_runs(
+  id TEXT PRIMARY KEY, schedule_id TEXT, kind TEXT, fmt TEXT, scope_label TEXT, rows INTEGER DEFAULT 0,
+  bytes INTEGER DEFAULT 0, content TEXT, generated REAL, status TEXT DEFAULT 'generated', note TEXT DEFAULT '');
+CREATE INDEX IF NOT EXISTS ix_runs_sched ON report_runs(schedule_id, generated);
 """
 # Columns added after v1.0 (ALTER TABLE on existing databases).
 MIGRATIONS = [
@@ -608,6 +620,8 @@ def monitor_loop() -> None:
                 evaluate_devices(con)
             with db() as con:
                 send_queued(con)
+            with db() as con:
+                run_due_reports(con)
         except Exception as e:  # noqa: BLE001 - keep the monitor alive
             print(f"[KEM] monitor error: {e}")
         _wake.wait(60)
@@ -1681,13 +1695,17 @@ def report_data(con, user: dict, kind: str) -> tuple[list[str], list[list], str]
     raise HTTPException(404, "Unknown report")
 
 
-def report_csv(cols: list[str], rows: list[list], filename: str) -> Response:
+def report_csv_text(cols: list[str], rows: list[list]) -> str:
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(cols)
     for row in rows:
         w.writerow(["" if v is None else v for v in row])
-    return Response(content="﻿" + buf.getvalue(), media_type="text/csv; charset=utf-8",
+    return buf.getvalue()
+
+
+def report_csv(cols: list[str], rows: list[list], filename: str) -> Response:
+    return Response(content="﻿" + report_csv_text(cols, rows), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{filename}.csv"'})
 
 
@@ -1742,6 +1760,239 @@ def get_report(kind: str, request: Request, format: str = "html", user: dict = D
         audit(con, user["username"], client_ip(request), "report", kind, {"format": format, "rows": len(rows)})
     fname = f"kem-{kind}-{time.strftime('%Y%m%d')}"
     return report_csv(cols, rows, fname) if format == "csv" else report_html(title, cols, rows, scope)
+
+
+# ---------------------------------------------------------------- scheduled reports
+# A schedule generates a report on a cadence, stores the snapshot in history (downloadable later),
+# and optionally delivers it through the existing notification channels (webhook summary + e-mail
+# with the CSV attached). It runs at the scope of whoever created it.
+
+CADENCES = ("daily", "weekly", "monthly")
+
+
+def next_report_run(cadence: str, hour: int, weekday: int, monthday: int, frm: float) -> float:
+    base = dtmod.datetime.fromtimestamp(frm)
+    cand = base.replace(hour=hour, minute=0, second=0, microsecond=0)
+    if cadence == "daily":
+        if cand <= base:
+            cand += dtmod.timedelta(days=1)
+    elif cadence == "weekly":
+        cand += dtmod.timedelta(days=(weekday - cand.weekday()) % 7)
+        if cand <= base:
+            cand += dtmod.timedelta(days=7)
+    else:  # monthly
+        def at(y: int, m: int):
+            return cand.replace(year=y, month=m, day=min(monthday, calendar.monthrange(y, m)[1]))
+        cand = at(cand.year, cand.month)
+        if cand <= base:
+            y, m = (cand.year + 1, 1) if cand.month == 12 else (cand.year, cand.month + 1)
+            cand = at(y, m)
+    return cand.timestamp()
+
+
+def send_report_email(cfg: dict, recipients: list[str], subject: str, text: str, filename: str, csv_text: str) -> None:
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = cfg["smtp_from"] or cfg["smtp_user"]
+    msg["To"] = ", ".join(recipients)
+    msg.set_content(text)
+    msg.add_attachment(csv_text.encode("utf-8"), maintype="text", subtype="csv", filename=filename)
+    port = int(cfg["smtp_port"] or 587)
+    ctx = ssl.create_default_context()
+    smtp = (smtplib.SMTP_SSL(cfg["smtp_host"], port, timeout=20, context=ctx)
+            if cfg["smtp_security"] == "ssl" else smtplib.SMTP(cfg["smtp_host"], port, timeout=20))
+    with smtp:
+        if cfg["smtp_security"] == "starttls":
+            smtp.starttls(context=ctx)
+        if cfg["smtp_user"]:
+            smtp.login(cfg["smtp_user"], cfg["smtp_pass"])
+        smtp.send_message(msg)
+
+
+def _schedule_user(s) -> dict:
+    return {"username": "scheduler", "role": s["role"], "scope_type": s["scope_type"], "scope_id": s["scope_id"]}
+
+
+def generate_report_run(con, s) -> dict:
+    """Generate one report for a schedule, store it in history, and try to deliver it."""
+    user = _schedule_user(s)
+    cols, rows, title = report_data(con, user, s["kind"])
+    scope = scope_label(con, user)
+    content = report_csv_text(cols, rows)
+    cfg = notify_config(con)
+    sent = []
+    if s["to_webhook"] and cfg["notify_webhook"]:
+        link = cfg.get("public_url", "") and f"{cfg['public_url']}/#/reports"
+        errs = deliver(cfg, f"[KEM] Scheduled report: {title}", f"{len(rows)} row(s) · scope: {scope}", link or "")
+        sent.append("webhook: " + ("sent" if not errs else "; ".join(errs)))
+    recips = [e.strip() for e in re.split(r"[,;\s]+", s["recipients"] or "") if e.strip()]
+    if recips and cfg["smtp_host"]:
+        try:
+            send_report_email(cfg, recips, f"[KEM] {title}",
+                              f"Attached: {title} — {len(rows)} row(s), scope {scope}.",
+                              f"kem-{s['kind']}-{time.strftime('%Y%m%d')}.csv", content)
+            sent.append("email: sent")
+        except Exception as e:  # noqa: BLE001 - record delivery failure, keep the stored copy
+            sent.append(f"email: {e}")
+    note = "; ".join(sent) or "stored (no delivery channel configured)"
+    rid = uuid.uuid4().hex
+    con.execute("INSERT INTO report_runs(id,schedule_id,kind,fmt,scope_label,rows,bytes,content,generated,status,note)"
+                " VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                (rid, s["id"], s["kind"], "csv", scope, len(rows), len(content.encode("utf-8")), content, now(),
+                 "generated", note[:500]))
+    # keep history bounded per schedule
+    con.execute("DELETE FROM report_runs WHERE schedule_id=? AND id NOT IN "
+                "(SELECT id FROM report_runs WHERE schedule_id=? ORDER BY generated DESC LIMIT 50)",
+                (s["id"], s["id"]))
+    return {"id": rid, "rows": len(rows), "note": note, "scope": scope, "title": title}
+
+
+def run_due_reports(con) -> None:
+    t = now()
+    due = con.execute("SELECT * FROM report_schedules WHERE enabled=1 AND next_run IS NOT NULL AND next_run<=?",
+                      (t,)).fetchall()
+    for s in due:
+        try:
+            generate_report_run(con, s)
+        except Exception as e:  # noqa: BLE001 - one bad schedule must not stop the others
+            print(f"[KEM] report schedule {s['id']} failed: {e}")
+        con.execute("UPDATE report_schedules SET last_run=?, next_run=? WHERE id=?",
+                    (t, next_report_run(s["cadence"], s["hour"], s["weekday"], s["monthday"], now()), s["id"]))
+
+
+def serialize_schedule(s) -> dict:
+    d = dict(s)
+    d["to_webhook"] = bool(d["to_webhook"])
+    d["enabled"] = bool(d["enabled"])
+    d["label"] = REPORTS.get(d["kind"], d["kind"])
+    return d
+
+
+def _owns_schedule(user: dict, s) -> bool:
+    return user["role"] == "superadmin" or s["created_by"] == user["username"]
+
+
+@app.get("/api/report-schedules")
+def list_schedules(user: dict = Depends(require_admin_user)):
+    with db() as con:
+        rows = con.execute("SELECT * FROM report_schedules ORDER BY created DESC").fetchall()
+        runs = {r["schedule_id"]: dict(r) for r in con.execute(
+            "SELECT schedule_id, MAX(generated) AS generated, rows, note FROM report_runs GROUP BY schedule_id")}
+    out = []
+    for s in rows:
+        if not _owns_schedule(user, s):
+            continue
+        d = serialize_schedule(s)
+        d["last"] = runs.get(s["id"])
+        out.append(d)
+    return out
+
+
+@app.post("/api/report-schedules")
+def create_schedule(request: Request, body: dict = Body(...), user: dict = Depends(require_admin_user)):
+    kind = clean(body.get("kind"), 32)
+    if kind not in REPORTS:
+        raise HTTPException(400, "Unknown report kind")
+    if kind == "licensing" and not _can_licensing(user):
+        raise HTTPException(403, "Not allowed to schedule the licensing report")
+    cadence = body.get("cadence", "weekly")
+    if cadence not in CADENCES:
+        raise HTTPException(400, f"cadence must be one of {list(CADENCES)}")
+    hour = _int(body, "hour", 7, 0, 23)
+    weekday = _int(body, "weekday", 0, 0, 6)
+    monthday = _int(body, "monthday", 1, 1, 28)
+    recips = [e.strip() for e in re.split(r"[,;\s]+", clean(body.get("recipients"), 500)) if e.strip()]
+    if any(not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", e) for e in recips):
+        raise HTTPException(400, "Recipients must be valid e-mail addresses")
+    sid = uuid.uuid4().hex
+    t = now()
+    nxt = next_report_run(cadence, hour, weekday, monthday, t)
+    with db() as con:
+        con.execute(
+            "INSERT INTO report_schedules(id,kind,fmt,cadence,hour,weekday,monthday,recipients,to_webhook,"
+            "role,scope_type,scope_id,enabled,created,created_by,next_run) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (sid, kind, "csv", cadence, hour, weekday, monthday, ", ".join(recips), 1 if body.get("to_webhook") else 0,
+             user["role"], user["scope_type"], user["scope_id"], 1, t, user["username"], nxt))
+        audit(con, user["username"], client_ip(request), "report_schedule_created", kind, {"cadence": cadence})
+        row = con.execute("SELECT * FROM report_schedules WHERE id=?", (sid,)).fetchone()
+    return serialize_schedule(row)
+
+
+@app.patch("/api/report-schedules/{sid}")
+def update_schedule(sid: str, request: Request, body: dict = Body(...), user: dict = Depends(require_admin_user)):
+    with db() as con:
+        s = con.execute("SELECT * FROM report_schedules WHERE id=?", (sid,)).fetchone()
+        if not s or not _owns_schedule(user, s):
+            raise HTTPException(404, "Schedule not found")
+        sets: dict[str, Any] = {}
+        if "enabled" in body:
+            sets["enabled"] = 1 if body.get("enabled") else 0
+        if "to_webhook" in body:
+            sets["to_webhook"] = 1 if body.get("to_webhook") else 0
+        if "recipients" in body:
+            recips = [e.strip() for e in re.split(r"[,;\s]+", clean(body.get("recipients"), 500)) if e.strip()]
+            if any(not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", e) for e in recips):
+                raise HTTPException(400, "Recipients must be valid e-mail addresses")
+            sets["recipients"] = ", ".join(recips)
+        if not sets:
+            raise HTTPException(400, "Nothing to update")
+        con.execute(f"UPDATE report_schedules SET {', '.join(k + '=?' for k in sets)} WHERE id=?",
+                    (*sets.values(), sid))
+        audit(con, user["username"], client_ip(request), "report_schedule_updated", sid, sets)
+        row = con.execute("SELECT * FROM report_schedules WHERE id=?", (sid,)).fetchone()
+    return serialize_schedule(row)
+
+
+@app.delete("/api/report-schedules/{sid}")
+def delete_schedule(sid: str, request: Request, user: dict = Depends(require_admin_user)):
+    with db() as con:
+        s = con.execute("SELECT * FROM report_schedules WHERE id=?", (sid,)).fetchone()
+        if not s or not _owns_schedule(user, s):
+            raise HTTPException(404, "Schedule not found")
+        con.execute("DELETE FROM report_schedules WHERE id=?", (sid,))
+        con.execute("DELETE FROM report_runs WHERE schedule_id=?", (sid,))
+        audit(con, user["username"], client_ip(request), "report_schedule_deleted", sid)
+    return {"ok": True}
+
+
+@app.post("/api/report-schedules/{sid}/run")
+def run_schedule_now(sid: str, request: Request, user: dict = Depends(require_admin_user)):
+    with db() as con:
+        s = con.execute("SELECT * FROM report_schedules WHERE id=?", (sid,)).fetchone()
+        if not s or not _owns_schedule(user, s):
+            raise HTTPException(404, "Schedule not found")
+        result = generate_report_run(con, s)
+        con.execute("UPDATE report_schedules SET last_run=? WHERE id=?", (now(), sid))
+        audit(con, user["username"], client_ip(request), "report_schedule_run", s["kind"], {"rows": result["rows"]})
+    return result
+
+
+@app.get("/api/report-runs")
+def list_report_runs(schedule_id: str = "", limit: int = 100, user: dict = Depends(require_admin_user)):
+    with db() as con:
+        owned = {s["id"] for s in con.execute("SELECT id, created_by, role FROM report_schedules").fetchall()
+                 if _owns_schedule(user, s)}
+        q = "SELECT id,schedule_id,kind,fmt,scope_label,rows,bytes,generated,status,note FROM report_runs "
+        args: list = []
+        if schedule_id:
+            q += "WHERE schedule_id=? "
+            args.append(schedule_id)
+        q += "ORDER BY generated DESC LIMIT ?"
+        args.append(max(1, min(limit, 500)))
+        rows = [dict(r) for r in con.execute(q, args).fetchall()]
+    return [r for r in rows if r["schedule_id"] in owned]
+
+
+@app.get("/api/report-runs/{rid}/download")
+def download_report_run(rid: str, user: dict = Depends(require_admin_user)):
+    with db() as con:
+        r = con.execute("SELECT r.*, s.created_by, s.role FROM report_runs r "
+                        "LEFT JOIN report_schedules s ON s.id=r.schedule_id WHERE r.id=?", (rid,)).fetchone()
+        if not r or (r["created_by"] is not None and not _owns_schedule(user, r)):
+            raise HTTPException(404, "Report not found")
+    fname = f"kem-{r['kind']}-{time.strftime('%Y%m%d%H%M', time.localtime(r['generated']))}"
+    return Response(content="﻿" + (r["content"] or ""), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{fname}.csv"'})
 
 
 # ---------------------------------------------------------------- organization (municipality/school/lab)
