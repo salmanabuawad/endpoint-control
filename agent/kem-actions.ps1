@@ -1,7 +1,7 @@
 # KEM agent - action library (dot-sourced by kem-agent.ps1, install.ps1 and background jobs).
 # Windows PowerShell 5.1, runs as SYSTEM.
 
-$script:KemVersion  = '1.10.0'
+$script:KemVersion  = '1.11.0'
 $script:KemTaskName = 'KEM Agent'
 $script:KemGatewayTask = 'KEM Gateway Relay'   # scheduled task when this station is a teacher station
 $script:KemAdminUser = 'kemadmin'   # install-created managed local admin (interactive logon denied)
@@ -75,7 +75,7 @@ function Get-KemHmacHex([string]$Key, [string]$Message) {
 function Invoke-KemApi {
     param([string]$Server, [string]$Path, $Body, [hashtable]$Headers = @{}, [int]$TimeoutSec = 60)
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    $json = $Body | ConvertTo-Json -Depth 8 -Compress
+    $json = $Body | ConvertTo-Json -Depth 12 -Compress
     $bytes = [Text.Encoding]::UTF8.GetBytes($json)
     # Sign the request with the device secret-derived key so the raw secret never travels on the wire
     # (HMAC over timestamp + nonce + method + path + body hash). Verified by the central server.
@@ -1434,6 +1434,237 @@ function Update-KemSoftware($P) {
     }
 }
 
+# ------------------------------------------------------------------ AI investigation probes
+# Fixed, read-only diagnostics that the server's AI investigation may request by id. Nothing here changes
+# the machine. User names are left out and profile paths masked (the server redacts again before AI use).
+
+function Hide-KemUserPath([string]$s) {
+    if (-not $s) { return $s }
+    return ($s -replace '(?i)(\\Users\\)(?!Public\\|Default\\)[^\\/\s"'']+', '$1<user>')
+}
+
+function Get-KemFolderMB([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path)) { return $null }
+    $sum = (Get-ChildItem -LiteralPath $Path -Recurse -Force -File -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum
+    return [math]::Round(($sum / 1MB), 1)
+}
+
+function Get-KemEventSummary([string]$Log, [int]$Hours) {
+    $ev = @(Get-WinEvent -FilterHashtable @{ LogName = $Log; Level = 1, 2; StartTime = (Get-Date).AddHours(-$Hours) } -MaxEvents 500 -ErrorAction SilentlyContinue)
+    $groups = @($ev | Group-Object ProviderName | Sort-Object Count -Descending | Select-Object -First 12)
+    $bySource = @(foreach ($g in $groups) {
+        $e = $g.Group | Select-Object -First 1
+        $msg = "$($e.Message)"; if ($msg.Length -gt 300) { $msg = $msg.Substring(0, 300) }
+        @{ source = $g.Name; count = $g.Count; event_id = $e.Id; last = (Get-KemUnixTime $e.TimeCreated); sample = (Hide-KemUserPath $msg) }
+    })
+    return @{ log = $Log; hours = $Hours; total = $ev.Count; capped_at = 500; by_source = $bySource }
+}
+
+function Get-KemProbeTopProcesses {
+    $cores = [Environment]::ProcessorCount
+    $first = @{}
+    foreach ($p in Get-Process) { try { $first[$p.Id] = $p.TotalProcessorTime.TotalMilliseconds } catch { } }
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    Start-Sleep -Milliseconds 1500
+    $ms = $sw.Elapsed.TotalMilliseconds
+    $rows = @(foreach ($p in Get-Process) {
+        if ($p.Id -eq 0) { continue }
+        $cpu = 0
+        try { if ($first.ContainsKey($p.Id)) { $cpu = [math]::Round(100 * ($p.TotalProcessorTime.TotalMilliseconds - $first[$p.Id]) / $ms / $cores, 1) } } catch { }
+        [pscustomobject]@{ name = $p.ProcessName; cpu = $cpu; mem_mb = [math]::Round($p.WorkingSet64 / 1MB, 1) }
+    })
+    return @{ count = $rows.Count; logical_cpus = $cores
+        by_cpu = @($rows | Sort-Object cpu -Descending | Select-Object -First 15)
+        by_memory = @($rows | Sort-Object mem_mb -Descending | Select-Object -First 15) }
+}
+
+function Get-KemProbeMemory {
+    $os = Get-CimInstance Win32_OperatingSystem
+    $pf = @(Get-CimInstance Win32_PageFileUsage -ErrorAction SilentlyContinue | ForEach-Object {
+        @{ path = "$($_.Name)"; size_mb = $_.AllocatedBaseSize; used_mb = $_.CurrentUsage; peak_mb = $_.PeakUsage } })
+    return @{ total_mb = [math]::Round($os.TotalVisibleMemorySize / 1KB); free_mb = [math]::Round($os.FreePhysicalMemory / 1KB)
+        commit_limit_mb = [math]::Round($os.TotalVirtualMemorySize / 1KB); commit_free_mb = [math]::Round($os.FreeVirtualMemory / 1KB)
+        pagefiles = $pf }
+}
+
+function Get-KemProbeDiskSpace {
+    $vols = @(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' | ForEach-Object {
+        @{ drive = $_.DeviceID; fs = "$($_.FileSystem)"; size_gb = [math]::Round($_.Size / 1GB, 1); free_gb = [math]::Round($_.FreeSpace / 1GB, 1) } })
+    $userTemp = 0
+    foreach ($u in @(Get-ChildItem 'C:\Users' -Directory -ErrorAction SilentlyContinue)) {
+        $mb = Get-KemFolderMB (Join-Path $u.FullName 'AppData\Local\Temp'); if ($mb) { $userTemp += $mb }
+    }
+    return @{ volumes = $vols; folders_mb = @{
+        windows_temp = (Get-KemFolderMB "$env:SystemRoot\Temp")
+        user_temp_total = [math]::Round($userTemp, 1)
+        update_download_cache = (Get-KemFolderMB "$env:SystemRoot\SoftwareDistribution\Download")
+        recycle_bin = (Get-KemFolderMB "$env:SystemDrive\`$Recycle.Bin") } }
+}
+
+function Get-KemProbeDiskHealth {
+    $disks = @(Get-PhysicalDisk -ErrorAction SilentlyContinue | ForEach-Object {
+        @{ name = "$($_.FriendlyName)"; media = "$($_.MediaType)"; bus = "$($_.BusType)"; size_gb = [math]::Round($_.Size / 1GB)
+            health = "$($_.HealthStatus)"; operational = (@($_.OperationalStatus) -join ',') } })
+    $smart = @(Get-CimInstance -Namespace root\wmi -ClassName MSStorageDriver_FailurePredictStatus -ErrorAction SilentlyContinue | ForEach-Object {
+        @{ predict_failure = [bool]$_.PredictFailure; reason = $_.Reason } })
+    return @{ disks = $disks; smart = $smart }
+}
+
+function Get-KemProbeStoppedServices {
+    $list = @(Get-CimInstance Win32_Service -Filter "StartMode='Auto' AND State<>'Running'" | Select-Object -First 60 | ForEach-Object {
+        @{ name = $_.Name; display = "$($_.DisplayName)"; state = "$($_.State)"; exit_code = $_.ExitCode } })
+    return @{ count = $list.Count; services = $list; note = 'Delayed/trigger-start services are often legitimately stopped.' }
+}
+
+function Get-KemProbeAppCrashes {
+    $ev = @(Get-WinEvent -FilterHashtable @{ LogName = 'Application'; Id = 1000, 1002; StartTime = (Get-Date).AddDays(-7) } -MaxEvents 300 -ErrorAction SilentlyContinue)
+    $rows = @($ev | ForEach-Object {
+        $prog = ''; try { $prog = "$($_.Properties[0].Value)" } catch { }
+        [pscustomobject]@{ program = $prog; kind = $(if ($_.Id -eq 1000) { 'crash' } else { 'hang' }); at = (Get-KemUnixTime $_.TimeCreated) } })
+    $groups = @($rows | Group-Object program, kind | Sort-Object Count -Descending | Select-Object -First 20 | ForEach-Object {
+        $g = $_.Group
+        @{ program = $g[0].program; kind = $g[0].kind; count = $_.Count; last = ($g | Measure-Object at -Maximum).Maximum } })
+    return @{ days = 7; total = $rows.Count; by_program = $groups }
+}
+
+function Get-KemProbeShutdowns {
+    $os = Get-CimInstance Win32_OperatingSystem
+    $ev = @(Get-WinEvent -FilterHashtable @{ LogName = 'System'; Id = 41, 6008, 1001; StartTime = (Get-Date).AddDays(-30) } -MaxEvents 200 -ErrorAction SilentlyContinue)
+    return @{ last_boot = (Get-KemUnixTime $os.LastBootUpTime); uptime_hours = [math]::Round(((Get-Date) - $os.LastBootUpTime).TotalHours, 1)
+        kernel_power_41 = @($ev | Where-Object { $_.Id -eq 41 }).Count
+        unexpected_shutdown_6008 = @($ev | Where-Object { $_.Id -eq 6008 }).Count
+        bugcheck_1001 = @($ev | Where-Object { $_.Id -eq 1001 -and $_.ProviderName -match 'WER-SystemErrorReporting|BugCheck' }).Count
+        recent = @($ev | Select-Object -First 10 | ForEach-Object { @{ id = $_.Id; source = $_.ProviderName; at = (Get-KemUnixTime $_.TimeCreated) } }) }
+}
+
+function Get-KemProbeStartup {
+    $items = @()
+    $keys = @(@{ k = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run'; s = 'machine' },
+              @{ k = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run'; s = 'machine (32-bit)' })
+    foreach ($h in @(Get-ChildItem Registry::HKEY_USERS -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -match '^S-1-5-21-[\d-]+$' })) {
+        $keys += @{ k = "Registry::HKEY_USERS\$($h.PSChildName)\Software\Microsoft\Windows\CurrentVersion\Run"; s = 'user' }
+    }
+    foreach ($k in $keys) {
+        $props = Get-ItemProperty -Path $k.k -ErrorAction SilentlyContinue
+        if (-not $props) { continue }
+        foreach ($p in $props.PSObject.Properties) {
+            if ($p.Name -like 'PS*') { continue }
+            $cmd = Hide-KemUserPath "$($p.Value)"; if ($cmd.Length -gt 200) { $cmd = $cmd.Substring(0, 200) }
+            $items += @{ name = $p.Name; scope = $k.s; command = $cmd }
+        }
+    }
+    $folders = @("$env:ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp") +
+        @(Get-ChildItem 'C:\Users' -Directory -ErrorAction SilentlyContinue | ForEach-Object { Join-Path $_.FullName 'AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup' })
+    foreach ($f in $folders) {
+        foreach ($x in @(Get-ChildItem -LiteralPath $f -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne 'desktop.ini' })) {
+            $items += @{ name = $x.Name; scope = 'startup folder'; command = (Hide-KemUserPath $x.FullName) }
+        }
+    }
+    $logonTasks = 0
+    try { $logonTasks = @(Get-ScheduledTask -ErrorAction Stop | Where-Object { $_.State -ne 'Disabled' -and @($_.Triggers | Where-Object { $_.CimClass.CimClassName -eq 'MSFT_TaskLogonTrigger' }).Count }).Count } catch { }
+    return @{ count = $items.Count; items = @($items | Select-Object -First 80); enabled_logon_tasks = $logonTasks }
+}
+
+function Get-KemProbeDrivers {
+    $list = @(Get-CimInstance Win32_PnPEntity -Filter 'ConfigManagerErrorCode<>0' -ErrorAction SilentlyContinue | Select-Object -First 40 | ForEach-Object {
+        @{ name = "$($_.Name)"; class = "$($_.PNPClass)"; error_code = $_.ConfigManagerErrorCode; status = "$($_.Status)" } })
+    return @{ count = $list.Count; devices = $list }
+}
+
+function Get-KemProbeNetwork {
+    $ads = @(Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.Status -ne 'Not Present' } | ForEach-Object {
+        @{ name = $_.Name; description = "$($_.InterfaceDescription)"; status = "$($_.Status)"; speed = "$($_.LinkSpeed)"; media = "$($_.MediaType)" } })
+    $gw = @(Get-NetIPConfiguration -ErrorAction SilentlyContinue | Where-Object { $_.IPv4DefaultGateway } | ForEach-Object { $_.IPv4DefaultGateway.NextHop }) | Select-Object -First 1
+    $ping = $null
+    if ($gw) {
+        $r = @(Test-Connection -ComputerName $gw -Count 4 -ErrorAction SilentlyContinue)
+        $ping = @{ sent = 4; received = $r.Count; avg_ms = $(if ($r.Count) { [math]::Round(($r | Measure-Object ResponseTime -Average).Average, 1) } else { $null }) }
+    }
+    $dns = $null
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    try { Resolve-DnsName 'www.microsoft.com' -DnsOnly -QuickTimeout -ErrorAction Stop | Out-Null; $dns = @{ ok = $true; ms = $sw.ElapsedMilliseconds } }
+    catch { $dns = @{ ok = $false; ms = $sw.ElapsedMilliseconds; error = "$($_.Exception.Message)" } }
+    $apipa = [bool](@(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { "$($_.IPAddress)" -like '169.254.*' }).Count)
+    $dnsServers = @(Get-DnsClientServerAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | ForEach-Object { $_.ServerAddresses } | Select-Object -Unique).Count
+    return @{ adapters = $ads; has_default_gateway = [bool]$gw; gateway_ping = $ping; dns_lookup = $dns; apipa_address = $apipa; dns_server_count = $dnsServers }
+}
+
+function Get-KemProbeInternet([string]$Server) {
+    $targets = @(@{ label = 'kem_server'; url = $Server.TrimEnd('/') + '/' }, @{ label = 'microsoft'; url = 'https://www.microsoft.com/' },
+                 @{ label = 'windows_update'; url = 'https://update.microsoft.com/' })
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    $res = @(foreach ($t in $targets) {
+        $sw = [Diagnostics.Stopwatch]::StartNew()
+        try {
+            $r = Invoke-WebRequest -Uri $t.url -Method Head -UseBasicParsing -TimeoutSec 15 -MaximumRedirection 3
+            @{ target = $t.label; reachable = $true; status = [int]$r.StatusCode; ms = $sw.ElapsedMilliseconds }
+        } catch {
+            $resp = $null; try { $resp = $_.Exception.Response } catch { }
+            if ($resp) { @{ target = $t.label; reachable = $true; status = [int]$resp.StatusCode; ms = $sw.ElapsedMilliseconds } }
+            else { $m = "$($_.Exception.Message)"; @{ target = $t.label; reachable = $false; ms = $sw.ElapsedMilliseconds; error = $m.Substring(0, [Math]::Min(200, $m.Length)) } }
+        }
+    })
+    $proxy = ((& netsh.exe winhttp show proxy 2>&1 | Out-String) -replace '\s+', ' ').Trim()
+    return @{ checks = $res; winhttp_proxy = $proxy.Substring(0, [Math]::Min(300, $proxy.Length)) }
+}
+
+function Get-KemProbeUpdateHistory {
+    $s = New-Object -ComObject Microsoft.Update.Session
+    $searcher = $s.CreateUpdateSearcher()
+    $n = $searcher.GetTotalHistoryCount()
+    $hist = @()
+    if ($n -gt 0) {
+        $hist = @($searcher.QueryHistory(0, [Math]::Min(15, $n)) | ForEach-Object {
+            $title = "$($_.Title)"; if ($title.Length -gt 150) { $title = $title.Substring(0, 150) }
+            $res = switch ([int]$_.ResultCode) { 2 { 'Succeeded' } 3 { 'Succeeded with errors' } 4 { 'Failed' } 5 { 'Aborted' } default { "code $($_.ResultCode)" } }
+            @{ title = $title; result = $res; hresult = ('0x{0:X8}' -f [int]$_.HResult); at = (Get-KemUnixTime $_.Date) } })
+    }
+    return @{ total_history = $n; recent = $hist }
+}
+
+function Get-KemProbeDefender {
+    $m = Get-MpComputerStatus -ErrorAction Stop
+    $det = @(Get-MpThreatDetection -ErrorAction SilentlyContinue | Sort-Object InitialDetectionTime -Descending | Select-Object -First 10 | ForEach-Object {
+        @{ threat_id = $_.ThreatID; at = (Get-KemUnixTime $_.InitialDetectionTime); action_success = [bool]$_.ActionSuccess
+            resources = (@($_.Resources | Select-Object -First 3 | ForEach-Object { Hide-KemUserPath "$_" }) -join ' | ') } })
+    $threats = @(Get-MpThreat -ErrorAction SilentlyContinue | Select-Object -First 10 | ForEach-Object {
+        @{ threat_id = $_.ThreatID; name = "$($_.ThreatName)"; severity = $_.SeverityID; active = [bool]$_.IsActive } })
+    return @{ antivirus_enabled = [bool]$m.AntivirusEnabled; realtime = [bool]$m.RealTimeProtectionEnabled; tamper_protected = [bool]$m.IsTamperProtected
+        running_mode = "$($m.AMRunningMode)"; signature_age_days = $m.AntivirusSignatureAge; quick_scan_age_days = $m.QuickScanAge
+        full_scan_age_days = $m.FullScanAge; engine = "$($m.AMEngineVersion)"; detections = $det; threats = $threats }
+}
+
+function Invoke-KemInvestigation($P, [string]$Server) {
+    $res = @{}; $ok = 0; $ids = @($P.probes)
+    foreach ($id in $ids) {
+        $sw = [Diagnostics.Stopwatch]::StartNew()
+        try {
+            $data = switch ("$id") {
+                'top_processes'         { Get-KemProbeTopProcesses }
+                'memory_pressure'       { Get-KemProbeMemory }
+                'disk_space'            { Get-KemProbeDiskSpace }
+                'disk_health'           { Get-KemProbeDiskHealth }
+                'stopped_auto_services' { Get-KemProbeStoppedServices }
+                'system_errors'         { Get-KemEventSummary 'System' 24 }
+                'application_errors'    { Get-KemEventSummary 'Application' 24 }
+                'app_crashes'           { Get-KemProbeAppCrashes }
+                'unexpected_shutdowns'  { Get-KemProbeShutdowns }
+                'startup_programs'      { Get-KemProbeStartup }
+                'driver_problems'       { Get-KemProbeDrivers }
+                'network_status'        { Get-KemProbeNetwork }
+                'internet_connectivity' { Get-KemProbeInternet $Server }
+                'update_history'        { Get-KemProbeUpdateHistory }
+                'defender_details'      { Get-KemProbeDefender }
+                default                 { throw "Unknown probe '$id'" }
+            }
+            $res["$id"] = @{ ok = $true; ms = $sw.ElapsedMilliseconds; data = $data }; $ok++
+        } catch {
+            $res["$id"] = @{ ok = $false; ms = $sw.ElapsedMilliseconds; error = (Hide-KemUserPath "$($_.Exception.Message)") }
+        }
+    }
+    return @{ status = 'success'; output = "Investigation: collected $ok of $($ids.Count) probe(s)."; data = @{ probes = $res } }
+}
+
 function Invoke-KemBroadcastSource([string]$Server) {
     # Called each main-loop tick: if this station is the broadcast source, capture+upload a frame when due.
     $s = Get-KemState 'broadcast_src'
@@ -1519,6 +1750,7 @@ function Invoke-KemCommand($Command, [string]$Server) {
         'security_scan'          { return Send-KemSecurity $Server }
         'collect_keys'           { return Send-KemLicenses $Server }
         'update_software'        { return Update-KemSoftware $p }
+        'investigate'            { return Invoke-KemInvestigation $p $Server }
         default              { return @{ status = 'failed'; output = "Unsupported command type '$($Command.type)' for this agent version." } }
     }
 }

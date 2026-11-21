@@ -150,6 +150,12 @@ CREATE TABLE IF NOT EXISTS packages(
   id TEXT PRIMARY KEY, name TEXT, scope_type TEXT DEFAULT 'global', scope_id TEXT,
   items TEXT DEFAULT '[]', notes TEXT DEFAULT '', created REAL, created_by TEXT DEFAULT '');
 CREATE INDEX IF NOT EXISTS ix_packages_scope ON packages(scope_type, scope_id);
+CREATE TABLE IF NOT EXISTS investigations(
+  id TEXT PRIMARY KEY, device_id TEXT, question TEXT, status TEXT DEFAULT 'collecting',
+  round INTEGER DEFAULT 1, steps TEXT DEFAULT '[]', answer TEXT DEFAULT '', error TEXT DEFAULT '',
+  model TEXT DEFAULT '', command_id INTEGER, created REAL, created_by TEXT DEFAULT '',
+  created_role TEXT DEFAULT '', updated REAL);
+CREATE INDEX IF NOT EXISTS ix_invest_device ON investigations(device_id, created);
 """
 # Columns added after v1.0 (ALTER TABLE on existing databases).
 MIGRATIONS = [
@@ -209,6 +215,8 @@ COMMAND_TYPES = {
     "security_scan",
     # license/product-key backup, and per-app update/reinstall
     "collect_keys", "update_software",
+    # AI-driven investigation: run catalog probes (read-only) chosen by the model
+    "investigate",
 }
 # Destructive commands: one device at a time, admin must type the hostname.
 CONFIRM_TYPES = {"reset_device", "uninstall_agent", "set_hostname"}
@@ -217,7 +225,7 @@ SENSITIVE_PARAMS = {"password", "gateway_secret"}
 # Server-initiated only: never accepted on the /api/commands endpoint (driven by the class endpoints).
 SERVER_ONLY_TYPES = {"set_uplink", "become_teacher_station", "stop_teacher_station",
                      "broadcast_capture", "show_broadcast", "stop_broadcast",
-                     "show_alert", "clear_alert"}
+                     "show_alert", "clear_alert", "investigate"}
 # Commands whose result payload is kept on the command row (latest few per device).
 DATA_TYPES = {"list_processes", "list_services"}
 UPDATE_TYPES = {"scan_updates", "install_updates"}
@@ -715,6 +723,7 @@ def monitor_loop() -> None:
 @asynccontextmanager
 async def lifespan(_app):
     threading.Thread(target=monitor_loop, name="kem-monitor", daemon=True).start()
+    threading.Thread(target=investigation_loop, name="kem-investigate", daemon=True).start()
     yield
 
 
@@ -1341,6 +1350,15 @@ def validate_params(ctype: str, p: Any) -> dict:
         if not name:
             raise HTTPException(400, "Give a winget id, a program name, or all=true")
         return {"name": name}
+    if ctype == "investigate":
+        probes = p.get("probes")
+        if (not isinstance(probes, list) or not 1 <= len(probes) <= INVESTIGATION_MAX_PROBES
+                or any(x not in INVESTIGATION_PROBES for x in probes)):
+            raise HTTPException(400, "probes must be 1-%d ids from the investigation catalog" % INVESTIGATION_MAX_PROBES)
+        iid = clean(p.get("investigation_id"), 64)
+        if not re.fullmatch(r"[0-9a-f]{32}", iid):
+            raise HTTPException(400, "Invalid investigation id")
+        return {"investigation_id": iid, "probes": list(dict.fromkeys(probes))}
     raise HTTPException(400, "Unsupported command")
 
 
@@ -1950,6 +1968,301 @@ def security_analyze(device_id: str, request: Request, user: dict = Depends(requ
         audit(con, user["username"], client_ip(request), "security_analyze", row["hostname"],
               {"model": cfg["model"], "had_snapshot": bool(snap)})
     return {"analysis": text, "at": t, "model": cfg["model"], "has_snapshot": bool(snap), "context_sent": ctx}
+
+
+# ---- AI-driven investigation: the model picks read-only probes, the agent runs them, the model explains ----
+# The model never writes commands. It may only name probe ids from INVESTIGATION_PROBES; each id maps to a
+# fixed, read-only routine in the agent. Results are PII-redacted here before they are stored or sent to
+# the model. One question gets at most INVESTIGATION_ROUNDS rounds of probes; the reply is advice only.
+INVESTIGATION_PROBES = {
+    "top_processes": "Top 15 processes by CPU and by memory (name, CPU %, memory MB; no user names)",
+    "memory_pressure": "Physical memory, commit charge, page-file size and usage",
+    "disk_space": "Volumes with size/free space, and the size of the Windows, user and update temp folders",
+    "disk_health": "Physical disks: media type, health and operational status, SMART failure prediction",
+    "stopped_auto_services": "Services set to start automatically that are not running",
+    "system_errors": "System event log: errors/critical events in the last 24 h, counted by source with a sample",
+    "application_errors": "Application event log: errors/critical events in the last 24 h, by source with a sample",
+    "app_crashes": "Application crashes and hangs in the last 7 days (faulting program names and counts)",
+    "unexpected_shutdowns": "Uptime, last boot, unexpected shutdowns, kernel-power events and blue screens (30 days)",
+    "startup_programs": "Programs launched at startup (Run keys, Startup folders) and enabled logon tasks",
+    "driver_problems": "Plug-and-play devices reporting a problem code (missing/failed drivers)",
+    "network_status": "Network adapters (status, link speed), default-gateway ping, DNS resolution, APIPA",
+    "internet_connectivity": "HTTPS reachability and latency to the KEM server and public sites, WinHTTP proxy",
+    "update_history": "The 15 most recent Windows Update install results with error codes",
+    "defender_details": "Microsoft Defender detail: protection state, signature age, scan ages, recent detections",
+}
+INVESTIGATION_MAX_PROBES = 6
+INVESTIGATION_ROUNDS = 2
+INVESTIGATION_TIMEOUT = 20 * 60      # a round the station never answers is given up on
+INVESTIGATION_DEFAULT = ["top_processes", "memory_pressure", "disk_space", "system_errors"]
+MAX_PROBE_CHARS = 12_000             # per probe result, after redaction
+
+_RX_IPV4 = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+_RX_IPV6 = re.compile(r"\b(?:[0-9A-Fa-f]{1,4}:){3,7}[0-9A-Fa-f]{1,4}\b")
+_RX_MAC = re.compile(r"\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b")
+_RX_EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+_RX_USERPATH = re.compile(r"(?i)(\\users\\)(?!public\\|default\\|<user>)[^\\/\s\"']+")
+_RX_SID = re.compile(r"\bS-1-5-21(?:-\d+){3,4}\b")
+
+
+def redact(v: Any) -> Any:
+    """Strip personal identifiers from probe output: IPs, MACs, e-mails, profile names, account SIDs."""
+    if isinstance(v, str):
+        for rx, rep in ((_RX_EMAIL, "<email>"), (_RX_MAC, "<mac>"), (_RX_IPV4, "<ip>"), (_RX_IPV6, "<ip>"),
+                        (_RX_SID, "<sid>")):
+            v = rx.sub(rep, v)
+        return _RX_USERPATH.sub(r"\1<user>", v)
+    if isinstance(v, dict):
+        return {str(k)[:80]: redact(x) for k, x in list(v.items())[:200]}
+    if isinstance(v, list):
+        return [redact(x) for x in v[:200]]
+    return v if isinstance(v, (int, float, bool)) or v is None else str(v)[:500]
+
+
+def _probe_catalog_text(exclude=()) -> str:
+    return "\n".join(f"- {k}: {d}" for k, d in INVESTIGATION_PROBES.items() if k not in exclude)
+
+
+INVESTIGATE_PLAN_PROMPT = (
+    "You are a Windows support engineer investigating a problem on one school lab computer. You cannot run "
+    "commands yourself. You may only request diagnostic probes from this catalog (id: what it collects):\n"
+    "{catalog}\n\nPick the probes (at most {max}) most likely to explain the problem. Reply with ONE line of "
+    'JSON and nothing else, for example: {{"probes": ["top_processes", "system_errors"], "reason": "why"}}'
+)
+INVESTIGATE_ANALYZE_PROMPT = (
+    "You are a Windows support engineer. You requested diagnostic probes on one school lab computer and "
+    "received their results as JSON (personal data is redacted as <ip>, <user>, ...). Explain the most likely "
+    "cause of the reported problem, citing the evidence, then give concrete, prioritised fixes a technician "
+    "can follow. Use only the data provided - do not invent details. If the data is inconclusive, say so and "
+    "say what to check next. Reply in short plain-text sections."
+)
+INVESTIGATE_MORE_RULE = (
+    "\n\nIf - and only if - one more round of probes would clearly settle the cause, reply instead with ONE "
+    'line of JSON and nothing else: {{"more_probes": ["id", ...], "reason": "why"}} (at most {max}, from '
+    "this catalog of probes not yet run):\n{catalog}"
+)
+
+
+def parse_probe_reply(text: str, key: str, exclude=()) -> tuple[list[str], str] | None:
+    """Pull a {key: [...], reason} object out of a model reply; keep only catalog ids. None if absent."""
+    s = re.sub(r"^```(?:json)?\s*|\s*```$", "", (text or "").strip(), flags=re.I)
+    m = re.search(r"\{.*\}", s, re.S)
+    if not m:
+        return None
+    try:
+        obj = json.loads(m.group(0))
+    except ValueError:
+        return None
+    if not isinstance(obj, dict) or not isinstance(obj.get(key), list):
+        return None
+    ids = [x for x in dict.fromkeys(str(i).strip() for i in obj[key])
+           if x in INVESTIGATION_PROBES and x not in exclude][:INVESTIGATION_MAX_PROBES]
+    return ids, clean(obj.get("reason"), 400)
+
+
+def _fit_probe(result: Any) -> Any:
+    r = redact(result)
+    blob = json.dumps(r, ensure_ascii=False)
+    return r if len(blob) <= MAX_PROBE_CHARS else {"truncated": True, "json": blob[:MAX_PROBE_CHARS]}
+
+
+def serialize_investigation(row) -> dict:
+    d = dict(row)
+    d["steps"] = jload(d.get("steps"), [])
+    for s in d["steps"]:
+        s["labels"] = {p: INVESTIGATION_PROBES.get(p, p) for p in s.get("probes", [])}
+    d["active"] = d["status"] in ("collecting", "analyzing", "thinking")
+    return d
+
+
+_invest_wake = threading.Event()
+
+
+def _start_round(con, inv_id: str, device_id: str, actor: dict, probes: list[str], reason: str,
+                 steps: list, round_no: int) -> None:
+    steps.append({"round": round_no, "probes": probes, "reason": reason, "requested_at": now(),
+                  "collected_at": None, "results": None})
+    cids = _enqueue(con, actor, [{"id": device_id}], "investigate", {"investigation_id": inv_id, "probes": probes})
+    con.execute("UPDATE investigations SET status='collecting', round=?, steps=?, command_id=?, updated=? WHERE id=?",
+                (round_no, json.dumps(steps, ensure_ascii=False), cids[0], now(), inv_id))
+
+
+def investigation_collected(con, cid: int, status: str, data: Any, output: str, t: float) -> None:
+    """The station finished an investigate command: store the redacted results, hand off to the model."""
+    inv = con.execute("SELECT * FROM investigations WHERE command_id=? AND status='collecting'", (cid,)).fetchone()
+    if not inv:
+        return
+    if status != "success":
+        con.execute("UPDATE investigations SET status='failed', error=?, updated=? WHERE id=?",
+                    (redact("The station could not run the probes: " + (output or "no output"))[:600], t, inv["id"]))
+        return
+    probes = data.get("probes") if isinstance(data, dict) else None
+    steps = jload(inv["steps"], [])
+    if steps:
+        steps[-1]["results"] = {k: _fit_probe(v) for k, v in (probes or {}).items() if k in INVESTIGATION_PROBES}
+        steps[-1]["collected_at"] = t
+    con.execute("UPDATE investigations SET status='analyzing', steps=?, updated=? WHERE id=?",
+                (json.dumps(steps, ensure_ascii=False), t, inv["id"]))
+    _invest_wake.set()
+
+
+def _analyze_investigation(inv_id: str) -> None:
+    with db() as con:
+        inv = con.execute("SELECT * FROM investigations WHERE id=?", (inv_id,)).fetchone()
+        dev = con.execute("SELECT * FROM devices WHERE id=?", (inv["device_id"],)).fetchone() if inv else None
+        cfg = ai_config(con)
+    if not inv:
+        return
+
+    def fail(msg: str) -> None:
+        with db() as con:
+            con.execute("UPDATE investigations SET status='failed', error=?, updated=? WHERE id=?", (msg[:600], now(), inv_id))
+
+    if not dev:
+        return fail("The device was removed")
+    if not cfg["enabled"]:
+        return fail("AI is not enabled - configure the local AI endpoint in Settings")
+    steps = jload(inv["steps"], [])
+    done = {p for s in steps for p in s.get("probes", [])}
+    ctx = {"problem_reported": inv["question"], "device": ai_device_context(serialize_device(dev, full=True)),
+           "probe_rounds": [{"round": s["round"], "why_requested": s.get("reason"), "results": s.get("results")}
+                            for s in steps]}
+    user_msg = "Investigate this problem.\n\n" + json.dumps(ctx, ensure_ascii=False, indent=1)
+    can_more = inv["round"] < INVESTIGATION_ROUNDS and len(done) < len(INVESTIGATION_PROBES)
+    system = INVESTIGATE_ANALYZE_PROMPT + (INVESTIGATE_MORE_RULE.format(
+        max=INVESTIGATION_MAX_PROBES, catalog=_probe_catalog_text(done)) if can_more else "")
+    try:
+        text = ai_chat(cfg, system, user_msg, max_tokens=1100)
+        more = parse_probe_reply(text, "more_probes", exclude=done) if can_more else None
+        if more is not None and not more[0]:
+            # asked for more but named nothing usable: get a final answer instead
+            text = ai_chat(cfg, INVESTIGATE_ANALYZE_PROMPT, user_msg, max_tokens=1100)
+            more = None
+    except HTTPException as e:
+        return fail(str(e.detail))
+    with db() as con:
+        cur = con.execute("SELECT status FROM investigations WHERE id=?", (inv_id,)).fetchone()
+        if not cur or cur["status"] != "thinking":
+            return  # cancelled meanwhile
+        if more:
+            actor = {"username": inv["created_by"], "role": inv["created_role"] or "superadmin"}
+            _start_round(con, inv_id, inv["device_id"], actor, more[0], more[1], steps, inv["round"] + 1)
+            audit(con, "ai", "", "investigation_followup", dev["hostname"], {"probes": more[0]})
+        else:
+            con.execute("UPDATE investigations SET status='done', answer=?, model=?, updated=? WHERE id=?",
+                        (text, cfg["model"], now(), inv_id))
+
+
+def process_investigations() -> None:
+    t = now()
+    with db() as con:
+        con.execute("UPDATE investigations SET status='failed', updated=?, error='The station did not return "
+                    "results within 20 minutes (is it offline?)' WHERE status='collecting' AND updated < ?",
+                    (t, t - INVESTIGATION_TIMEOUT))
+        # a model call interrupted by a server restart: try it again
+        con.execute("UPDATE investigations SET status='analyzing' WHERE status='thinking' AND updated < ?", (t - 300,))
+    while True:
+        with db() as con:
+            row = con.execute("SELECT id FROM investigations WHERE status='analyzing' ORDER BY updated LIMIT 1").fetchone()
+            if not row:
+                return
+            claimed = con.execute("UPDATE investigations SET status='thinking', updated=? WHERE id=? AND status='analyzing'",
+                                  (now(), row["id"])).rowcount
+        if claimed:
+            _analyze_investigation(row["id"])
+
+
+def investigation_loop() -> None:
+    while True:
+        try:
+            process_investigations()
+        except Exception as e:  # noqa: BLE001 - keep the worker alive
+            print(f"[KEM] investigation error: {e}")
+        _invest_wake.wait(10)
+        _invest_wake.clear()
+
+
+def _device_for_investigation(con, user: dict, device_id: str):
+    row = con.execute("SELECT * FROM devices WHERE id=?", (device_id,)).fetchone()
+    if not row or not device_in_scope(con, user, row["lab_id"]):
+        raise HTTPException(404, "Device not found")
+    return row
+
+
+@app.get("/api/investigations/probes")
+def investigation_probes(user: dict = Depends(require_diagnostics)):
+    return {"probes": INVESTIGATION_PROBES, "max_probes": INVESTIGATION_MAX_PROBES, "rounds": INVESTIGATION_ROUNDS}
+
+
+@app.get("/api/devices/{device_id}/investigations")
+def list_investigations(device_id: str, user: dict = Depends(require_diagnostics)):
+    with db() as con:
+        _device_for_investigation(con, user, device_id)
+        rows = con.execute("SELECT * FROM investigations WHERE device_id=? ORDER BY created DESC LIMIT 10",
+                           (device_id,)).fetchall()
+    return [serialize_investigation(r) for r in rows]
+
+
+@app.post("/api/devices/{device_id}/investigations")
+def start_investigation(device_id: str, request: Request, body: dict = Body(...),
+                        user: dict = Depends(require_diagnostics)):
+    question = str(body.get("question") or "").strip()
+    if not 3 <= len(question) <= 500:
+        raise HTTPException(400, "Describe the problem (3-500 characters)")
+    with db() as con:
+        row = _device_for_investigation(con, user, device_id)
+        cfg = ai_config(con)
+        if not cfg["enabled"]:
+            raise HTTPException(400, "AI is not enabled - configure the local AI endpoint in Settings")
+        if con.execute("SELECT 1 FROM investigations WHERE device_id=? AND status IN ('collecting','analyzing','thinking')",
+                       (device_id,)).fetchone():
+            raise HTTPException(409, "An investigation is already running on this device")
+        dev = serialize_device(row, full=True)
+    plan_msg = ("Problem reported: " + question + "\n\nCurrent device health:\n"
+                + json.dumps(ai_device_context(dev), ensure_ascii=False, indent=1))
+    reply = ai_chat(cfg, INVESTIGATE_PLAN_PROMPT.format(catalog=_probe_catalog_text(), max=INVESTIGATION_MAX_PROBES),
+                    plan_msg, max_tokens=250)
+    plan = parse_probe_reply(reply, "probes")
+    probes, reason = plan if plan and plan[0] else (INVESTIGATION_DEFAULT, "The model gave no usable plan; "
+                                                    "running the default triage set.")
+    iid = uuid.uuid4().hex
+    t = now()
+    with db() as con:
+        con.execute("INSERT INTO investigations(id,device_id,question,status,round,steps,model,created,created_by,"
+                    "created_role,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                    (iid, device_id, question, "collecting", 1, "[]", cfg["model"], t, user["username"], user["role"], t))
+        _start_round(con, iid, device_id, user, probes, reason, [], 1)
+        audit(con, user["username"], client_ip(request), "investigation_started", row["hostname"],
+              {"question": question[:120], "probes": probes, "model": cfg["model"]})
+        return serialize_investigation(con.execute("SELECT * FROM investigations WHERE id=?", (iid,)).fetchone())
+
+
+@app.get("/api/investigations/{inv_id}")
+def get_investigation(inv_id: str, user: dict = Depends(require_diagnostics)):
+    with db() as con:
+        inv = con.execute("SELECT * FROM investigations WHERE id=?", (inv_id,)).fetchone()
+        if not inv:
+            raise HTTPException(404, "Investigation not found")
+        _device_for_investigation(con, user, inv["device_id"])
+        return serialize_investigation(inv)
+
+
+@app.post("/api/investigations/{inv_id}/cancel")
+def cancel_investigation(inv_id: str, request: Request, user: dict = Depends(require_diagnostics)):
+    with db() as con:
+        inv = con.execute("SELECT * FROM investigations WHERE id=?", (inv_id,)).fetchone()
+        if not inv:
+            raise HTTPException(404, "Investigation not found")
+        row = _device_for_investigation(con, user, inv["device_id"])
+        if inv["status"] not in ("collecting", "analyzing", "thinking"):
+            raise HTTPException(400, "This investigation is not running")
+        con.execute("UPDATE investigations SET status='failed', error=?, updated=? WHERE id=?",
+                    (f"Cancelled by {user['username']}", now(), inv_id))
+        if inv["command_id"]:
+            con.execute("UPDATE commands SET status='cancelled', finished=? WHERE id=? AND status='queued'",
+                        (now(), inv["command_id"]))
+        audit(con, user["username"], client_ip(request), "investigation_cancelled", row["hostname"], {})
+        return {"ok": True}
 
 
 # ---- license / product-key backup ----
@@ -4337,6 +4650,8 @@ def apply_result(con, device_id: str, r: Any, t: float) -> None:
             con.execute("UPDATE commands SET data=NULL WHERE device_id=? AND type=? AND data IS NOT NULL AND id NOT IN "
                         "(SELECT id FROM commands WHERE device_id=? AND type=? AND data IS NOT NULL ORDER BY id DESC LIMIT 5)",
                         (device_id, cmd["type"], device_id, cmd["type"]))
+    elif cmd["type"] == "investigate":
+        investigation_collected(con, cid, status, data, output, t)
     if status == "failed" and cmd["created_by"] != "auto":
         host = con.execute("SELECT hostname FROM devices WHERE id=?", (device_id,)).fetchone()
         first = next((ln for ln in output.splitlines() if ln.strip()), "no output")[:300]

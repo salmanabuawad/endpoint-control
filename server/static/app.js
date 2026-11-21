@@ -1129,7 +1129,7 @@ async function viewDevice(id) {
   const TABS = [['commands', 'Activity'], ['updates', 'Windows updates'], ['software', 'Installed software'], ['processes', 'Processes'], ['services', 'Services']];
   const ui = { tab: 'commands', softQ: '', softAt: null, updSig: null, open: new Set(), loaded: {}, busy: {}, sel: new Set(), softSel: new Set(),
     procQ: '', procSort: 'mem', procs: null, procAt: null, svcQ: '', svcFilter: 'all', svcs: null, svcAt: null };
-  view.innerHTML = `<p><a href="#/devices">← All devices</a></p><div id="dhead"></div><div id="dbanner"></div><div class="cards" id="dcards"></div><div id="aicard"></div><div id="liccard"></div>
+  view.innerHTML = `<p><a href="#/devices">← All devices</a></p><div id="dhead"></div><div id="dbanner"></div><div class="cards" id="dcards"></div><div id="aicard"></div><div id="invcard"></div><div id="liccard"></div>
     <div class="card" style="margin-bottom:16px"><div class="tabs">${TABS.map(([k, l], i) => `<button data-t="${k}" class="${i ? '' : 'on'}">${l}<span class="tcount" id="tc-${k}"></span></button>`).join('')}</div>
       ${TABS.map(([k], i) => `<div id="tab-${k}" class="${i ? 'hidden' : ''}"></div>`).join('')}
     </div>
@@ -1199,6 +1199,71 @@ async function viewDevice(id) {
       } catch (e) { $('#secout').innerHTML = `<div class="banner crit">⚠ ${esc(e.message)}</div>`; }
       finally { b.disabled = false; }
     };
+  }
+
+  // AI-driven investigation: the model picks read-only probes from a fixed catalog, the station runs them,
+  // the model explains. Drawn once, then polls on its own while an investigation is running.
+  const INV_STATUS = { collecting: ['warn', 'Collecting on the station'], analyzing: ['warn', 'Analyzing'],
+    thinking: ['warn', 'Analyzing'], done: ['ok', 'Done'], failed: ['crit', 'Failed'] };
+  async function renderInvestigations() {
+    const el = $('#invcard');
+    if (!el || !cap('run_diagnostics')) return;
+    let list = [];
+    try { list = await api(`/api/devices/${id}/investigations`); }
+    catch (e) { el.innerHTML = `<div class="card pad"><div class="banner crit">⚠ ${esc(e.message)}</div></div>`; return; }
+    if (!alive()) return;
+    const openIds = new Set($$('#invlist details[open]').map((d) => d.dataset.id));
+    const item = (v, i) => {
+      const [cls, label] = INV_STATUS[v.status] || ['', v.status];
+      const steps = v.steps.map((s) => `<div class="small" style="margin-top:6px"><b>Round ${s.round}</b> · ${s.probes.map((p) =>
+        `<span class="pill" title="${esc(s.labels[p] || '')}">${esc(p.replace(/_/g, ' '))}</span>`).join(' ')}
+        ${s.reason ? `<div class="muted">${esc(s.reason)}</div>` : ''}
+        <div class="muted">${s.collected_at ? 'collected ' + ago(s.collected_at) : (v.active ? '<span class="spin"></span> waiting for the station…' : 'not collected')}</div></div>`).join('');
+      const data = v.steps.filter((s) => s.results);
+      return `<details data-id="${esc(v.id)}" ${openIds.has(v.id) || (!openIds.size && i === 0) ? 'open' : ''} style="margin-top:10px">
+        <summary><span class="pill ${cls}">${v.active ? '<span class="spin"></span> ' : ''}${label}</span> <b>${esc(v.question)}</b>
+          <span class="muted small">· ${esc(v.created_by)} · ${ago(v.created)}</span></summary>
+        ${steps}
+        ${v.answer ? `<pre class="aiout-text">${esc(v.answer)}</pre>` : ''}
+        ${v.error ? `<div class="banner crit" style="margin-top:8px">⚠ ${esc(v.error)}</div>` : ''}
+        ${data.length ? `<details class="help"><summary>Collected data sent to the model (personal data redacted)</summary>
+          <pre class="aiout-text">${esc(JSON.stringify(Object.assign({}, ...data.map((s) => s.results)), null, 2))}</pre></details>` : ''}
+        ${v.active ? `<button class="link small" data-invcancel="${esc(v.id)}">Cancel</button>` : ''}
+      </details>`;
+    };
+    const running = list.some((v) => v.active);
+    if (!$('#invform')) {
+      el.innerHTML = `<div class="card pad" style="margin-top:14px"><h2>🔎 AI investigation</h2>
+        <form id="invform" class="row" style="gap:8px;margin-top:8px">
+          <input name="q" maxlength="500" required minlength="3" style="flex:1;min-width:220px"
+            placeholder="Describe the problem — e.g. “very slow since Monday”, “Wi-Fi keeps dropping”, “app X crashes”">
+          <button class="btn primary small" type="submit" id="invgo">Investigate</button></form>
+        <p class="note" style="margin-top:8px">The model chooses which diagnostics to run from a fixed list of read-only checks
+          (processes, memory, disks, event logs, crashes, startup, drivers, network, updates, Defender) — it cannot run commands
+          or change anything. The station collects them, personal data (users, IPs, MACs, e-mails) is stripped, and the model
+          explains the likely cause. It may ask for one extra round of checks. Suggestions only — review before acting.</p>
+        <div id="invlist"></div></div>`;
+      $('#invform').onsubmit = async (ev) => {
+        ev.preventDefault();
+        const f = ev.target, b = $('#invgo');
+        b.disabled = true; b.innerHTML = '<span class="spin"></span> Planning…';
+        try {
+          await api(`/api/devices/${id}/investigations`, { method: 'POST', body: { question: f.q.value.trim() } });
+          f.q.value = ''; $$('#invlist details[open]').forEach((d) => d.removeAttribute('open'));
+          renderInvestigations();
+        } catch (e) { toast(e.message, true); }
+        finally { b.disabled = false; b.textContent = 'Investigate'; }
+      };
+    }
+    $('#invgo').disabled = running;
+    $('#invlist').innerHTML = list.length ? list.slice(0, 5).map(item).join('')
+      : '<p class="muted small" style="margin-top:8px">No investigations on this device yet.</p>';
+    $$('[data-invcancel]').forEach((b) => (b.onclick = async () => {
+      try { await api(`/api/investigations/${b.dataset.invcancel}/cancel`, { method: 'POST' }); renderInvestigations(); }
+      catch (e) { toast(e.message, true); }
+    }));
+    clearTimeout(ui.invTimer);
+    if (running) ui.invTimer = setTimeout(() => { if (alive()) renderInvestigations(); }, 3000);
   }
 
   async function renderLicenses() {
@@ -1536,6 +1601,7 @@ async function viewDevice(id) {
     });
     renderAI();
     renderLicenses();
+    if (!ui.invInit) { ui.invInit = true; renderInvestigations(); }
 
     $$('#tab-commands details[open]').forEach((d) => ui.open.add(d.dataset.id));
     $('#tab-commands').innerHTML = commandTable(dev.commands, false, ui.open);

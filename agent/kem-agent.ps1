@@ -64,7 +64,7 @@ while ($true) {
             try { $r = Invoke-KemCommand $cmd $Server }
             catch { $r = @{ status = 'failed'; output = "$($_.Exception.Message)" } }
             Write-KemLog "Command $($cmd.id) ($($cmd.type)) -> $($r.status)"
-            $r | ConvertTo-Json -Depth 8 -Compress
+            $r | ConvertTo-Json -Depth 12 -Compress
         }
         Write-KemLog "Command $($jobCmd.id) ($($jobCmd.type)) started in background"
     }
