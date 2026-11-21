@@ -195,6 +195,8 @@ COMMAND_TYPES = {
     "request_screenshot", "lock_input",
     # screen broadcast: a source station streams its screen to the class
     "broadcast_capture", "show_broadcast", "stop_broadcast",
+    # sticky class alert (persistent banner until cleared)
+    "show_alert", "clear_alert",
 }
 # Destructive commands: one device at a time, admin must type the hostname.
 CONFIRM_TYPES = {"reset_device", "uninstall_agent", "set_hostname"}
@@ -202,7 +204,8 @@ CONFIRM_TYPES = {"reset_device", "uninstall_agent", "set_hostname"}
 SENSITIVE_PARAMS = {"password", "gateway_secret"}
 # Server-initiated only: never accepted on the /api/commands endpoint (driven by the class endpoints).
 SERVER_ONLY_TYPES = {"set_uplink", "become_teacher_station", "stop_teacher_station",
-                     "broadcast_capture", "show_broadcast", "stop_broadcast"}
+                     "broadcast_capture", "show_broadcast", "stop_broadcast",
+                     "show_alert", "clear_alert"}
 # Commands whose result payload is kept on the command row (latest few per device).
 DATA_TYPES = {"list_processes", "list_services"}
 UPDATE_TYPES = {"scan_updates", "install_updates"}
@@ -1294,6 +1297,13 @@ def validate_params(ctype: str, p: Any) -> dict:
     if ctype == "show_broadcast":
         return {"source": clean(p.get("source"), 64), "lock_input": bool(p.get("lock_input", True))}
     if ctype == "stop_broadcast":
+        return {}
+    if ctype == "show_alert":
+        text = str(p.get("text") or "").strip()
+        if not 1 <= len(text) <= 1000:
+            raise HTTPException(400, "Alert text must be 1-1000 characters")
+        return {"title": clean(p.get("title"), 80) or "Message from your teacher", "text": text}
+    if ctype == "clear_alert":
         return {}
     raise HTTPException(400, "Unsupported command")
 
@@ -3112,6 +3122,54 @@ def dissolve_class_teacher(cid: str, request: Request, user: dict = Depends(requ
         audit(con, user["username"], client_ip(request), "class_teacher_dissolved", row["name"], {"members": len(others)})
         return {"ok": True, "queued": len(queued),
                 "class": serialize_class(con, con.execute("SELECT * FROM classes WHERE id=?", (cid,)).fetchone())}
+
+
+def _class_members_for_action(con, user, cid):
+    """Resolve a class and its in-scope member device ids (teacher station included)."""
+    row = con.execute("SELECT * FROM classes WHERE id=?", (cid,)).fetchone()
+    if not row or not _class_scope_ok(con, user, row):
+        raise HTTPException(404, "Class not found")
+    out = []
+    for did in jload(row["member_ids"], []):
+        d = con.execute("SELECT id, lab_id FROM devices WHERE id=?", (did,)).fetchone()
+        if d and device_in_scope(con, user, d["lab_id"]):
+            out.append(d["id"])
+    return row, out
+
+
+@app.post("/api/classes/{cid}/lock")
+def class_lock_input(cid: str, request: Request, body: dict = Body(...), user: dict = Depends(require_classes)):
+    mode = body.get("mode", "lock")
+    if mode not in ("lock", "unlock"):
+        raise HTTPException(400, "mode must be lock or unlock")
+    with db() as con:
+        row, members = _class_members_for_action(con, user, cid)
+        if not members:
+            raise HTTPException(400, "This class has no stations")
+        queued = _enqueue(con, user, [{"id": m} for m in members], "lock_input", {"mode": mode})
+        audit(con, user["username"], client_ip(request), "class_lock_input", row["name"], {"mode": mode, "stations": len(members)})
+    return {"ok": True, "mode": mode, "stations": len(members), "queued": len(queued)}
+
+
+@app.post("/api/classes/{cid}/alert")
+def class_alert(cid: str, request: Request, body: dict = Body(...), user: dict = Depends(require_classes)):
+    params = validate_params("show_alert", {"text": body.get("text"), "title": body.get("title")})
+    with db() as con:
+        row, members = _class_members_for_action(con, user, cid)
+        if not members:
+            raise HTTPException(400, "This class has no stations")
+        queued = _enqueue(con, user, [{"id": m} for m in members], "show_alert", params)
+        audit(con, user["username"], client_ip(request), "class_alert", row["name"], {"stations": len(members)})
+    return {"ok": True, "stations": len(members), "queued": len(queued)}
+
+
+@app.post("/api/classes/{cid}/alert/clear")
+def class_alert_clear(cid: str, request: Request, user: dict = Depends(require_classes)):
+    with db() as con:
+        row, members = _class_members_for_action(con, user, cid)
+        queued = _enqueue(con, user, [{"id": m} for m in members], "clear_alert", {}) if members else []
+        audit(con, user["username"], client_ip(request), "class_alert_clear", row["name"], {"stations": len(members)})
+    return {"ok": True, "stations": len(members), "queued": len(queued)}
 
 
 # ---------------------------------------------------------------- organization (municipality/school/lab)

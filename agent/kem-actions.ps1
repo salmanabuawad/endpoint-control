@@ -1,7 +1,7 @@
 # KEM agent - action library (dot-sourced by kem-agent.ps1, install.ps1 and background jobs).
 # Windows PowerShell 5.1, runs as SYSTEM.
 
-$script:KemVersion  = '1.7.0'
+$script:KemVersion  = '1.8.0'
 $script:KemTaskName = 'KEM Agent'
 $script:KemGatewayTask = 'KEM Gateway Relay'   # scheduled task when this station is a teacher station
 $script:KemAdminUser = 'kemadmin'   # install-created managed local admin (interactive logon denied)
@@ -1307,6 +1307,39 @@ while ((Test-Path $flag) -and $n -lt 7200) { [void][Kem.Input]::BlockInput($true
     return @{ status = 'success'; output = 'Keyboard and mouse locked (until unlocked; Ctrl+Alt+Del can still interrupt).' }
 }
 
+function Show-KemAlert($P) {
+    # A sticky full-width banner shown in the signed-in user's session until a clear_alert arrives.
+    $flag = Join-Path $env:PUBLIC 'kem-alert.flag'
+    Set-Content -Path $flag -Value 'on' -Force -ErrorAction SilentlyContinue
+    $tpl = @'
+Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+$flag = FLAGPATH
+$f = New-Object System.Windows.Forms.Form
+$f.FormBorderStyle = 'None'; $f.StartPosition = 'Manual'; $f.TopMost = $true; $f.ShowInTaskbar = $false
+$f.BackColor = [System.Drawing.Color]::FromArgb(185, 28, 28)
+$scr = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+$f.Width = $scr.Width; $f.Height = 96; $f.Location = New-Object System.Drawing.Point 0, 0
+$ti = New-Object System.Windows.Forms.Label; $ti.Dock = 'Top'; $ti.Height = 30; $ti.ForeColor = 'White'
+$ti.TextAlign = 'MiddleCenter'; $ti.Font = New-Object System.Drawing.Font('Segoe UI', 12, [System.Drawing.FontStyle]::Bold); $ti.Text = TITLE
+$bo = New-Object System.Windows.Forms.Label; $bo.Dock = 'Fill'; $bo.ForeColor = 'White'
+$bo.TextAlign = 'MiddleCenter'; $bo.Font = New-Object System.Drawing.Font('Segoe UI', 13); $bo.Text = BODY
+$f.Controls.Add($bo); $f.Controls.Add($ti)
+$tm = New-Object System.Windows.Forms.Timer; $tm.Interval = 1000; $tm.Add_Tick({ if (-not (Test-Path $flag)) { $f.Close() } }); $tm.Start()
+$f.Add_FormClosing({ param($s, $e) if (Test-Path $flag) { $e.Cancel = $true } })
+$f.ShowDialog() | Out-Null
+'@
+    $script = $tpl -replace 'FLAGPATH', (ConvertTo-KemPsLiteral $flag) `
+        -replace 'TITLE', (ConvertTo-KemPsLiteral "$($P.title)") `
+        -replace 'BODY', (ConvertTo-KemPsLiteral "$($P.text)")
+    Invoke-KemAsUser $script -NoWait
+    return @{ status = 'success'; output = 'Alert shown on the station.' }
+}
+
+function Clear-KemAlert {
+    Remove-Item (Join-Path $env:PUBLIC 'kem-alert.flag') -Force -ErrorAction SilentlyContinue
+    return @{ status = 'success'; output = 'Alert cleared.' }
+}
+
 function Invoke-KemBroadcastSource([string]$Server) {
     # Called each main-loop tick: if this station is the broadcast source, capture+upload a frame when due.
     $s = Get-KemState 'broadcast_src'
@@ -1387,6 +1420,8 @@ function Invoke-KemCommand($Command, [string]$Server) {
         'broadcast_capture'      { return Set-KemBroadcastSource $p }
         'show_broadcast'         { return Show-KemBroadcast $p }
         'stop_broadcast'         { return Stop-KemBroadcast }
+        'show_alert'             { return Show-KemAlert $p }
+        'clear_alert'            { return Clear-KemAlert }
         default              { return @{ status = 'failed'; output = "Unsupported command type '$($Command.type)' for this agent version." } }
     }
 }

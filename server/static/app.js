@@ -240,6 +240,12 @@ const I18N = {
     'cl.t.promoted': 'Teacher station set — {n} station(s) re-homed', 'cl.t.dissolved': 'Teacher station dissolved',
     'cl.dissolve.confirm': 'Send all stations back to the central server and stop the relay?',
     'cl.needmembers': 'Add at least one station first.', 'cl.teacher.badge': '★ teacher',
+    'cc.lock.title': 'Lock the whole class', 'cc.lock.note': 'Freezes or releases the keyboard and mouse of every station in this class, including the teacher station.',
+    'cc.lock': 'Lock input', 'cc.lock.sub': 'Disable keyboard & mouse on all class stations.', 'cc.unlock': 'Unlock input', 'cc.unlock.sub': 'Restore control on all class stations.',
+    'cc.t.locked': 'Locked {n} station(s)', 'cc.t.unlocked': 'Unlocked {n} station(s)',
+    'cc.alert.title': 'Alert the whole class', 'cc.alert.note': 'Shows a sticky banner on every station in this class until you clear it.',
+    'cc.alert.text': 'Message', 'cc.alert.ph': 'e.g. Eyes on the board, please.', 'cc.alert.send': 'Show on all screens', 'cc.alert.clear': 'Clear alert',
+    'cc.t.alerted': 'Alert shown on {n} station(s)', 'cc.t.cleared': 'Alert cleared on {n} station(s)',
     'pkg.title': 'Software packages', 'pkg.sub': 'Desired app sets for stations — install the set, optionally remove the rest',
     'pkg.new': '＋ New package', 'pkg.name': 'Name', 'pkg.items': 'Apps (one per line)',
     'pkg.items.help': 'Format:  Label | match | winget:Id   or   Label | match | url:https://…   — "match" is text found in the installed name. Leave the 3rd part blank to only keep it (e.g.  Windows | windows | ).',
@@ -440,6 +446,12 @@ const I18N = {
     'cl.t.promoted': 'עמדת מורה הוגדרה — {n} עמדות הופנו מחדש', 'cl.t.dissolved': 'עמדת המורה פורקה',
     'cl.dissolve.confirm': 'להחזיר את כל העמדות לשרת המרכזי ולעצור את הממסר?',
     'cl.needmembers': 'הוסיפו לפחות עמדה אחת תחילה.', 'cl.teacher.badge': '★ מורה',
+    'cc.lock.title': 'נעל את כל הכיתה', 'cc.lock.note': 'מקפיא או משחרר את המקלדת והעכבר של כל עמדה בכיתה, כולל עמדת המורה.',
+    'cc.lock': 'נעל קלט', 'cc.lock.sub': 'השבת מקלדת ועכבר בכל עמדות הכיתה.', 'cc.unlock': 'שחרר קלט', 'cc.unlock.sub': 'החזר שליטה בכל עמדות הכיתה.',
+    'cc.t.locked': 'ננעלו {n} עמדות', 'cc.t.unlocked': 'שוחררו {n} עמדות',
+    'cc.alert.title': 'התראה לכל הכיתה', 'cc.alert.note': 'מציג באנר דביק בכל עמדה בכיתה עד שתנקו אותו.',
+    'cc.alert.text': 'הודעה', 'cc.alert.ph': 'למשל: עיניים אל הלוח, בבקשה.', 'cc.alert.send': 'הצג בכל המסכים', 'cc.alert.clear': 'נקה התראה',
+    'cc.t.alerted': 'ההתראה הוצגה ב‑{n} עמדות', 'cc.t.cleared': 'ההתראה נוקתה ב‑{n} עמדות',
     'pkg.title': 'חבילות תוכנה', 'pkg.sub': 'מערכי תוכנה רצויים לעמדות — התקנת המערך, ואופציונלית הסרת השאר',
     'pkg.new': '＋ חבילה חדשה', 'pkg.name': 'שם', 'pkg.items': 'אפליקציות (אחת בשורה)',
     'pkg.items.help': 'מבנה:  תווית | התאמה | winget:Id   או   תווית | התאמה | url:https://…   — "התאמה" = טקסט שמופיע בשם המותקן. השאירו את החלק השלישי ריק כדי רק לשמור (למשל  Windows | windows | ).',
@@ -2447,6 +2459,8 @@ async function viewClasses() {
         ${manage ? `<td class="nowrap">
           ${c.active ? `<button class="btn small ghost-danger" data-dissolve="${esc(c.id)}">${t('cl.dissolve')}</button>`
                      : `<button class="btn small" data-promote="${esc(c.id)}"${c.member_count ? '' : ' disabled'}>${t('cl.setteacher')}</button>`}
+          ${c.member_count ? `<button class="btn small" data-lock="${esc(c.id)}" title="${t('cc.lock.title')}">🔒</button>
+          <button class="btn small" data-alert="${esc(c.id)}" title="${t('cc.alert.title')}">📢</button>` : ''}
           <button class="link small" data-edit="${esc(c.id)}">${t('cl.edit')}</button>
           ${c.active ? '' : `<button class="link small danger-link" data-del="${esc(c.id)}">${t('cl.del')}</button>`}
         </td>` : ''}</tr>`;
@@ -2458,6 +2472,8 @@ async function viewClasses() {
       onSubmit: async () => { await api(`/api/classes/${b.dataset.del}`, { method: 'DELETE' }); toast(t('cl.t.deleted')); load(); },
     })));
     $$('#clsrows [data-promote]').forEach((b) => (b.onclick = () => promoteClass(classes.find((c) => c.id === b.dataset.promote), load)));
+    $$('#clsrows [data-lock]').forEach((b) => (b.onclick = () => classLockModal(b.dataset.lock, classes.find((c) => c.id === b.dataset.lock))));
+    $$('#clsrows [data-alert]').forEach((b) => (b.onclick = () => classAlertModal(b.dataset.alert, classes.find((c) => c.id === b.dataset.alert))));
     $$('#clsrows [data-dissolve]').forEach((b) => (b.onclick = () => modal({
       title: t('cl.dissolve'), submit: t('cl.dissolve'), danger: true, body: `<p class="note">${t('cl.dissolve.confirm')}</p>`,
       onSubmit: async () => { const r = await api(`/api/classes/${b.dataset.dissolve}/dissolve`, { method: 'POST', body: {} }); toast(t('cl.t.dissolved')); load(); return r; },
@@ -2465,6 +2481,37 @@ async function viewClasses() {
   };
   if (manage) $('#newcls').onclick = () => classForm(load, null);
   await load();
+}
+
+function classLockModal(cid, c) {
+  modal({
+    title: `${t('cc.lock.title')} · ${esc(c ? c.name : '')}`, submit: t('scr.apply'), danger: true,
+    body: `<p class="note">${t('cc.lock.note')}</p>
+      <label class="option"><input type="radio" name="mode" value="lock" checked><div><b>${t('cc.lock')}</b><span>${t('cc.lock.sub')}</span></div></label>
+      <label class="option"><input type="radio" name="mode" value="unlock"><div><b>${t('cc.unlock')}</b><span>${t('cc.unlock.sub')}</span></div></label>`,
+    onSubmit: async (f) => {
+      const mode = (f.querySelector('[name=mode]:checked') || {}).value || 'lock';
+      const r = await api(`/api/classes/${cid}/lock`, { method: 'POST', body: { mode } });
+      toast(t(mode === 'lock' ? 'cc.t.locked' : 'cc.t.unlocked').replace('{n}', r.stations));
+    },
+  });
+}
+
+function classAlertModal(cid, c) {
+  const form = modal({
+    title: `${t('cc.alert.title')} · ${esc(c ? c.name : '')}`, submit: t('cc.alert.send'), wide: true,
+    body: `<p class="note">${t('cc.alert.note')}</p>
+      <label>${t('cc.alert.text')}<textarea name="text" maxlength="1000" required spellcheck="false" style="min-height:90px" placeholder="${esc(t('cc.alert.ph'))}"></textarea></label>
+      <button type="button" class="btn small" id="alertclear">${t('cc.alert.clear')}</button>`,
+    onSubmit: async (f) => {
+      const r = await api(`/api/classes/${cid}/alert`, { method: 'POST', body: { text: f.text.value } });
+      toast(t('cc.t.alerted').replace('{n}', r.stations));
+    },
+  });
+  $('#alertclear', form).onclick = async () => {
+    try { const r = await api(`/api/classes/${cid}/alert/clear`, { method: 'POST', body: {} }); toast(t('cc.t.cleared').replace('{n}', r.stations)); }
+    catch (e) { toast(e.message, true); }
+  };
 }
 
 async function classMemberPicker(selected, labId) {
