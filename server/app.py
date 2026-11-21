@@ -91,6 +91,12 @@ CREATE INDEX IF NOT EXISTS ix_gateways_lab ON gateways(lab_id);
 CREATE TABLE IF NOT EXISTS teacher_sessions(
   id TEXT PRIMARY KEY, user_id TEXT, username TEXT, lab_id TEXT, started REAL, ended REAL, note TEXT DEFAULT '');
 CREATE INDEX IF NOT EXISTS ix_tsession_lab ON teacher_sessions(lab_id, ended);
+CREATE TABLE IF NOT EXISTS classes(
+  id TEXT PRIMARY KEY, name TEXT, lab_id TEXT, member_ids TEXT DEFAULT '[]',
+  teacher_device_id TEXT, teacher_address TEXT DEFAULT '', gateway_id TEXT,
+  listen_port INTEGER DEFAULT 8171, active INTEGER DEFAULT 0,
+  created REAL, created_by TEXT DEFAULT '', updated REAL);
+CREATE INDEX IF NOT EXISTS ix_classes_lab ON classes(lab_id);
 CREATE TABLE IF NOT EXISTS license_entitlements(
   id TEXT PRIMARY KEY, name TEXT, product TEXT DEFAULT '', publisher TEXT DEFAULT '', edition TEXT DEFAULT '',
   license_type TEXT DEFAULT 'per_device', seats INTEGER DEFAULT 0, scope_type TEXT DEFAULT 'global', scope_id TEXT,
@@ -166,11 +172,15 @@ COMMAND_TYPES = {
     "launch_app",
     # station identity / managed local admin
     "set_hostname", "set_local_admin_password",
+    # teacher station (class gateway) topology
+    "set_uplink", "become_teacher_station", "stop_teacher_station",
 }
 # Destructive commands: one device at a time, admin must type the hostname.
 CONFIRM_TYPES = {"reset_device", "uninstall_agent", "set_hostname"}
 # Command params that must never be shown in the dashboard, audit log, or history.
-SENSITIVE_PARAMS = {"password"}
+SENSITIVE_PARAMS = {"password", "gateway_secret"}
+# Server-initiated only: never accepted on the /api/commands endpoint (driven by the class endpoints).
+SERVER_ONLY_TYPES = {"set_uplink", "become_teacher_station", "stop_teacher_station"}
 # Commands whose result payload is kept on the command row (latest few per device).
 DATA_TYPES = {"list_processes", "list_services"}
 UPDATE_TYPES = {"scan_updates", "install_updates"}
@@ -250,6 +260,7 @@ def role_capabilities(role: str) -> dict:
         "run_diagnostics": admin or role == "school_manager", "view_reports": role in ROLES,
         "view_images": admin or role == "school_manager", "manage_images": admin,
         "view_packages": admin or role == "school_manager", "manage_packages": admin or role == "school_manager",
+        "view_classes": admin or role == "school_manager", "manage_classes": admin or role == "school_manager",
         "view_licensing": admin or role == "school_manager", "manage_licensing": admin,
         "commands": sorted(COMMAND_TYPES) if admin else
                     sorted(COMMAND_TYPES - SCHOOL_MANAGER_BLOCKED) if role == "school_manager" else
@@ -1193,6 +1204,20 @@ def validate_params(ctype: str, p: Any) -> dict:
         if any(ord(c) < 32 for c in pw):
             raise HTTPException(400, "Password may not contain control characters or line breaks")
         return {"account": account, "password": pw, "ensure_admin": bool(p.get("ensure_admin", True))}
+    if ctype == "set_uplink":
+        url = clean(p.get("url"), 300)
+        if url and not re.match(r"^https?://[A-Za-z0-9._-]+(:\d{2,5})?/?$", url):
+            raise HTTPException(400, "Uplink must be a base URL like http://teacher-pc:8171 (or empty to go direct)")
+        return {"url": url.rstrip("/")}
+    if ctype == "become_teacher_station":
+        gid = clean(p.get("gateway_id"), 64)
+        sec = p.get("gateway_secret")
+        if not gid or not isinstance(sec, str) or not sec:
+            raise HTTPException(400, "gateway_id and gateway_secret are required")
+        return {"gateway_id": gid, "gateway_secret": sec, "lab_id": clean(p.get("lab_id"), 64),
+                "listen_port": _int(p, "listen_port", 8171, 1, 65535)}
+    if ctype == "stop_teacher_station":
+        return {}
     raise HTTPException(400, "Unsupported command")
 
 
@@ -1208,6 +1233,15 @@ def agent_file(name: str):
     if name not in AGENT_FILES:
         raise HTTPException(404)
     return FileResponse(AGENT_DIR / name, media_type="text/plain; charset=utf-8",
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.get("/gateway/{name}", include_in_schema=False)
+def gateway_file(name: str):
+    # The Teacher Gateway relay, fetched by a station being promoted to a teacher station.
+    if name not in ("relay.py", "install-gateway.ps1"):
+        raise HTTPException(404)
+    return FileResponse(BASE.parent / "gateway" / name, media_type="text/plain; charset=utf-8",
                         headers={"Cache-Control": "no-store"})
 
 
@@ -1365,6 +1399,8 @@ def create_commands(request: Request, body: dict = Body(...), user: dict = Depen
         raise HTTPException(400, "device_ids must be a non-empty list")
     ids = list(dict.fromkeys(str(i) for i in ids))
     ctype = str(body.get("type") or "")
+    if ctype in SERVER_ONLY_TYPES:
+        raise HTTPException(403, f"'{ctype}' is managed through classes, not issued directly")
     if ctype in COMMAND_TYPES and not role_can_issue(user["role"], ctype):
         raise HTTPException(403, f"Your role is not allowed to issue '{ctype}'")
     params = validate_params(ctype, body.get("params") or {})
@@ -2491,6 +2527,207 @@ def _auto_provision_on_enroll(con, device_id: str, lab_id: str) -> None:
               {"package": pkg["name"], "device": device_id, "install": n})
 
 
+# ------- classes & teacher stations ---------------------------------------
+# A class groups stations and can promote one of them to a "teacher station": that station runs
+# the Teacher Gateway relay, and the other members re-home their agent to it (with the central
+# server kept as an automatic fallback for when the teacher station is off).
+
+def require_classes(request: Request) -> dict:
+    u = _authenticate(request)
+    if u["role"] not in ADMIN_ROLES and u["role"] != "school_manager":
+        raise HTTPException(403, "Not allowed to manage classes")
+    return u
+
+
+def _class_scope_ok(con, user, row) -> bool:
+    # In scope if the class's lab is in scope, or (no lab) any member is in scope.
+    if row["lab_id"]:
+        return device_in_scope(con, user, row["lab_id"])
+    allowed = allowed_lab_ids(con, user)
+    if allowed is None:
+        return True
+    for did in jload(row["member_ids"], []):
+        d = con.execute("SELECT lab_id FROM devices WHERE id=?", (did,)).fetchone()
+        if d and d["lab_id"] in allowed:
+            return True
+    return not jload(row["member_ids"], [])
+
+
+def serialize_class(con, row) -> dict:
+    members = jload(row["member_ids"], [])
+    out_members = []
+    for did in members:
+        d = con.execute("SELECT id, hostname, last_seen, lab_id FROM devices WHERE id=?", (did,)).fetchone()
+        if not d:
+            continue
+        out_members.append({"device_id": d["id"], "hostname": d["hostname"],
+                            "online": bool(d["last_seen"] and now() - d["last_seen"] < ONLINE_SECONDS),
+                            "is_teacher": d["id"] == row["teacher_device_id"]})
+    gw = con.execute("SELECT * FROM gateways WHERE id=?", (row["gateway_id"],)).fetchone() if row["gateway_id"] else None
+    teacher = con.execute("SELECT hostname FROM devices WHERE id=?", (row["teacher_device_id"],)).fetchone() if row["teacher_device_id"] else None
+    return {"id": row["id"], "name": row["name"], "lab_id": row["lab_id"],
+            "lab_name": scope_name(con, "lab", row["lab_id"]) if row["lab_id"] else "",
+            "members": out_members, "member_count": len(out_members),
+            "teacher_device_id": row["teacher_device_id"],
+            "teacher_hostname": teacher["hostname"] if teacher else "",
+            "teacher_address": row["teacher_address"] or "", "listen_port": row["listen_port"],
+            "active": bool(row["active"]),
+            "gateway_id": row["gateway_id"],
+            "gateway_online": bool(gw and gw["last_seen"] and now() - gw["last_seen"] < ONLINE_SECONDS)}
+
+
+def _class_members_in_scope(con, user, ids) -> list[str]:
+    out = []
+    for did in dict.fromkeys(str(i) for i in (ids or [])):
+        d = con.execute("SELECT id, lab_id FROM devices WHERE id=?", (did,)).fetchone()
+        if not d:
+            raise HTTPException(404, "One or more stations not found")
+        if not device_in_scope(con, user, d["lab_id"]):
+            raise HTTPException(403, "One or more stations are outside your scope")
+        out.append(d["id"])
+    return out
+
+
+@app.get("/api/classes")
+def list_classes(user: dict = Depends(require_classes)):
+    with db() as con:
+        rows = con.execute("SELECT * FROM classes ORDER BY created DESC").fetchall()
+        return [serialize_class(con, r) for r in rows if _class_scope_ok(con, user, r)]
+
+
+@app.post("/api/classes")
+def create_class(request: Request, body: dict = Body(...), user: dict = Depends(require_classes)):
+    name = clean(body.get("name"), 120)
+    if not name:
+        raise HTTPException(400, "A class name is required")
+    lab_id = clean(body.get("lab_id"), 64) or None
+    with db() as con:
+        if lab_id and (not con.execute("SELECT 1 FROM labs WHERE id=?", (lab_id,)).fetchone() or not device_in_scope(con, user, lab_id)):
+            raise HTTPException(404, "Lab not found")
+        members = _class_members_in_scope(con, user, body.get("member_ids"))
+        cid = uuid.uuid4().hex
+        con.execute("INSERT INTO classes(id,name,lab_id,member_ids,listen_port,created,created_by,updated) "
+                    "VALUES(?,?,?,?,?,?,?,?)",
+                    (cid, name, lab_id, json.dumps(members), _int(body, "listen_port", 8171, 1, 65535),
+                     now(), user["username"], now()))
+        audit(con, user["username"], client_ip(request), "class_created", name, {"members": len(members)})
+        row = con.execute("SELECT * FROM classes WHERE id=?", (cid,)).fetchone()
+        return serialize_class(con, row)
+
+
+@app.patch("/api/classes/{cid}")
+def update_class(cid: str, request: Request, body: dict = Body(...), user: dict = Depends(require_classes)):
+    with db() as con:
+        row = con.execute("SELECT * FROM classes WHERE id=?", (cid,)).fetchone()
+        if not row or not _class_scope_ok(con, user, row):
+            raise HTTPException(404, "Class not found")
+        sets, vals = [], []
+        if "name" in body:
+            nm = clean(body.get("name"), 120)
+            if not nm:
+                raise HTTPException(400, "A class name is required")
+            sets.append("name=?"); vals.append(nm)
+        if "member_ids" in body:
+            members = _class_members_in_scope(con, user, body.get("member_ids"))
+            # the teacher must remain a member
+            if row["teacher_device_id"] and row["teacher_device_id"] not in members:
+                raise HTTPException(400, "Remove the teacher station before removing it from the class")
+            sets.append("member_ids=?"); vals.append(json.dumps(members))
+        if "teacher_address" in body:
+            sets.append("teacher_address=?"); vals.append(clean(body.get("teacher_address"), 200))
+        if "listen_port" in body:
+            sets.append("listen_port=?"); vals.append(_int(body, "listen_port", 8171, 1, 65535))
+        if not sets:
+            raise HTTPException(400, "Nothing to update")
+        sets.append("updated=?"); vals.append(now()); vals.append(cid)
+        con.execute(f"UPDATE classes SET {', '.join(sets)} WHERE id=?", vals)
+        audit(con, user["username"], client_ip(request), "class_updated", row["name"])
+        return serialize_class(con, con.execute("SELECT * FROM classes WHERE id=?", (cid,)).fetchone())
+
+
+@app.delete("/api/classes/{cid}")
+def delete_class(cid: str, request: Request, user: dict = Depends(require_classes)):
+    with db() as con:
+        row = con.execute("SELECT * FROM classes WHERE id=?", (cid,)).fetchone()
+        if not row or not _class_scope_ok(con, user, row):
+            raise HTTPException(404, "Class not found")
+        if row["active"]:
+            raise HTTPException(409, "Dissolve the teacher station before deleting the class")
+        con.execute("DELETE FROM classes WHERE id=?", (cid,))
+        audit(con, user["username"], client_ip(request), "class_deleted", row["name"])
+    return {"ok": True}
+
+
+def _class_uplink_url(row, teacher_host) -> str:
+    addr = (row["teacher_address"] or "").strip() or teacher_host
+    return f"http://{addr}:{row['listen_port']}"
+
+
+@app.post("/api/classes/{cid}/teacher")
+def set_class_teacher(cid: str, request: Request, body: dict = Body(...), user: dict = Depends(require_classes)):
+    """Promote a member to the teacher station: mint its gateway, tell it to relay, and re-home the rest."""
+    tdid = clean(body.get("teacher_device_id"), 64)
+    with db() as con:
+        row = con.execute("SELECT * FROM classes WHERE id=?", (cid,)).fetchone()
+        if not row or not _class_scope_ok(con, user, row):
+            raise HTTPException(404, "Class not found")
+        members = jload(row["member_ids"], [])
+        if tdid not in members:
+            raise HTTPException(400, "The teacher station must be one of the class members")
+        teacher = con.execute("SELECT id, hostname, lab_id FROM devices WHERE id=?", (tdid,)).fetchone()
+        if not teacher or not device_in_scope(con, user, teacher["lab_id"]):
+            raise HTTPException(404, "Station not found")
+        lab_id = teacher["lab_id"] or row["lab_id"]
+        if not lab_id:
+            raise HTTPException(400, "The teacher station must belong to a lab")
+        # Mint a fresh gateway identity for the teacher station.
+        secret = secrets.token_urlsafe(32)
+        gid = uuid.uuid4().hex
+        con.execute("INSERT INTO gateways(id,secret_hash,lab_id,hostname,notes,enrolled,last_seen,public_ip) "
+                    "VALUES(?,?,?,?,?,?,?,?)",
+                    (gid, sha256(secret), lab_id, teacher["hostname"], f"Teacher station for class {row['name']}", now(), None, ""))
+        con.execute("UPDATE classes SET teacher_device_id=?, gateway_id=?, active=1, updated=? WHERE id=?",
+                    (tdid, gid, now(), cid))
+        row = con.execute("SELECT * FROM classes WHERE id=?", (cid,)).fetchone()
+        uplink = _class_uplink_url(row, teacher["hostname"])
+        queued = _enqueue(con, user, [{"id": tdid}], "become_teacher_station",
+                          {"gateway_id": gid, "gateway_secret": secret, "lab_id": lab_id, "listen_port": row["listen_port"]})
+        others = [{"id": m} for m in members if m != tdid]
+        if others:
+            queued += _enqueue(con, user, others, "set_uplink", {"url": uplink})
+        audit(con, user["username"], client_ip(request), "class_teacher_set", row["name"],
+              {"teacher": teacher["hostname"], "uplink": uplink, "rehomed": len(others)})
+        return {"ok": True, "uplink": uplink, "rehomed": len(others), "queued": len(queued),
+                **{"class": serialize_class(con, row)}}
+
+
+@app.post("/api/classes/{cid}/dissolve")
+def dissolve_class_teacher(cid: str, request: Request, user: dict = Depends(require_classes)):
+    """Demote the teacher station: send the members back to the central server and stop the relay."""
+    with db() as con:
+        row = con.execute("SELECT * FROM classes WHERE id=?", (cid,)).fetchone()
+        if not row or not _class_scope_ok(con, user, row):
+            raise HTTPException(404, "Class not found")
+        if not row["active"]:
+            raise HTTPException(400, "This class has no active teacher station")
+        members = jload(row["member_ids"], [])
+        tdid = row["teacher_device_id"]
+        queued = []
+        others = [{"id": m} for m in members if m != tdid]
+        if others:
+            queued += _enqueue(con, user, others, "set_uplink", {"url": ""})
+        if tdid:
+            queued += _enqueue(con, user, [{"id": tdid}], "stop_teacher_station", {})
+        if row["gateway_id"]:
+            con.execute("DELETE FROM gateways WHERE id=?", (row["gateway_id"],))
+            con.execute("UPDATE devices SET gateway_id=NULL WHERE gateway_id=?", (row["gateway_id"],))
+        con.execute("UPDATE classes SET active=0, teacher_device_id=NULL, gateway_id=NULL, updated=? WHERE id=?",
+                    (now(), cid))
+        audit(con, user["username"], client_ip(request), "class_teacher_dissolved", row["name"], {"members": len(others)})
+        return {"ok": True, "queued": len(queued),
+                "class": serialize_class(con, con.execute("SELECT * FROM classes WHERE id=?", (cid,)).fetchone())}
+
+
 # ---------------------------------------------------------------- organization (municipality/school/lab)
 
 def _req_name(body: dict, key: str = "name", limit: int = 120) -> str:
@@ -3343,7 +3580,7 @@ def apply_result(con, device_id: str, r: Any, t: float) -> None:
     if not cur.rowcount or status == "running":
         return
     # Drop a delivered secret from storage once the command reaches a terminal state.
-    if cmd["type"] == "set_local_admin_password":
+    if cmd["type"] in ("set_local_admin_password", "become_teacher_station"):
         con.execute("UPDATE commands SET params='{}' WHERE id=?", (cid,))
     data = r.get("data")
     if cmd["type"] in UPDATE_TYPES and isinstance(data, dict) and isinstance(data.get("updates"), list):

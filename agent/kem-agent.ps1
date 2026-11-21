@@ -47,6 +47,7 @@ while ($true) {
         Write-KemLog "Command $($jobCmd.id) ($($jobCmd.type)) finished"
         if ($jobCmd.type -in 'install_software', 'uninstall_software', 'run_script') { $nextSoftware = [datetime]::MinValue }
         if ($jobCmd.type -in 'create_baseline', 'install_updates', 'service_action') { $nextInventory = [datetime]::MinValue }
+        if ($jobCmd.type -eq 'set_uplink') { $cfg = Get-KemConfig; $headers = Get-KemAuthHeaders $cfg }
         Remove-Job $job -Force
         $job = $null; $jobCmd = $null
     }
@@ -85,7 +86,13 @@ while ($true) {
         $sent = @($results.ToArray())
         if ($sent.Count) { $body.results = $sent }
 
-        $resp = Invoke-KemApi -Server $cfg.server -Path '/api/agent/checkin' -Body $body -Headers $headers
+        # Re-home to the teacher station when one is set and reachable; otherwise use central directly.
+        $activeServer = $cfg.server
+        if ($cfg.PSObject.Properties.Name -contains 'uplink' -and $cfg.uplink) {
+            if (Test-KemUplink $cfg.uplink) { $activeServer = $cfg.uplink }
+            else { Write-KemLog "Teacher station $($cfg.uplink) unreachable; using central server." }
+        }
+        $resp = Invoke-KemApi -Server $activeServer -Path '/api/agent/checkin' -Body $body -Headers $headers
         foreach ($s in $sent) { $results.Remove($s) }
         $failures = 0
         if ($resp.interval) { $interval = [int]$resp.interval }

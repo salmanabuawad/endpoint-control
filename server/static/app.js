@@ -172,7 +172,22 @@ const I18N = {
     'sw.name': 'Name', 'sw.version': 'Version', 'sw.publisher': 'Publisher', 'sw.installed': 'Installed', 'sw.peruser': 'per-user',
     'sw.programs': 'programs', 'sw.collected': 'collected', 'sw.notcollected': 'Not collected yet', 'sw.none': 'Nothing to show',
     'sw.uninstallsel': 'Uninstall selected', 'sw.confirm': 'Uninstall {n} program(s)? This runs their uninstaller on the device.', 'sw.t.queued': 'Uninstall queued for {n} program(s)',
-    'nav.packages': 'Packages',
+    'nav.packages': 'Packages', 'nav.classes': 'Classes',
+    'cl.title': 'Classes', 'cl.sub': 'Group stations into a class and promote one to a teacher station the others connect through',
+    'cl.new': '＋ New class', 'cl.name': 'Class name', 'cl.lab': 'Lab', 'cl.lab.any': '— any lab —',
+    'cl.members': 'Stations', 'cl.members.help': 'Pick the stations in this class.', 'cl.create': 'Create class',
+    'cl.col.name': 'Class', 'cl.col.members': 'Stations', 'cl.col.teacher': 'Teacher station', 'cl.col.status': 'Status',
+    'cl.none': 'No classes yet.', 'cl.nomembers': 'no stations', 'cl.del': 'delete', 'cl.confirm.del': 'Delete this class?',
+    'cl.t.created': 'Class created', 'cl.t.deleted': 'Class deleted', 'cl.t.saved': 'Class updated',
+    'cl.edit': 'Edit', 'cl.setteacher': 'Set teacher station', 'cl.dissolve': 'Dissolve',
+    'cl.active': 'Active · {n} re-homed', 'cl.inactive': 'Direct to server', 'cl.gw.online': 'relay online', 'cl.gw.offline': 'relay offline',
+    'cl.promote.title': 'Promote a teacher station', 'cl.promote.pick': 'Teacher station',
+    'cl.promote.addr': 'Teacher station address (LAN IP or name)', 'cl.promote.addr.help': 'Leave blank to use the station hostname. Classmates connect to http://<address>:<port>.',
+    'cl.promote.port': 'Relay port', 'cl.promote.submit': 'Promote & re-home',
+    'cl.promote.note': 'The other stations will reconnect through this station. If it is offline, they fall back to the central server automatically.',
+    'cl.t.promoted': 'Teacher station set — {n} station(s) re-homed', 'cl.t.dissolved': 'Teacher station dissolved',
+    'cl.dissolve.confirm': 'Send all stations back to the central server and stop the relay?',
+    'cl.needmembers': 'Add at least one station first.', 'cl.teacher.badge': '★ teacher',
     'pkg.title': 'Software packages', 'pkg.sub': 'Desired app sets for stations — install the set, optionally remove the rest',
     'pkg.new': '＋ New package', 'pkg.name': 'Name', 'pkg.items': 'Apps (one per line)',
     'pkg.items.help': 'Format:  Label | match | winget:Id   or   Label | match | url:https://…   — "match" is text found in the installed name. Leave the 3rd part blank to only keep it (e.g.  Windows | windows | ).',
@@ -323,7 +338,22 @@ const I18N = {
     'sw.name': 'שם', 'sw.version': 'גרסה', 'sw.publisher': 'יצרן', 'sw.installed': 'הותקן', 'sw.peruser': 'למשתמש',
     'sw.programs': 'תוכנות', 'sw.collected': 'נאסף', 'sw.notcollected': 'עדיין לא נאסף', 'sw.none': 'אין מה להציג',
     'sw.uninstallsel': 'הסר נבחרות', 'sw.confirm': 'להסיר {n} תוכנות? פעולה זו מריצה את מסיר ההתקנה במחשב.', 'sw.t.queued': 'הסרה נשלחה עבור {n} תוכנות',
-    'nav.packages': 'חבילות',
+    'nav.packages': 'חבילות', 'nav.classes': 'כיתות',
+    'cl.title': 'כיתות', 'cl.sub': 'קבצו עמדות לכיתה והעלו אחת לעמדת מורה שהשאר מתחברים דרכה',
+    'cl.new': '＋ כיתה חדשה', 'cl.name': 'שם הכיתה', 'cl.lab': 'מעבדה', 'cl.lab.any': '— כל מעבדה —',
+    'cl.members': 'עמדות', 'cl.members.help': 'בחרו את העמדות בכיתה זו.', 'cl.create': 'צור כיתה',
+    'cl.col.name': 'כיתה', 'cl.col.members': 'עמדות', 'cl.col.teacher': 'עמדת מורה', 'cl.col.status': 'מצב',
+    'cl.none': 'אין עדיין כיתות.', 'cl.nomembers': 'אין עמדות', 'cl.del': 'מחק', 'cl.confirm.del': 'למחוק כיתה זו?',
+    'cl.t.created': 'הכיתה נוצרה', 'cl.t.deleted': 'הכיתה נמחקה', 'cl.t.saved': 'הכיתה עודכנה',
+    'cl.edit': 'עריכה', 'cl.setteacher': 'הגדר עמדת מורה', 'cl.dissolve': 'פרק',
+    'cl.active': 'פעיל · {n} הופנו מחדש', 'cl.inactive': 'ישירות לשרת', 'cl.gw.online': 'ממסר מקוון', 'cl.gw.offline': 'ממסר במצב לא מקוון',
+    'cl.promote.title': 'קידום עמדת מורה', 'cl.promote.pick': 'עמדת מורה',
+    'cl.promote.addr': 'כתובת עמדת המורה (IP או שם ברשת)', 'cl.promote.addr.help': 'השאירו ריק כדי להשתמש בשם המחשב. חברי הכיתה מתחברים אל http://<כתובת>:<פורט>.',
+    'cl.promote.port': 'פורט הממסר', 'cl.promote.submit': 'קדם והפנה מחדש',
+    'cl.promote.note': 'שאר העמדות יתחברו מחדש דרך עמדה זו. אם היא לא מקוונת, הן יחזרו אוטומטית לשרת המרכזי.',
+    'cl.t.promoted': 'עמדת מורה הוגדרה — {n} עמדות הופנו מחדש', 'cl.t.dissolved': 'עמדת המורה פורקה',
+    'cl.dissolve.confirm': 'להחזיר את כל העמדות לשרת המרכזי ולעצור את הממסר?',
+    'cl.needmembers': 'הוסיפו לפחות עמדה אחת תחילה.', 'cl.teacher.badge': '★ מורה',
     'pkg.title': 'חבילות תוכנה', 'pkg.sub': 'מערכי תוכנה רצויים לעמדות — התקנת המערך, ואופציונלית הסרת השאר',
     'pkg.new': '＋ חבילה חדשה', 'pkg.name': 'שם', 'pkg.items': 'אפליקציות (אחת בשורה)',
     'pkg.items.help': 'מבנה:  תווית | התאמה | winget:Id   או   תווית | התאמה | url:https://…   — "התאמה" = טקסט שמופיע בשם המותקן. השאירו את החלק השלישי ריק כדי רק לשמור (למשל  Windows | windows | ).',
@@ -799,7 +829,7 @@ function route() {
   const [, name = 'devices', arg] = (location.hash || '#/devices').split('/');
   setNav(name === 'device' ? 'devices' : name);
   const views = { devices: viewDevices, device: () => viewDevice(arg), enroll: viewEnroll, activity: viewActivity,
-    audit: viewAudit, settings: viewSettings, org: viewOrg, users: viewUsers, gateways: viewGateways, licensing: viewLicensing, incidents: viewIncidents, reports: viewReports, images: viewImages, packages: viewPackages };
+    audit: viewAudit, settings: viewSettings, org: viewOrg, users: viewUsers, gateways: viewGateways, licensing: viewLicensing, incidents: viewIncidents, reports: viewReports, images: viewImages, packages: viewPackages, classes: viewClasses };
   const needs = { org: 'manage_org', users: 'manage_users', gateways: 'manage_gateways', enroll: 'manage_tokens', audit: 'view_audit', licensing: 'view_licensing', incidents: 'view_incidents', reports: 'view_reports', images: 'view_images', packages: 'view_packages' };
   if (needs[name] && !cap(needs[name])) { location.hash = '#/devices'; return; }
   (views[name] || viewDevices)();
@@ -2234,6 +2264,108 @@ async function applyPackageModal(deviceId) {
   };
   form.pkg.onchange = preview; form.rm.onchange = preview;
   preview();
+}
+
+async function viewClasses() {
+  const manage = cap('manage_classes');
+  view.innerHTML = `<div class="page-head"><div><h1>${t('cl.title')}</h1><p class="sub">${t('cl.sub')}</p></div>
+      ${manage ? `<button class="btn primary" id="newcls">${t('cl.new')}</button>` : ''}</div>
+    <div class="card table-wrap"><table class="grid"><thead><tr>
+      <th>${t('cl.col.name')}</th><th>${t('cl.col.members')}</th><th>${t('cl.col.teacher')}</th><th>${t('cl.col.status')}</th>${manage ? '<th></th>' : ''}</tr></thead>
+      <tbody id="clsrows"><tr><td colspan="5" class="empty">${t('common.loading')}</td></tr></tbody></table></div>`;
+  const load = async () => {
+    let classes; try { classes = await api('/api/classes'); } catch (e) { toast(e.message, true); return; }
+    $('#clsrows').innerHTML = classes.length ? classes.map((c) => {
+      const teacher = c.teacher_hostname ? `★ ${esc(c.teacher_hostname)}` : '—';
+      const status = c.active
+        ? `<span class="pill ok">${t('cl.active').replace('{n}', Math.max(0, c.member_count - 1))}</span> <span class="pill ${c.gateway_online ? 'ok' : 'warn'}">${c.gateway_online ? t('cl.gw.online') : t('cl.gw.offline')}</span>`
+        : `<span class="pill">${t('cl.inactive')}</span>`;
+      return `<tr>
+        <td><b>${esc(c.name)}</b>${c.lab_name ? `<br><small class="muted">${esc(c.lab_name)}</small>` : ''}</td>
+        <td class="small">${c.member_count || t('cl.nomembers')}</td>
+        <td class="small">${teacher}</td>
+        <td>${status}</td>
+        ${manage ? `<td class="nowrap">
+          ${c.active ? `<button class="btn small ghost-danger" data-dissolve="${esc(c.id)}">${t('cl.dissolve')}</button>`
+                     : `<button class="btn small" data-promote="${esc(c.id)}"${c.member_count ? '' : ' disabled'}>${t('cl.setteacher')}</button>`}
+          <button class="link small" data-edit="${esc(c.id)}">${t('cl.edit')}</button>
+          ${c.active ? '' : `<button class="link small danger-link" data-del="${esc(c.id)}">${t('cl.del')}</button>`}
+        </td>` : ''}</tr>`;
+    }).join('') : `<tr><td colspan="5" class="empty">${t('cl.none')}</td></tr>`;
+    if (!manage) return;
+    $$('#clsrows [data-edit]').forEach((b) => (b.onclick = () => classForm(load, classes.find((c) => c.id === b.dataset.edit))));
+    $$('#clsrows [data-del]').forEach((b) => (b.onclick = () => modal({
+      title: t('cl.col.name'), submit: t('common.delete'), danger: true, body: `<p class="note">${t('cl.confirm.del')}</p>`,
+      onSubmit: async () => { await api(`/api/classes/${b.dataset.del}`, { method: 'DELETE' }); toast(t('cl.t.deleted')); load(); },
+    })));
+    $$('#clsrows [data-promote]').forEach((b) => (b.onclick = () => promoteClass(classes.find((c) => c.id === b.dataset.promote), load)));
+    $$('#clsrows [data-dissolve]').forEach((b) => (b.onclick = () => modal({
+      title: t('cl.dissolve'), submit: t('cl.dissolve'), danger: true, body: `<p class="note">${t('cl.dissolve.confirm')}</p>`,
+      onSubmit: async () => { const r = await api(`/api/classes/${b.dataset.dissolve}/dissolve`, { method: 'POST', body: {} }); toast(t('cl.t.dissolved')); load(); return r; },
+    })));
+  };
+  if (manage) $('#newcls').onclick = () => classForm(load, null);
+  await load();
+}
+
+async function classMemberPicker(selected, labId) {
+  let devs; try { devs = await api('/api/devices'); } catch { devs = []; }
+  const inLab = labId ? devs.filter((d) => d.lab_id === labId) : devs;
+  const sel = new Set(selected || []);
+  return (inLab.length ? inLab : devs).map((d) => `<label class="check"><input type="checkbox" value="${esc(d.id)}" ${sel.has(d.id) ? 'checked' : ''}>
+      ${esc(d.hostname)}${d.place && d.place.lab ? ` <span class="muted small">· ${esc(d.place.lab)}</span>` : ''}</label>`).join('')
+    || `<p class="muted small">${t('devices.none')}</p>`;
+}
+
+async function classForm(done, existing) {
+  let org; try { org = await api('/api/org'); } catch { org = { municipalities: [] }; }
+  const { labs } = orgFlat(org);
+  const labId = existing ? existing.lab_id : '';
+  const picker = await classMemberPicker(existing ? existing.members.map((m) => m.device_id) : [], labId);
+  const form = modal({
+    title: existing ? t('cl.edit') : t('cl.create'), submit: existing ? t('common.save') : t('cl.create'), wide: true,
+    body: `<label>${t('cl.name')}<input name="name" maxlength="120" required value="${existing ? esc(existing.name) : ''}" placeholder="Grade 7 · Lab 204"></label>
+      ${existing ? '' : `<label>${t('cl.lab')}<select name="lab_id"><option value="">${t('cl.lab.any')}</option>${labs.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('')}</select></label>`}
+      <div><div class="muted small" style="margin-bottom:6px">${t('cl.members')} <span class="muted">— ${t('cl.members.help')}</span></div>
+        <div class="checklist" id="clmembers">${picker}</div></div>`,
+    onSubmit: async (f) => {
+      const member_ids = $$('#clmembers input:checked', f).map((c) => c.value);
+      if (existing) {
+        await api(`/api/classes/${existing.id}`, { method: 'PATCH', body: { name: f.name.value, member_ids } });
+        toast(t('cl.t.saved'));
+      } else {
+        await api('/api/classes', { method: 'POST', body: { name: f.name.value, lab_id: f.lab_id.value, member_ids } });
+        toast(t('cl.t.created'));
+      }
+      done();
+    },
+  });
+  if (!existing && form.lab_id) form.lab_id.onchange = async () => {
+    $('#clmembers', form).innerHTML = await classMemberPicker([], form.lab_id.value);
+  };
+}
+
+function promoteClass(c, done) {
+  if (!c.members.length) { toast(t('cl.needmembers'), true); return; }
+  modal({
+    title: t('cl.promote.title'), submit: t('cl.promote.submit'), wide: true,
+    body: `<p class="note"><b>${esc(c.name)}</b></p>
+      <label>${t('cl.promote.pick')}<select name="teacher">${c.members.map((m) => `<option value="${esc(m.device_id)}">${esc(m.hostname)}</option>`).join('')}</select></label>
+      <label>${t('cl.promote.addr')}<input name="addr" class="mono" placeholder="192.168.1.50" value="${esc(c.teacher_address || '')}"></label>
+      <p class="note">${t('cl.promote.addr.help')}</p>
+      <label>${t('cl.promote.port')}<input name="port" type="number" min="1" max="65535" value="${c.listen_port || 8171}"></label>
+      <p class="note">${t('cl.promote.note')}</p>`,
+    onSubmit: async (f) => {
+      const addr = f.addr.value.trim(), port = +f.port.value || 8171;
+      if (addr !== (c.teacher_address || '') || port !== c.listen_port) {
+        await api(`/api/classes/${c.id}`, { method: 'PATCH', body: { teacher_address: addr, listen_port: port } });
+      }
+      const r = await api(`/api/classes/${c.id}/teacher`, { method: 'POST', body: { teacher_device_id: f.teacher.value } });
+      toast(t('cl.t.promoted').replace('{n}', r.rehomed));
+      done();
+      return r;
+    },
+  });
 }
 
 async function boot() {

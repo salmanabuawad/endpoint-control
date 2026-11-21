@@ -1,8 +1,9 @@
 # KEM agent - action library (dot-sourced by kem-agent.ps1, install.ps1 and background jobs).
 # Windows PowerShell 5.1, runs as SYSTEM.
 
-$script:KemVersion  = '1.3.0'
+$script:KemVersion  = '1.4.0'
 $script:KemTaskName = 'KEM Agent'
+$script:KemGatewayTask = 'KEM Gateway Relay'   # scheduled task when this station is a teacher station
 $script:KemAdminUser = 'kemadmin'   # install-created managed local admin (interactive logon denied)
 $script:KemRuleGroup = 'KEM-Isolation'
 if (-not $script:KemDataDir) { $script:KemDataDir = Join-Path $env:ProgramData 'KEM' }
@@ -1106,6 +1107,81 @@ function Install-KemManagedAdmin {
     }
 }
 
+function Test-KemUplink([string]$Url) {
+    # True if a teacher-station relay is answering at this uplink URL.
+    if (-not $Url) { return $false }
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $r = Invoke-RestMethod -Uri ($Url.TrimEnd('/') + '/healthz') -TimeoutSec 4 -UseBasicParsing
+        return [bool]$r.ok
+    } catch { return $false }
+}
+
+function Set-KemUplink($P) {
+    # Re-home this agent to a teacher station (or clear it to talk to central directly). The
+    # central server in config.server is always kept as the fallback.
+    $f = Join-Path $script:KemDataDir 'config.json'
+    $cfg = Get-KemConfig
+    if (-not $cfg) { return @{ status = 'failed'; output = 'No config to update.' } }
+    $url = "$($P.url)".TrimEnd('/')
+    if ($url) {
+        $cfg | Add-Member -NotePropertyName uplink -NotePropertyValue $url -Force
+        $msg = "Uplink set to $url (central server kept as automatic fallback)."
+    } else {
+        if ($cfg.PSObject.Properties.Name -contains 'uplink') { $cfg.PSObject.Properties.Remove('uplink') }
+        $msg = 'Uplink cleared; talking to the central server directly.'
+    }
+    ($cfg | ConvertTo-Json -Depth 8) | Set-Content -Path $f -Encoding UTF8
+    return @{ status = 'success'; output = $msg }
+}
+
+function Get-KemGatewayPython {
+    foreach ($c in @('python', 'python3', 'py')) {
+        $cmd = Get-Command $c -ErrorAction SilentlyContinue
+        if ($cmd) { try { & $cmd.Source --version *> $null; if ($LASTEXITCODE -eq 0) { return $cmd.Source } } catch {} }
+    }
+    return $null
+}
+
+function Enable-KemTeacherStation($P, [string]$Server) {
+    # Promote this station to the class teacher station: fetch the relay, write its config from the
+    # server-minted gateway credentials, and run it at boot so classmates can reach central through it.
+    $py = Get-KemGatewayPython
+    if (-not $py) { return @{ status = 'failed'; output = 'Python 3.8+ is required to act as a teacher station but was not found on PATH.' } }
+    $dir = Join-Path $env:ProgramFiles 'KEM-Gateway'
+    try { New-Item -ItemType Directory -Force -Path $dir | Out-Null } catch { return @{ status = 'failed'; output = "Cannot create $dir : $($_.Exception.Message)" } }
+    $relay = Join-Path $dir 'relay.py'
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -Uri ($Server.TrimEnd('/') + '/gateway/relay.py') -OutFile $relay -UseBasicParsing
+    } catch { return @{ status = 'failed'; output = "Could not download relay.py: $($_.Exception.Message)" } }
+    $port = [int]$P.listen_port; if ($port -lt 1) { $port = 8171 }
+    $cfgPath = Join-Path $dir 'gateway.json'
+    $gw = [ordered]@{ central_url = $Server.TrimEnd('/'); gateway_id = "$($P.gateway_id)"; gateway_secret = "$($P.gateway_secret)";
+        hostname = $env:COMPUTERNAME; lab_id = "$($P.lab_id)"; listen_host = '0.0.0.0'; listen_port = $port; heartbeat_seconds = 30 }
+    ($gw | ConvertTo-Json) | Set-Content -Path $cfgPath -Encoding ASCII
+    $launcher = Join-Path $dir 'run-gateway.cmd'
+    "@echo off`r`nset KEM_GATEWAY_CONFIG=$cfgPath`r`n`"$py`" `"$relay`" run" | Set-Content -Path $launcher -Encoding ASCII
+    $action = New-ScheduledTaskAction -Execute $launcher -WorkingDirectory $dir
+    $trigger = New-ScheduledTaskTrigger -AtStartup
+    $principal = New-ScheduledTaskPrincipal -UserId 'S-1-5-18' -LogonType ServiceAccount -RunLevel Highest
+    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1)
+    $settings.ExecutionTimeLimit = 'PT0S'
+    try { Register-ScheduledTask -TaskName $script:KemGatewayTask -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null }
+    catch { return @{ status = 'failed'; output = "Could not register the gateway task: $($_.Exception.Message)" } }
+    try { New-NetFirewallRule -DisplayName 'KEM Gateway (student agents)' -Direction Inbound -Action Allow -Protocol TCP -LocalPort $port -Profile Any -ErrorAction Stop | Out-Null } catch {}
+    try { Start-ScheduledTask -TaskName $script:KemGatewayTask } catch {}
+    return @{ status = 'success'; output = "Teacher station active: relay listening on port $port (gateway $($P.gateway_id))." }
+}
+
+function Disable-KemTeacherStation {
+    try { Get-ScheduledTask -TaskName $script:KemGatewayTask -ErrorAction SilentlyContinue | Stop-ScheduledTask -ErrorAction SilentlyContinue } catch {}
+    try { Unregister-ScheduledTask -TaskName $script:KemGatewayTask -Confirm:$false -ErrorAction SilentlyContinue } catch {}
+    try { Remove-NetFirewallRule -DisplayName 'KEM Gateway (student agents)' -ErrorAction SilentlyContinue } catch {}
+    Remove-Item (Join-Path (Join-Path $env:ProgramFiles 'KEM-Gateway') 'gateway.json') -Force -ErrorAction SilentlyContinue
+    return @{ status = 'success'; output = 'Teacher station stopped; this station no longer relays for the class.' }
+}
+
 function Invoke-KemCommand($Command, [string]$Server) {
     $p = $Command.params
     switch ($Command.type) {
@@ -1130,6 +1206,9 @@ function Invoke-KemCommand($Command, [string]$Server) {
         'send_message'       { return @{ status = 'success'; output = (Send-KemUserMessage $p) } }
         'lock_session'       { return @{ status = 'success'; output = (Invoke-KemSessionAction $p) } }
         'set_local_admin_password' { return Set-KemLocalAdminPassword $p }
+        'set_uplink'             { return Set-KemUplink $p }
+        'become_teacher_station' { return Enable-KemTeacherStation $p $Server }
+        'stop_teacher_station'   { return Disable-KemTeacherStation }
         default              { return @{ status = 'failed'; output = "Unsupported command type '$($Command.type)' for this agent version." } }
     }
 }
