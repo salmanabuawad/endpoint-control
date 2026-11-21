@@ -124,6 +124,16 @@ while ($true) {
                         Remove-Item $DataDir -Recurse -Force -ErrorAction SilentlyContinue
                         exit 0
                     }
+                    'set_hostname' {
+                        $r = Rename-KemComputer $cmd.params
+                        if ($r.status -eq 'success' -and [bool]$cmd.params.reboot -and $env:COMPUTERNAME -ne "$($cmd.params.hostname)") {
+                            $delay = [Math]::Max(5, [int]$cmd.params.reboot_delay)
+                            Send-KemReport $cfg @(@{ id = $cmd.id; status = 'success'; output = "$($r.output) Rebooting in $delay s." })
+                            & shutdown.exe /r /t $delay /c 'KEM is renaming this computer.' /d p:4:1 | Out-Null
+                        } else {
+                            Add-Result $cmd.id $r
+                        }
+                    }
                     'update_agent' { $updateCmd = $cmd; $nextUpdateTry = [datetime]::MinValue }
                     default {
                         Add-Result $cmd.id (Invoke-KemCommand $cmd $cfg.server)

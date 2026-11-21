@@ -1,8 +1,9 @@
 # KEM agent - action library (dot-sourced by kem-agent.ps1, install.ps1 and background jobs).
 # Windows PowerShell 5.1, runs as SYSTEM.
 
-$script:KemVersion  = '1.2.0'
+$script:KemVersion  = '1.3.0'
 $script:KemTaskName = 'KEM Agent'
+$script:KemAdminUser = 'kemadmin'   # install-created managed local admin (interactive logon denied)
 $script:KemRuleGroup = 'KEM-Isolation'
 if (-not $script:KemDataDir) { $script:KemDataDir = Join-Path $env:ProgramData 'KEM' }
 $script:KemInstallDir = Join-Path $env:ProgramFiles 'KEM'
@@ -899,7 +900,7 @@ function Restart-KemAgentTask {
 # Commands that run inside the main loop (fast, or must coordinate with the loop).
 $script:KemInlineTypes = @('block_internet', 'unblock_internet', 'refresh_inventory', 'reboot', 'reset_device', 'uninstall_agent',
     'set_web_filter', 'usb_storage', 'list_processes', 'kill_process', 'list_services', 'send_message', 'lock_session',
-    'update_agent')
+    'update_agent', 'set_hostname')
 
 function Copy-KemDistributedFile($P) {
     # Download a file over TLS and place it in a folder on this machine (optionally SHA-256 verified).
@@ -989,6 +990,122 @@ function Launch-KemApp($P) {
     return "Launched in $($r.user)'s session: $($P.value)"
 }
 
+function Rename-KemComputer($P) {
+    # Rename this computer. A reboot (scheduled by the caller) is required for the new name to take effect.
+    $new = "$($P.hostname)"
+    if ($new -notmatch '^(?!-)(?!\d+$)[A-Za-z0-9-]{1,15}(?<!-)$') {
+        return @{ status = 'failed'; output = "Invalid computer name '$new'." }
+    }
+    if ($env:COMPUTERNAME -eq $new) {
+        return @{ status = 'success'; output = "Computer is already named '$new'; nothing to do." }
+    }
+    try {
+        Rename-Computer -NewName $new -Force -ErrorAction Stop
+        return @{ status = 'success'; output = "Renamed '$($env:COMPUTERNAME)' to '$new' (reboot required to apply)." }
+    } catch {
+        return @{ status = 'failed'; output = "Rename failed: $($_.Exception.Message)" }
+    }
+}
+
+function Set-KemDenyInteractiveLogon([string]$Account) {
+    # Deny interactive + remote-interactive (RDP) logon for a local account, via the local security policy.
+    # Network, batch and service logons stay allowed so the account still works for management.
+    $sid = $null
+    try { $sid = (Get-LocalUser -Name $Account -ErrorAction Stop).SID.Value } catch { return }
+    if (-not $sid) { return }
+    $work = Join-Path $script:KemDataDir ('secpol-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+    $inf = "$work.inf"; $db = "$work.sdb"
+    try {
+        & secedit.exe /export /areas USER_RIGHTS /cfg $inf /quiet | Out-Null
+        $lines = Get-Content $inf
+        $out = New-Object System.Collections.Generic.List[string]
+        $have = @{}
+        foreach ($ln in $lines) {
+            $m = [regex]::Match($ln, '^(SeDenyInteractiveLogonRight|SeDenyRemoteInteractiveLogonRight)\s*=\s*(.*)$')
+            if ($m.Success) {
+                $key = $m.Groups[1].Value
+                $vals = @($m.Groups[2].Value -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+                if ($vals -notcontains "*$sid") { $vals += "*$sid" }
+                $out.Add("$key = " + ($vals -join ','))
+                $have[$key] = $true
+            } else {
+                $out.Add($ln)
+            }
+        }
+        foreach ($key in 'SeDenyInteractiveLogonRight', 'SeDenyRemoteInteractiveLogonRight') {
+            if (-not $have[$key]) {
+                for ($i = 0; $i -lt $out.Count; $i++) {
+                    if ($out[$i] -match '^\[Privilege Rights\]') { $out.Insert($i + 1, "$key = *$sid"); break }
+                }
+            }
+        }
+        Set-Content -Path $inf -Value $out -Encoding Unicode
+        & secedit.exe /configure /db $db /cfg $inf /areas USER_RIGHTS /quiet | Out-Null
+    } catch {
+        Write-KemLog "Could not set deny-interactive for '$Account': $($_.Exception.Message)" 'WARN'
+    } finally {
+        Remove-Item $inf, $db -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Set-KemLocalAdminPassword($P) {
+    # Set (and create if needed) the password of a managed local administrator account.
+    # The account is kept a member of Administrators and denied interactive/RDP logon.
+    $account = "$($P.account)"
+    if (-not $account) { $account = $script:KemAdminUser }
+    $pw = "$($P.password)"
+    if ($pw.Length -lt 8) { return @{ status = 'failed'; output = 'Password too short.' } }
+    $sec = ConvertTo-SecureString $pw -AsPlainText -Force
+    try {
+        $existing = Get-LocalUser -Name $account -ErrorAction SilentlyContinue
+        if ($existing) {
+            Set-LocalUser -Name $account -Password $sec -ErrorAction Stop
+            try { Set-LocalUser -Name $account -PasswordNeverExpires $true -ErrorAction SilentlyContinue } catch {}
+            Enable-LocalUser -Name $account -ErrorAction SilentlyContinue
+        } else {
+            New-LocalUser -Name $account -Password $sec -FullName 'KEM managed admin' `
+                -Description 'KEM managed local administrator (interactive logon denied)' `
+                -PasswordNeverExpires -ErrorAction Stop | Out-Null
+        }
+        if ([bool]$P.ensure_admin -or -not $existing) {
+            $grp = (Get-LocalGroup -SID 'S-1-5-32-544').Name
+            if (-not (Get-LocalGroupMember -Group $grp -Member $account -ErrorAction SilentlyContinue)) {
+                Add-LocalGroupMember -Group $grp -Member $account -ErrorAction SilentlyContinue
+            }
+        }
+        Set-KemDenyInteractiveLogon $account
+        return @{ status = 'success'; output = "Password set for local admin '$account' (member of Administrators, interactive logon denied)." }
+    } catch {
+        return @{ status = 'failed'; output = "Could not set password for '$account': $($_.Exception.Message)" }
+    }
+}
+
+function Install-KemManagedAdmin {
+    # Ensure the managed admin account exists (called at install). If it does not exist yet, create it
+    # with a random, unused password - the real password is set later from the dashboard. Interactive
+    # logon is denied either way, so the random password is never needed for a console/RDP sign-in.
+    $account = $script:KemAdminUser
+    try {
+        if (Get-LocalUser -Name $account -ErrorAction SilentlyContinue) {
+            Set-KemDenyInteractiveLogon $account
+            return "Managed admin '$account' already present."
+        }
+        $bytes = New-Object byte[] 18
+        [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+        $rand = [Convert]::ToBase64String($bytes) + 'aA1!'
+        $sec = ConvertTo-SecureString $rand -AsPlainText -Force
+        New-LocalUser -Name $account -Password $sec -FullName 'KEM managed admin' `
+            -Description 'KEM managed local administrator (interactive logon denied)' `
+            -PasswordNeverExpires -ErrorAction Stop | Out-Null
+        $grp = (Get-LocalGroup -SID 'S-1-5-32-544').Name
+        Add-LocalGroupMember -Group $grp -Member $account -ErrorAction SilentlyContinue
+        Set-KemDenyInteractiveLogon $account
+        return "Created managed admin '$account' (Administrators, interactive logon denied). Set its password from the dashboard."
+    } catch {
+        return "Could not create managed admin '$account': $($_.Exception.Message)"
+    }
+}
+
 function Invoke-KemCommand($Command, [string]$Server) {
     $p = $Command.params
     switch ($Command.type) {
@@ -1012,6 +1129,7 @@ function Invoke-KemCommand($Command, [string]$Server) {
         'service_action'     { return @{ status = 'success'; output = (Invoke-KemServiceAction $p) } }
         'send_message'       { return @{ status = 'success'; output = (Send-KemUserMessage $p) } }
         'lock_session'       { return @{ status = 'success'; output = (Invoke-KemSessionAction $p) } }
+        'set_local_admin_password' { return Set-KemLocalAdminPassword $p }
         default              { return @{ status = 'failed'; output = "Unsupported command type '$($Command.type)' for this agent version." } }
     }
 }

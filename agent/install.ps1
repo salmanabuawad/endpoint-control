@@ -19,7 +19,7 @@ $installDir = Join-Path $env:ProgramFiles 'KEM'
 $dataDir = Join-Path $env:ProgramData 'KEM'
 New-Item -ItemType Directory -Path $installDir, $dataDir -Force | Out-Null
 
-Write-Host '[1/5] Fetching agent files...'
+Write-Host '[1/6] Fetching agent files...'
 foreach ($f in 'kem-agent.ps1', 'kem-actions.ps1', 'uninstall.ps1') {
     $local = Join-Path $PSScriptRoot $f
     $dest = Join-Path $installDir $f
@@ -33,7 +33,7 @@ foreach ($f in 'kem-agent.ps1', 'kem-actions.ps1', 'uninstall.ps1') {
 Initialize-Kem $dataDir
 Protect-KemDataDir
 
-Write-Host '[2/5] Registering with the management server...'
+Write-Host '[2/6] Registering with the management server...'
 Get-ScheduledTask -TaskName $KemTaskName -ErrorAction SilentlyContinue | Stop-ScheduledTask -ErrorAction SilentlyContinue
 try { $cfg = Register-KemDevice -Server $Server -Token $Token }
 catch {
@@ -43,7 +43,7 @@ catch {
 }
 Write-Host "      Device id: $($cfg.device_id)"
 
-Write-Host '[3/5] Creating the KEM Agent scheduled task (SYSTEM, at startup)...'
+Write-Host '[3/6] Creating the KEM Agent scheduled task (SYSTEM, at startup)...'
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$installDir\kem-agent.ps1`""
 $trigger = New-ScheduledTaskTrigger -AtStartup
 $principal = New-ScheduledTaskPrincipal -UserId 'S-1-5-18' -LogonType ServiceAccount -RunLevel Highest
@@ -52,13 +52,17 @@ $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoi
 Register-ScheduledTask -TaskName $KemTaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings `
     -Description 'KEM endpoint management agent' -Force | Out-Null
 
-Write-Host '[4/5] Creating baseline restore point (used by "Reset to baseline")...'
+Write-Host '[4/5] Ensuring the KEM managed admin account...'
+try { Write-Host ('      ' + (Install-KemManagedAdmin)) }
+catch { Write-Host "      Could not create managed admin: $($_.Exception.Message)" -ForegroundColor Yellow }
+
+Write-Host '[5/6] Creating baseline restore point (used by "Reset to baseline")...'
 if ($NoBaseline) { Write-Host '      skipped (-NoBaseline)' }
 else {
     try { Write-Host ('      ' + (New-KemBaseline)) }
     catch { Write-Host "      Could not create baseline: $($_.Exception.Message)" -ForegroundColor Yellow }
 }
 
-Write-Host '[5/5] Starting agent...'
+Write-Host '[6/6] Starting agent...'
 Start-ScheduledTask -TaskName $KemTaskName
 Write-Host "Done. $env:COMPUTERNAME should appear in the dashboard within a few seconds." -ForegroundColor Green

@@ -16,7 +16,7 @@ const CMD = {
   set_web_filter: 'Web filter', usb_storage: 'USB storage', list_processes: 'List processes', kill_process: 'End process',
   list_services: 'List services', service_action: 'Service control', send_message: 'Message user', lock_session: 'Lock / sign out',
   update_agent: 'Update agent', distribute_file: 'Distribute file', set_app_policy: 'Application allowlist',
-  launch_app: 'Launch app',
+  launch_app: 'Launch app', set_hostname: 'Rename computer', set_local_admin_password: 'Set admin password',
 };
 const USB_LABEL = { allow: 'Allowed', read_only: 'Read-only', block: 'Blocked' };
 const WEB_PRESETS = [
@@ -61,6 +61,16 @@ const I18N = {
     'act.distribute_file': '📄 Distribute file', 'act.install_updates': '⟳ Windows updates', 'act.set_web_filter': '🚫 Web filter',
     'act.usb_storage': '🔌 USB', 'act.set_app_policy': '🛡 Allowlist', 'act.launch_app': '▶ Launch app', 'act.send_message': '💬 Message',
     'act.lock_session': '🔒 Lock', 'act.run_script': '›_ Run script', 'act.defender_scan': '🛡 Scan', 'act.reboot': '↻ Reboot',
+    'dev.rename': 'Rename computer', 'dev.rename.title': 'Rename {host}', 'dev.rename.label': 'New computer name',
+    'dev.rename.help': '1–15 letters, digits or hyphens (not all digits). The station reboots to apply the new name.',
+    'dev.rename.reboot': 'Reboot now to apply the new name', 'dev.rename.submit': 'Rename & reboot',
+    'dev.rename.confirm': 'Type the current name ', 'dev.rename.bad': 'Invalid computer name.', 'dev.rename.one': 'Rename one station at a time.',
+    'dev.setpw': 'Set admin password', 'dev.setpw.title': 'Set local admin password', 'dev.setpw.acct': 'Account',
+    'dev.setpw.acctdefault': 'KEM managed admin (kemadmin)', 'dev.setpw.acctother': 'Another local account…', 'dev.setpw.acctname': 'Account name',
+    'dev.setpw.pw': 'New password', 'dev.setpw.pw2': 'Confirm password', 'dev.setpw.gen': 'Generate strong password',
+    'dev.setpw.help': 'Sets the password of a managed local administrator. The account stays in Administrators and is denied interactive/RDP logon. The password is sent once over TLS and never shown again.',
+    'dev.setpw.mismatch': 'Passwords do not match.', 'dev.setpw.short': 'Password must be at least 8 characters.',
+    'dev.setpw.submit': 'Set password', 'dev.setpw.t.queued': 'Password change queued',
     'pill.blocked': '⛔ Blocked', 'pill.working': 'Working…', 'pill.filter': '🚫 Filter', 'pill.healthy': 'Healthy',
     'devices.none': 'No devices yet.', 'devices.nomatch': 'No devices match this filter.', 'common.loading': 'Loading…',
     'common.cancel': 'Cancel',
@@ -200,6 +210,16 @@ const I18N = {
     'act.distribute_file': '📄 הפץ קובץ', 'act.install_updates': '⟳ עדכוני Windows', 'act.set_web_filter': '🚫 סינון אתרים',
     'act.usb_storage': '🔌 USB', 'act.set_app_policy': '🛡 רשימת היתר', 'act.launch_app': '▶ הפעל אפליקציה', 'act.send_message': '💬 הודעה',
     'act.lock_session': '🔒 נעילה', 'act.run_script': '›_ הרצת סקריפט', 'act.defender_scan': '🛡 סריקה', 'act.reboot': '↻ הפעלה מחדש',
+    'dev.rename': 'שנה שם מחשב', 'dev.rename.title': 'שנה שם ל‑{host}', 'dev.rename.label': 'שם מחשב חדש',
+    'dev.rename.help': '1–15 אותיות, ספרות או מקפים (לא רק ספרות). העמדה תופעל מחדש כדי להחיל את השם.',
+    'dev.rename.reboot': 'הפעל מחדש עכשיו כדי להחיל את השם', 'dev.rename.submit': 'שנה שם והפעל מחדש',
+    'dev.rename.confirm': 'הקלד את השם הנוכחי ', 'dev.rename.bad': 'שם מחשב לא תקין.', 'dev.rename.one': 'שנו שם לעמדה אחת בכל פעם.',
+    'dev.setpw': 'הגדר סיסמת מנהל', 'dev.setpw.title': 'הגדרת סיסמת מנהל מקומי', 'dev.setpw.acct': 'חשבון',
+    'dev.setpw.acctdefault': 'מנהל מנוהל של KEM‏ (kemadmin)', 'dev.setpw.acctother': 'חשבון מקומי אחר…', 'dev.setpw.acctname': 'שם חשבון',
+    'dev.setpw.pw': 'סיסמה חדשה', 'dev.setpw.pw2': 'אימות סיסמה', 'dev.setpw.gen': 'צור סיסמה חזקה',
+    'dev.setpw.help': 'מגדיר את הסיסמה של מנהל מקומי מנוהל. החשבון נשאר בקבוצת Administrators וחסום להתחברות אינטראקטיבית/RDP. הסיסמה נשלחת פעם אחת ב‑TLS ואינה מוצגת שוב.',
+    'dev.setpw.mismatch': 'הסיסמאות אינן תואמות.', 'dev.setpw.short': 'הסיסמה חייבת להיות באורך 8 תווים לפחות.',
+    'dev.setpw.submit': 'הגדר סיסמה', 'dev.setpw.t.queued': 'שינוי הסיסמה נשלח',
     'pill.blocked': '⛔ חסום', 'pill.working': 'פועל…', 'pill.filter': '🚫 סינון', 'pill.healthy': 'תקין',
     'devices.none': 'אין עדיין עמדות.', 'devices.nomatch': 'אין עמדות התואמות לסינון זה.', 'common.loading': 'טוען…',
     'common.cancel': 'ביטול',
@@ -642,6 +662,50 @@ const ACTIONS = {
         <label><span>Type <b class="mono">${esc(d.hostname)}</b> to confirm</span><input name="confirm" autocomplete="off" required></label>`,
       onSubmit: (f) => queue(ids, 'uninstall_agent', {}, f.confirm.value),
     });
+  },
+  set_hostname(ids) {
+    if (ids.length !== 1) { toast(t('dev.rename.one'), true); return; }
+    const d = state.devices.find((x) => x.id === ids[0]) || { hostname: '' };
+    modal({
+      title: t('dev.rename.title').replace('{host}', d.hostname), submit: t('dev.rename.submit'), danger: true,
+      body: `<label>${t('dev.rename.label')}<input name="hostname" class="mono" maxlength="15" autocomplete="off" required placeholder="LAB204-PC01"></label>
+        <p class="note">${t('dev.rename.help')}</p>
+        <label class="check"><input type="checkbox" name="reboot" checked> ${t('dev.rename.reboot')}</label>
+        <label><span>${t('dev.rename.confirm').replace('{host}', '')}<b class="mono">${esc(d.hostname)}</b></span><input name="confirm" autocomplete="off" required></label>`,
+      onSubmit: (f) => {
+        const h = f.hostname.value.trim();
+        if (!/^(?!-)(?!\d+$)[A-Za-z0-9-]{1,15}(?<!-)$/.test(h)) throw new Error(t('dev.rename.bad'));
+        return queue(ids, 'set_hostname', { hostname: h, reboot: f.reboot.checked }, f.confirm.value);
+      },
+    });
+  },
+  set_local_admin_password(ids) {
+    const form = modal({
+      title: t('dev.setpw.title'), submit: t('dev.setpw.submit'), danger: true,
+      body: `${targetLine(ids)}
+        <label>${t('dev.setpw.acct')}<select name="which"><option value="managed">${t('dev.setpw.acctdefault')}</option><option value="other">${t('dev.setpw.acctother')}</option></select></label>
+        <label data-acctname class="hidden">${t('dev.setpw.acctname')}<input name="account" class="mono" maxlength="20" autocomplete="off" placeholder="localadmin"></label>
+        <label>${t('dev.setpw.pw')}<input name="pw" type="password" autocomplete="new-password" required></label>
+        <label>${t('dev.setpw.pw2')}<input name="pw2" type="password" autocomplete="new-password" required></label>
+        <button type="button" class="btn small" id="genpw">${t('dev.setpw.gen')}</button>
+        <p class="note">${t('dev.setpw.help')}</p>`,
+      onSubmit: (f) => {
+        const pw = f.pw.value;
+        if (pw.length < 8) throw new Error(t('dev.setpw.short'));
+        if (pw !== f.pw2.value) throw new Error(t('dev.setpw.mismatch'));
+        const account = f.which.value === 'other' ? (f.account.value || '').trim() : '';
+        return queue(ids, 'set_local_admin_password', account ? { account, password: pw } : { password: pw })
+          .then(() => toast(t('dev.setpw.t.queued')));
+      },
+    });
+    form.which.onchange = () => $('[data-acctname]', form).classList.toggle('hidden', form.which.value !== 'other');
+    $('#genpw', form).onclick = () => {
+      const a = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%*';
+      const buf = new Uint32Array(18); crypto.getRandomValues(buf);
+      const gen = [...buf].map((n) => a[n % a.length]).join('');
+      form.pw.value = gen; form.pw2.value = gen;
+      form.pw.type = form.pw2.type = 'text';
+    };
   },
   scan_updates: (ids) => queue(ids, 'scan_updates').catch((e) => toast(e.message, true)),
   install_updates(ids, preset = {}) {
@@ -1260,6 +1324,8 @@ async function viewDevice(id) {
     $('#danger').innerHTML = `<h2>Reset &amp; removal</h2>
       <div class="danger-item"><div><b>Baseline snapshot</b><p>${base ? `"${esc(base.description)}" · created ${fmtDate(base.created)}` : 'No baseline yet. Create one while the device is in a known-good state.'}</p></div>
         <button class="btn" data-act="create_baseline">${base ? 'Replace baseline' : 'Create baseline'}</button></div>
+      <div class="danger-item"><div><b>${t('dev.rename')}</b><p>${t('dev.rename.help')}</p></div><button class="btn" data-act="set_hostname">${t('dev.rename')}…</button></div>
+      <div class="danger-item"><div><b>${t('dev.setpw')}</b><p>${t('dev.setpw.help')}</p></div><button class="btn" data-act="set_local_admin_password">${t('dev.setpw')}…</button></div>
       <div class="danger-item"><div><b>Reset device</b><p>Restore the baseline snapshot, or factory-reset Windows from its recovery image.</p></div><button class="btn danger" data-act="reset_device">Reset…</button></div>
       <div class="danger-item"><div><b>Uninstall software</b><p>Remove a program using its winget ID.</p></div><button class="btn" data-act="uninstall_software">Uninstall…</button></div>
       <div class="danger-item"><div><b>Remove agent</b><p>Uninstalls KEM from the device and lifts internet block, web filter and USB restrictions.</p></div><button class="btn ghost-danger" data-act="uninstall_agent">Remove agent</button></div>

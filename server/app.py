@@ -164,9 +164,13 @@ COMMAND_TYPES = {
     "set_app_policy",
     # launch an approved app / URL in the student's session
     "launch_app",
+    # station identity / managed local admin
+    "set_hostname", "set_local_admin_password",
 }
 # Destructive commands: one device at a time, admin must type the hostname.
-CONFIRM_TYPES = {"reset_device", "uninstall_agent"}
+CONFIRM_TYPES = {"reset_device", "uninstall_agent", "set_hostname"}
+# Command params that must never be shown in the dashboard, audit log, or history.
+SENSITIVE_PARAMS = {"password"}
 # Commands whose result payload is kept on the command row (latest few per device).
 DATA_TYPES = {"list_processes", "list_services"}
 UPDATE_TYPES = {"scan_updates", "install_updates"}
@@ -176,6 +180,12 @@ DOMAIN = re.compile(r"^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]
 GUID = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 SERVICE_NAME = re.compile(r"^[A-Za-z0-9_.$@ -]{1,100}$")
 PROCESS_NAME = re.compile(r"^[A-Za-z0-9_.() -]{1,100}$")
+# Windows computer (NetBIOS) name: 1-15 chars, letters/digits/hyphen, no leading/trailing hyphen, not all-numeric.
+HOSTNAME_RE = re.compile(r"^(?!-)(?!\d+$)[A-Za-z0-9-]{1,15}(?<!-)$")
+# Local Windows account name: 1-20 chars, letters/digits/._-, not all dots/spaces.
+LOCAL_USER_RE = re.compile(r"^[A-Za-z0-9._-]{1,20}$")
+# The install-created managed admin account (member of Administrators, interactive logon denied).
+MANAGED_ADMIN_USER = "kemadmin"
 TOKEN_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 UPDATE_SCAN_HOURS = 24
 
@@ -213,7 +223,7 @@ TEACHER_COMMANDS = {
 }
 # A school manager may do everything except destructive recovery and raw script execution,
 # which stay with municipality admins (or require explicit delegation - a later phase).
-SCHOOL_MANAGER_BLOCKED = {"reset_device", "uninstall_agent", "run_script"}
+SCHOOL_MANAGER_BLOCKED = {"reset_device", "uninstall_agent", "run_script", "set_local_admin_password"}
 
 
 def role_can_issue(role: str, ctype: str) -> bool:
@@ -940,7 +950,10 @@ def serialize_device(row, full: bool = False) -> dict:
 
 def serialize_command(row) -> dict:
     d = dict(row)
-    d["params"] = jload(d.get("params"), {})
+    params = jload(d.get("params"), {})
+    if isinstance(params, dict):
+        params = {k: ("••••••••" if k in SENSITIVE_PARAMS else v) for k, v in params.items()}
+    d["params"] = params
     if "data" in d:
         d["has_data"] = bool(d.pop("data"))
     return d
@@ -1163,6 +1176,23 @@ def validate_params(ctype: str, p: Any) -> dict:
         if action not in ("lock", "logoff"):
             raise HTTPException(400, "action must be lock or logoff")
         return {"action": action}
+    if ctype == "set_hostname":
+        name = clean(p.get("hostname"), 64)  # don't truncate to 15 — let the regex reject over-length names
+        if not HOSTNAME_RE.match(name):
+            raise HTTPException(400, "Hostname must be 1-15 letters, digits or hyphens (not all digits, no leading/trailing hyphen)")
+        return {"hostname": name, "reboot": bool(p.get("reboot", True)),
+                "reboot_delay": _int(p, "reboot_delay", 60, 0, 3600)}
+    if ctype == "set_local_admin_password":
+        # Default target is the install-created managed admin account.
+        account = clean(p.get("account"), 20) or MANAGED_ADMIN_USER
+        if not LOCAL_USER_RE.match(account):
+            raise HTTPException(400, "Account name must be 1-20 letters, digits, dot, underscore or hyphen")
+        pw = p.get("password")
+        if not isinstance(pw, str) or not 8 <= len(pw) <= 127:
+            raise HTTPException(400, "Password must be 8-127 characters")
+        if any(ord(c) < 32 for c in pw):
+            raise HTTPException(400, "Password may not contain control characters or line breaks")
+        return {"account": account, "password": pw, "ensure_admin": bool(p.get("ensure_admin", True))}
     raise HTTPException(400, "Unsupported command")
 
 
@@ -1359,7 +1389,8 @@ def create_commands(request: Request, body: dict = Body(...), user: dict = Depen
                 "INSERT INTO commands(device_id,type,params,status,created,created_by,via_role) VALUES(?,?,?,?,?,?,?)",
                 (d["id"], ctype, json.dumps(params, ensure_ascii=False), "queued", now(), user["username"], user["role"]))
             created.append(cur.lastrowid)
-            logged = {k: (v if k != "script" else f"<{len(v)} chars>") for k, v in params.items()}
+            logged = {k: ("••••••••" if k in SENSITIVE_PARAMS else f"<{len(v)} chars>" if k == "script" else v)
+                      for k, v in params.items()}
             audit(con, user["username"], client_ip(request), f"command:{ctype}", d["hostname"], logged)
     return {"created": created}
 
@@ -3311,6 +3342,9 @@ def apply_result(con, device_id: str, r: Any, t: float) -> None:
         (status, output, output, exit_code, None if status == "running" else t, cid, device_id))
     if not cur.rowcount or status == "running":
         return
+    # Drop a delivered secret from storage once the command reaches a terminal state.
+    if cmd["type"] == "set_local_admin_password":
+        con.execute("UPDATE commands SET params='{}' WHERE id=?", (cid,))
     data = r.get("data")
     if cmd["type"] in UPDATE_TYPES and isinstance(data, dict) and isinstance(data.get("updates"), list):
         upd = {"updates": [u for u in data["updates"][:500] if isinstance(u, dict)],
