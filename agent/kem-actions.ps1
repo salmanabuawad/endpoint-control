@@ -1,7 +1,7 @@
 # KEM agent - action library (dot-sourced by kem-agent.ps1, install.ps1 and background jobs).
 # Windows PowerShell 5.1, runs as SYSTEM.
 
-$script:KemVersion  = '1.4.0'
+$script:KemVersion  = '1.5.0'
 $script:KemTaskName = 'KEM Agent'
 $script:KemGatewayTask = 'KEM Gateway Relay'   # scheduled task when this station is a teacher station
 $script:KemAdminUser = 'kemadmin'   # install-created managed local admin (interactive logon denied)
@@ -1182,6 +1182,70 @@ function Disable-KemTeacherStation {
     return @{ status = 'success'; output = 'Teacher station stopped; this station no longer relays for the class.' }
 }
 
+function Send-KemScreenshot([string]$Server) {
+    # Capture the signed-in user's desktop (in their session, with a visible indicator) and upload a JPEG.
+    # NOTE: screen capture from a service is AV-sensitive; a production deployment needs a code-signed,
+    # AV-allowlisted agent. This runs the capture in the user session, never covertly.
+    $cfg = Get-KemConfig
+    if (-not $cfg) { return @{ status = 'failed'; output = 'No agent config.' } }
+    $out = Join-Path $env:PUBLIC ('kem-screen-' + [guid]::NewGuid().ToString('N').Substring(0, 8) + '.jpg')
+    $cap = @'
+try {
+  Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+  $vs = [System.Windows.Forms.SystemInformation]::VirtualScreen
+  $bmp = New-Object System.Drawing.Bitmap $vs.Width, $vs.Height
+  $g = [System.Drawing.Graphics]::FromImage($bmp)
+  $g.CopyFromScreen($vs.Location, [System.Drawing.Point]::Empty, $vs.Size)
+  $g.Dispose()
+  $enc = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' }
+  $prm = New-Object System.Drawing.Imaging.EncoderParameters 1
+  $prm.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter ([System.Drawing.Imaging.Encoder]::Quality, [long]60)
+  $bmp.Save('OUTPATH', $enc, $prm); $bmp.Dispose()
+  $f = New-Object System.Windows.Forms.Form
+  $f.FormBorderStyle = 'None'; $f.StartPosition = 'Manual'; $f.TopMost = $true; $f.BackColor = 'Black'
+  $f.Size = New-Object System.Drawing.Size 320,36; $f.Location = New-Object System.Drawing.Point 20,20
+  $f.ShowInTaskbar = $false
+  $l = New-Object System.Windows.Forms.Label; $l.Dock = 'Fill'; $l.ForeColor = 'White'
+  $l.TextAlign = 'MiddleCenter'; $l.Text = 'Your screen was viewed by IT'; $f.Controls.Add($l)
+  $t = New-Object System.Windows.Forms.Timer; $t.Interval = 2500; $t.Add_Tick({ $f.Close() }); $t.Start()
+  $f.ShowDialog() | Out-Null
+} catch { }
+'@
+    $r = Invoke-KemAsUser ($cap -replace 'OUTPATH', ($out -replace '\\', '\\')) -TimeoutSec 30
+    if (-not (Test-Path $out)) { return @{ status = 'failed'; output = "Capture failed (no active session?): $($r.output)" } }
+    try {
+        $bytes = [IO.File]::ReadAllBytes($out)
+        $b64 = [Convert]::ToBase64String($bytes)
+        Invoke-KemApi -Server $Server -Path '/api/agent/screenshot' -Body @{ image_b64 = $b64; mime = 'image/jpeg' } `
+            -Headers (Get-KemAuthHeaders $cfg) -TimeoutSec 60 | Out-Null
+        return @{ status = 'success'; output = "Screen captured ($([math]::Round($bytes.Length / 1KB)) KB) and uploaded." }
+    } catch {
+        return @{ status = 'failed'; output = "Upload failed: $($_.Exception.Message)" }
+    } finally {
+        Remove-Item $out -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Set-KemInputLock($P) {
+    # Freeze or release the station's keyboard and mouse. BlockInput only works inside the user's
+    # session, so a hidden watcher runs there and re-asserts the lock until the sentinel is cleared.
+    $sentinel = Join-Path $env:PUBLIC 'kem-input-lock.flag'
+    if ("$($P.mode)" -eq 'unlock') {
+        Remove-Item $sentinel -Force -ErrorAction SilentlyContinue
+        return @{ status = 'success'; output = 'Keyboard and mouse unlocked.' }
+    }
+    Set-Content -Path $sentinel -Value 'locked' -Force -ErrorAction SilentlyContinue
+    $watcher = @'
+Add-Type -Namespace Kem -Name Input -MemberDefinition '[System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool BlockInput(bool fBlock);'
+$flag = 'SENTINEL'
+$n = 0
+while ((Test-Path $flag) -and $n -lt 7200) { [void][Kem.Input]::BlockInput($true); Start-Sleep -Milliseconds 400; $n++ }
+[void][Kem.Input]::BlockInput($false)
+'@
+    Invoke-KemAsUser ($watcher -replace 'SENTINEL', ($sentinel -replace '\\', '\\')) -NoWait
+    return @{ status = 'success'; output = 'Keyboard and mouse locked (until unlocked; Ctrl+Alt+Del can still interrupt).' }
+}
+
 function Invoke-KemCommand($Command, [string]$Server) {
     $p = $Command.params
     switch ($Command.type) {
@@ -1209,6 +1273,8 @@ function Invoke-KemCommand($Command, [string]$Server) {
         'set_uplink'             { return Set-KemUplink $p }
         'become_teacher_station' { return Enable-KemTeacherStation $p $Server }
         'stop_teacher_station'   { return Disable-KemTeacherStation }
+        'request_screenshot'     { return Send-KemScreenshot $Server }
+        'lock_input'             { return Set-KemInputLock $p }
         default              { return @{ status = 'failed'; output = "Unsupported command type '$($Command.type)' for this agent version." } }
     }
 }

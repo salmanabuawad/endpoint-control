@@ -143,6 +143,8 @@ details summary { cursor: pointer; color: var(--primary); font-size: 12.5px; }
 .banner.warn { background: var(--warn-bg); color: var(--warn); }
 .banner.ok { background: var(--ok-bg); color: var(--ok); }
 .checkrow { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 6px; }
+.scrshot { background: #000; border-radius: 8px; min-height: 180px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.scrshot img { max-width: 100%; max-height: 62vh; display: block; }
 .switch { position: relative; display: inline-flex; width: 36px; height: 20px; vertical-align: middle; margin-right: 6px; }
 .switch input { opacity: 0; width: 0; height: 0; }
 .switch span { position: absolute; inset: 0; background: var(--line); border-radius: 999px; cursor: pointer; transition: background .15s; }

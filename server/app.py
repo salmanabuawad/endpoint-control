@@ -7,6 +7,7 @@ reset to baseline image, ...).
 """
 from __future__ import annotations
 
+import base64
 import calendar
 import csv
 import datetime as dtmod
@@ -115,6 +116,8 @@ CREATE TABLE IF NOT EXISTS exam_schedules(
   enabled INTEGER DEFAULT 1, created REAL, created_by TEXT DEFAULT '',
   next_start REAL, active_exam_id TEXT, end_at REAL, last_start REAL, last_end REAL);
 CREATE INDEX IF NOT EXISTS ix_exam_sched_lab ON exam_schedules(lab_id);
+CREATE TABLE IF NOT EXISTS screenshots(
+  device_id TEXT PRIMARY KEY, data BLOB, mime TEXT DEFAULT 'image/jpeg', bytes INTEGER DEFAULT 0, captured REAL);
 CREATE TABLE IF NOT EXISTS incidents(
   id TEXT PRIMARY KEY, device_id TEXT, lab_id TEXT, title TEXT, detail TEXT DEFAULT '',
   severity TEXT DEFAULT 'warning', status TEXT DEFAULT 'open', source TEXT DEFAULT 'manual',
@@ -183,6 +186,8 @@ COMMAND_TYPES = {
     "set_hostname", "set_local_admin_password",
     # teacher station (class gateway) topology
     "set_uplink", "become_teacher_station", "stop_teacher_station",
+    # classroom control: see a station's screen, freeze its input
+    "request_screenshot", "lock_input",
 }
 # Destructive commands: one device at a time, admin must type the hostname.
 CONFIRM_TYPES = {"reset_device", "uninstall_agent", "set_hostname"}
@@ -239,6 +244,7 @@ SCOPE_FOR_ROLE = {"superadmin": "global", "municipality_admin": "municipality",
 TEACHER_COMMANDS = {
     "lock_session", "send_message", "reboot", "block_internet", "unblock_internet",
     "usb_storage", "set_web_filter", "list_processes", "list_services", "launch_app",
+    "request_screenshot", "lock_input",
 }
 # A school manager may do everything except destructive recovery and raw script execution,
 # which stay with municipality admins (or require explicit delegation - a later phase).
@@ -1230,6 +1236,13 @@ def validate_params(ctype: str, p: Any) -> dict:
                 "listen_port": _int(p, "listen_port", 8171, 1, 65535)}
     if ctype == "stop_teacher_station":
         return {}
+    if ctype == "request_screenshot":
+        return {}
+    if ctype == "lock_input":
+        mode = p.get("mode", "lock")
+        if mode not in ("lock", "unlock"):
+            raise HTTPException(400, "mode must be lock or unlock")
+        return {"mode": mode}
     raise HTTPException(400, "Unsupported command")
 
 
@@ -1783,6 +1796,59 @@ def diagnose_device(device_id: str, request: Request, user: dict = Depends(requi
         audit(con, user["username"], client_ip(request), "ai_diagnose", row["hostname"],
               {"model": cfg["model"], "chars": len(text)})
     return {"diagnosis": text, "at": t, "model": cfg["model"], "context_sent": ctx}
+
+
+# ---------------------------------------------------------------- classroom control: screen view + input lock
+# On-demand screen view: an authorised operator queues a request_screenshot command; the agent captures
+# the signed-in user's desktop (in that session, with a visible "being viewed" indicator) and uploads a
+# JPEG, which the operator then fetches. Input lock freezes the station's keyboard and mouse.
+
+MAX_SCREENSHOT = 6_000_000  # decoded bytes
+
+
+@app.post("/api/agent/screenshot")
+def agent_upload_screenshot(body: dict = Body(...), dev: dict = Depends(agent_device)):
+    b64 = body.get("image_b64")
+    if not isinstance(b64, str) or not b64:
+        raise HTTPException(400, "image_b64 is required")
+    try:
+        raw = base64.b64decode(b64, validate=True)
+    except (ValueError, Exception):  # noqa: BLE001
+        raise HTTPException(400, "image_b64 is not valid base64")
+    if not raw or len(raw) > MAX_SCREENSHOT:
+        raise HTTPException(400, "Screenshot is empty or too large")
+    mime = clean(body.get("mime"), 40)
+    mime = mime if mime in ("image/jpeg", "image/png") else "image/jpeg"
+    with db() as con:
+        con.execute(
+            "INSERT INTO screenshots(device_id,data,mime,bytes,captured) VALUES(?,?,?,?,?) "
+            "ON CONFLICT(device_id) DO UPDATE SET data=excluded.data, mime=excluded.mime, "
+            "bytes=excluded.bytes, captured=excluded.captured",
+            (dev["id"], raw, mime, len(raw), now()))
+    return AgentJSON({"ok": True})
+
+
+@app.get("/api/devices/{device_id}/screenshot")
+def get_screenshot(device_id: str, user: dict = Depends(current_user)):
+    with db() as con:
+        d = con.execute("SELECT lab_id FROM devices WHERE id=?", (device_id,)).fetchone()
+        if not d or not device_in_scope(con, user, d["lab_id"]):
+            raise HTTPException(404, "Device not found")
+        row = con.execute("SELECT data, mime, captured FROM screenshots WHERE device_id=?", (device_id,)).fetchone()
+    if not row or row["data"] is None:
+        raise HTTPException(404, "No screenshot captured yet")
+    return Response(content=row["data"], media_type=row["mime"] or "image/jpeg",
+                    headers={"Cache-Control": "no-store", "X-Captured": str(row["captured"] or 0)})
+
+
+@app.get("/api/devices/{device_id}/screenshot/meta")
+def get_screenshot_meta(device_id: str, user: dict = Depends(current_user)):
+    with db() as con:
+        d = con.execute("SELECT lab_id FROM devices WHERE id=?", (device_id,)).fetchone()
+        if not d or not device_in_scope(con, user, d["lab_id"]):
+            raise HTTPException(404, "Device not found")
+        row = con.execute("SELECT bytes, captured FROM screenshots WHERE device_id=?", (device_id,)).fetchone()
+    return {"captured": (row["captured"] if row else None), "bytes": (row["bytes"] if row else 0)}
 
 
 # ---------------------------------------------------------------- fleet AI (ask across all stations)

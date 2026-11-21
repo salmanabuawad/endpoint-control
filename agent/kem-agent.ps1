@@ -86,12 +86,9 @@ while ($true) {
         $sent = @($results.ToArray())
         if ($sent.Count) { $body.results = $sent }
 
-        # Re-home to the teacher station when one is set and reachable; otherwise use central directly.
-        $activeServer = $cfg.server
-        if ($cfg.PSObject.Properties.Name -contains 'uplink' -and $cfg.uplink) {
-            if (Test-KemUplink $cfg.uplink) { $activeServer = $cfg.uplink }
-            else { Write-KemLog "Teacher station $($cfg.uplink) unreachable; using central server." }
-        }
+        # When a teacher station (uplink) is set, the agent stays on it until the admin server sends a
+        # set_uplink command to clear it. It does NOT fall back to the central server on its own.
+        $activeServer = if ($cfg.PSObject.Properties.Name -contains 'uplink' -and $cfg.uplink) { "$($cfg.uplink)" } else { $cfg.server }
         $resp = Invoke-KemApi -Server $activeServer -Path '/api/agent/checkin' -Body $body -Headers $headers
         foreach ($s in $sent) { $results.Remove($s) }
         $failures = 0

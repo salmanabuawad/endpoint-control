@@ -17,6 +17,7 @@ const CMD = {
   list_services: 'List services', service_action: 'Service control', send_message: 'Message user', lock_session: 'Lock / sign out',
   update_agent: 'Update agent', distribute_file: 'Distribute file', set_app_policy: 'Application allowlist',
   launch_app: 'Launch app', set_hostname: 'Rename computer', set_local_admin_password: 'Set admin password',
+  request_screenshot: 'Screen capture', lock_input: 'Input lock',
 };
 const USB_LABEL = { allow: 'Allowed', read_only: 'Read-only', block: 'Blocked' };
 const WEB_PRESETS = [
@@ -38,6 +39,7 @@ const CATALOG = [
 
 const ROLE_LABEL = { superadmin: 'Platform owner', municipality_admin: 'Municipality admin', school_manager: 'School manager', teacher: 'Teacher' };
 const cap = (k) => !!(state.me && state.me.capabilities && state.me.capabilities[k]);
+const allowedHas = (c) => !!(state.me && state.me.capabilities && (state.me.capabilities.commands || []).includes(c));
 const isAdmin = () => ['superadmin', 'municipality_admin'].includes(state.me && state.me.role);
 const roleLabel = (r) => (I18N.en['role.' + r] ? t('role.' + r) : (ROLE_LABEL[r] || r));
 const placeText = (d) => (d.place && d.place.lab ? `${d.place.school ? d.place.school + ' · ' : ''}${d.place.lab}` : '');
@@ -173,6 +175,12 @@ const I18N = {
     'sw.programs': 'programs', 'sw.collected': 'collected', 'sw.notcollected': 'Not collected yet', 'sw.none': 'Nothing to show',
     'sw.uninstallsel': 'Uninstall selected', 'sw.confirm': 'Uninstall {n} program(s)? This runs their uninstaller on the device.', 'sw.t.queued': 'Uninstall queued for {n} program(s)',
     'nav.packages': 'Packages', 'nav.classes': 'Classes', 'nav.fleetai': 'Ask AI', 'nav.exams': 'Exam schedule',
+    'scr.view': 'View screen', 'scr.freeze': 'Freeze input', 'scr.title': 'Station screen', 'scr.refresh': 'Capture again',
+    'scr.asking': 'Asking the station for its screen…', 'scr.timeout': 'No screen received (the station may be offline or no user is signed in).',
+    'scr.note': 'The signed-in student sees a brief “your screen was viewed by IT” indicator. One frame per capture.',
+    'scr.apply': 'Apply', 'scr.freeze.title': 'Freeze keyboard & mouse', 'scr.freeze.lock': 'Lock input',
+    'scr.freeze.unlock': 'Unlock input', 'scr.freeze.note': 'Disables the station’s keyboard and mouse until you unlock it.',
+    'scr.unlock.note': 'Restores keyboard and mouse control to the student.', 'scr.locked': 'Input lock queued', 'scr.unlocked': 'Input unlock queued',
     'es.title': 'Scheduled exams', 'es.sub': 'Lock a lab into exam mode automatically at a set time, and lift it when the window ends',
     'es.new': '＋ New schedule', 'es.name': 'Exam name', 'es.lab': 'Lab', 'es.when': 'When', 'es.locks': 'Locks',
     'es.cadence': 'Repeat', 'es.once': 'Once', 'es.daily': 'Every day', 'es.weekly': 'Every week',
@@ -363,6 +371,12 @@ const I18N = {
     'sw.programs': 'תוכנות', 'sw.collected': 'נאסף', 'sw.notcollected': 'עדיין לא נאסף', 'sw.none': 'אין מה להציג',
     'sw.uninstallsel': 'הסר נבחרות', 'sw.confirm': 'להסיר {n} תוכנות? פעולה זו מריצה את מסיר ההתקנה במחשב.', 'sw.t.queued': 'הסרה נשלחה עבור {n} תוכנות',
     'nav.packages': 'חבילות', 'nav.classes': 'כיתות', 'nav.fleetai': 'שאל AI', 'nav.exams': 'מבחנים מתוזמנים',
+    'scr.view': 'צפה במסך', 'scr.freeze': 'הקפא קלט', 'scr.title': 'מסך העמדה', 'scr.refresh': 'צלם שוב',
+    'scr.asking': 'מבקש מהעמדה את המסך…', 'scr.timeout': 'לא התקבל מסך (ייתכן שהעמדה לא מקוונת או שאין משתמש מחובר).',
+    'scr.note': 'התלמיד המחובר רואה חיווי קצר “המסך שלך נצפה ע״י IT”. פריים אחד לכל צילום.',
+    'scr.apply': 'החל', 'scr.freeze.title': 'הקפאת מקלדת ועכבר', 'scr.freeze.lock': 'נעל קלט',
+    'scr.freeze.unlock': 'שחרר קלט', 'scr.freeze.note': 'משבית את המקלדת והעכבר של העמדה עד לשחרור.',
+    'scr.unlock.note': 'מחזיר את השליטה במקלדת ובעכבר לתלמיד.', 'scr.locked': 'נעילת הקלט נשלחה', 'scr.unlocked': 'שחרור הקלט נשלח',
     'es.title': 'מבחנים מתוזמנים', 'es.sub': 'נעלו מעבדה למצב מבחן אוטומטית בשעה קבועה, ושחררו אותה בתום החלון',
     'es.new': '＋ תזמון חדש', 'es.name': 'שם המבחן', 'es.lab': 'מעבדה', 'es.when': 'מתי', 'es.locks': 'נעילות',
     'es.cadence': 'חזרה', 'es.once': 'פעם אחת', 'es.daily': 'כל יום', 'es.weekly': 'כל שבוע',
@@ -1319,6 +1333,8 @@ async function viewDevice(id) {
       <div class="actions">
         ${dev.isolated ? '<button class="btn" data-act="unblock_internet">🌐 Restore internet</button>' : '<button class="btn ghost-danger" data-act="block_internet">⛔ Block internet</button>'}
         <button class="btn primary" data-act="install_software">⬇ Install software</button>
+        ${allowedHas('request_screenshot') ? `<button class="btn" id="viewscreen">🖥 ${t('scr.view')}</button>` : ''}
+        ${allowedHas('lock_input') ? `<button class="btn" id="freezeinput">🧊 ${t('scr.freeze')}</button>` : ''}
         ${cap('manage_packages') ? `<button class="btn" id="applypkg">📦 ${t('pkg.applybtn')}</button>` : ''}
         <button class="btn" data-act="send_message">💬 Message</button>
         <button class="btn" data-act="lock_session">🔒 Lock</button>
@@ -1333,6 +1349,8 @@ async function viewDevice(id) {
       onSubmit: async (f) => { await api(`/api/devices/${id}`, { method: 'PATCH', body: { group: f.group.value, notes: f.notes.value } }); load(); },
     });
     if ($('#applypkg')) $('#applypkg').onclick = () => applyPackageModal(id);
+    if ($('#viewscreen')) $('#viewscreen').onclick = () => viewScreenModal(id, dev.hostname);
+    if ($('#freezeinput')) $('#freezeinput').onclick = () => freezeInputModal(id);
     if ($('#placelab')) $('#placelab').onclick = async () => {
       let org; try { org = await api('/api/org'); } catch (e) { toast(e.message, true); return; }
       const { labs } = orgFlat(org);
@@ -2312,6 +2330,50 @@ async function applyPackageModal(deviceId) {
   };
   form.pkg.onchange = preview; form.rm.onchange = preview;
   preview();
+}
+
+async function viewScreenModal(deviceId, hostname) {
+  const m = modal({
+    title: `${t('scr.title')} · ${esc(hostname || '')}`, submit: t('scr.refresh'), wide: true,
+    body: `<div id="scrbox" class="scrshot"><div class="muted" style="padding:40px;text-align:center"><span class="spin"></span> ${t('scr.asking')}</div></div>
+      <p class="note">${t('scr.note')}</p>`,
+    onSubmit: async () => { await capture(); return false; },  // keep the modal open on Refresh
+  });
+  let baseline = 0;
+  try { baseline = (await api(`/api/devices/${deviceId}/screenshot/meta`)).captured || 0; } catch { baseline = 0; }
+  const show = () => {
+    const box = $('#scrbox', m); if (!box) return;
+    box.innerHTML = `<img alt="screen" src="/api/devices/${deviceId}/screenshot?t=${Date.now()}">`;
+  };
+  const capture = async () => {
+    const box = $('#scrbox', m); if (!box) return;
+    box.innerHTML = `<div class="muted" style="padding:40px;text-align:center"><span class="spin"></span> ${t('scr.asking')}</div>`;
+    try { await queue([deviceId], 'request_screenshot'); } catch (e) { box.innerHTML = `<div class="banner crit">⚠ ${esc(e.message)}</div>`; return; }
+    for (let i = 0; i < 25; i++) {
+      await new Promise((r) => setTimeout(r, 1200));
+      if (!$('#scrbox', m)) return;  // modal closed
+      let meta; try { meta = await api(`/api/devices/${deviceId}/screenshot/meta`); } catch { continue; }
+      if (meta.captured && meta.captured > baseline) { baseline = meta.captured; show(); return; }
+    }
+    const box2 = $('#scrbox', m);
+    if (box2) box2.innerHTML = `<div class="banner warn">⚠ ${t('scr.timeout')}</div>`;
+  };
+  capture();
+}
+
+function freezeInputModal(ids) {
+  const list = Array.isArray(ids) ? ids : [ids];
+  modal({
+    title: t('scr.freeze.title'), submit: t('scr.apply'), danger: true,
+    body: `${targetLine(list)}
+      <label class="option"><input type="radio" name="mode" value="lock" checked><div><b>${t('scr.freeze.lock')}</b><span>${t('scr.freeze.note')}</span></div></label>
+      <label class="option"><input type="radio" name="mode" value="unlock"><div><b>${t('scr.freeze.unlock')}</b><span>${t('scr.unlock.note')}</span></div></label>`,
+    onSubmit: async (f) => {
+      const mode = (f.querySelector('[name=mode]:checked') || {}).value || 'lock';
+      await queue(list, 'lock_input', { mode });
+      toast(mode === 'lock' ? t('scr.locked') : t('scr.unlocked'));
+    },
+  });
 }
 
 async function viewClasses() {
