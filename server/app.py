@@ -1773,6 +1773,121 @@ def diagnose_device(device_id: str, request: Request, user: dict = Depends(requi
     return {"diagnosis": text, "at": t, "model": cfg["model"], "context_sent": ctx}
 
 
+# ---------------------------------------------------------------- fleet AI (ask across all stations)
+# A privacy-safe hardware/usage snapshot of every in-scope station, with deterministic "weak/overloaded"
+# flags, plus a free-form question answered by the admin-configured local AI endpoint.
+
+FLEET_SYSTEM_PROMPT = (
+    "You are an IT assistant for a school's computer fleet. You receive a JSON array of Windows "
+    "stations with their specs (CPU, cores, RAM, disks, network adapters) and current usage, each with "
+    "pre-computed 'flags'. Answer the administrator's question about the fleet. Name the specific "
+    "stations by hostname that match, grouped clearly. Use ONLY the data provided - never invent "
+    "stations or numbers. If nothing matches, say so plainly. Be concise: short bullet lists, no preamble."
+)
+
+
+def _nic_mbps(speed) -> int | None:
+    """Parse a Windows LinkSpeed string like '1 Gbps' / '100 Mbps' into megabits/sec."""
+    m = re.match(r"\s*([\d.]+)\s*(g|m|k)?bps", str(speed or "").lower())
+    if not m:
+        return None
+    val = float(m.group(1))
+    return int(val * {"g": 1000, "m": 1, "k": 0.001, None: 1}[m.group(2)])
+
+
+def fleet_device_row(d: dict) -> dict:
+    """Compact, PII-stripped per-station record: specs + usage + deterministic weakness/load flags.
+    Deliberately omits signed-in user, IPs, MACs and serials."""
+    tel = d.get("telemetry") or {}
+    inv = d.get("inventory") or {}
+    disks = [{"drive": x.get("drive"), "size_gb": x.get("size_gb"), "free_gb": x.get("free_gb")}
+             for x in (tel.get("disks") or []) if isinstance(x, dict)]
+    nics = []
+    for a in (inv.get("adapters") or []):
+        if isinstance(a, dict):
+            nics.append({"name": a.get("name"), "mbps": _nic_mbps(a.get("speed"))})
+    cores = inv.get("cores")
+    ram = inv.get("ram_gb")
+    cpu, mem, disk = d.get("cpu"), d.get("mem"), d.get("disk")
+    min_free = min([x["free_gb"] for x in disks if isinstance(x.get("free_gb"), (int, float))], default=None)
+    sys_disk = next((x for x in disks if (x.get("drive") or "").upper().startswith("C")), None)
+    free_pct = None
+    if sys_disk and sys_disk.get("size_gb"):
+        free_pct = round(100 * (sys_disk.get("free_gb") or 0) / sys_disk["size_gb"], 1)
+    max_nic = max([n["mbps"] for n in nics if n["mbps"]], default=None)
+    flags = []
+    if isinstance(cores, int) and cores and cores <= 2:
+        flags.append("weak_cpu")
+    if isinstance(ram, (int, float)) and ram and ram < 4:
+        flags.append("low_ram")
+    if (isinstance(min_free, (int, float)) and min_free < 10) or (isinstance(free_pct, (int, float)) and free_pct < 10):
+        flags.append("low_disk")
+    if isinstance(max_nic, int) and max_nic and max_nic < 1000:
+        flags.append("slow_nic")
+    if isinstance(cpu, (int, float)) and cpu >= 90:
+        flags.append("high_cpu")
+    if isinstance(mem, (int, float)) and mem >= 90:
+        flags.append("high_mem")
+    if isinstance(disk, (int, float)) and disk >= 90:
+        flags.append("high_disk")
+    if not d.get("online"):
+        flags.append("offline")
+    return {"hostname": d.get("hostname"), "online": d.get("online"), "os": d.get("os"),
+            "cpu_name": inv.get("cpu_name"), "cores": cores, "logical": inv.get("logical"),
+            "ram_gb": ram, "disks": disks, "disk_free_pct": free_pct,
+            "nics": nics, "nic_max_mbps": max_nic,
+            "usage": {"cpu_pct": cpu, "mem_pct": mem, "disk_pct": disk}, "flags": flags}
+
+
+FLEET_FLAGS = ("weak_cpu", "low_ram", "low_disk", "slow_nic", "high_cpu", "high_mem", "high_disk", "offline")
+
+
+def build_fleet(con, user: dict, limit: int = 400) -> list[dict]:
+    allowed = allowed_lab_ids(con, user)
+    show_unassigned = sees_unassigned(user)
+    rows = con.execute("SELECT * FROM devices ORDER BY hostname COLLATE NOCASE").fetchall()
+    out = []
+    for r in rows:
+        if allowed is not None:
+            if r["lab_id"] is None and not show_unassigned:
+                continue
+            if r["lab_id"] is not None and r["lab_id"] not in allowed:
+                continue
+        out.append(fleet_device_row(serialize_device(r, full=True)))
+        if len(out) >= limit:
+            break
+    return out
+
+
+@app.get("/api/fleet/summary")
+def fleet_summary(user: dict = Depends(require_diagnostics)):
+    with db() as con:
+        fleet = build_fleet(con, user)
+    totals = {f: sum(1 for d in fleet if f in d["flags"]) for f in FLEET_FLAGS}
+    return {"count": len(fleet), "totals": totals, "devices": fleet}
+
+
+@app.post("/api/fleet/ask")
+def fleet_ask(request: Request, body: dict = Body(...), user: dict = Depends(require_diagnostics)):
+    question = str(body.get("question") or "").strip()
+    if not 1 <= len(question) <= 500:
+        raise HTTPException(400, "Ask a question (1-500 characters)")
+    with db() as con:
+        cfg = ai_config(con)
+        if not cfg["enabled"]:
+            raise HTTPException(400, "AI is not enabled - configure the local AI endpoint in Settings")
+        fleet = build_fleet(con, user)
+    if not fleet:
+        return {"answer": "There are no stations in your scope to analyze yet.", "considered": 0, "model": cfg["model"]}
+    user_msg = (f"Question: {question}\n\nFleet data ({len(fleet)} stations):\n"
+                + json.dumps(fleet, ensure_ascii=False))
+    answer = ai_chat(cfg, FLEET_SYSTEM_PROMPT, user_msg, max_tokens=900)
+    with db() as con:
+        audit(con, user["username"], client_ip(request), "fleet_ask", question[:120],
+              {"model": cfg["model"], "stations": len(fleet)})
+    return {"answer": answer, "considered": len(fleet), "model": cfg["model"]}
+
+
 # ---------------------------------------------------------------- reports (CSV / printable HTML)
 # Exportable reports, scoped to the signed-in user. CSV opens in Excel (UTF-8 BOM, Hebrew-safe);
 # the HTML version is print-ready, so the browser's "Save as PDF" produces a PDF without extra deps.

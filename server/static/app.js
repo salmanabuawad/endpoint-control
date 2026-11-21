@@ -172,7 +172,19 @@ const I18N = {
     'sw.name': 'Name', 'sw.version': 'Version', 'sw.publisher': 'Publisher', 'sw.installed': 'Installed', 'sw.peruser': 'per-user',
     'sw.programs': 'programs', 'sw.collected': 'collected', 'sw.notcollected': 'Not collected yet', 'sw.none': 'Nothing to show',
     'sw.uninstallsel': 'Uninstall selected', 'sw.confirm': 'Uninstall {n} program(s)? This runs their uninstaller on the device.', 'sw.t.queued': 'Uninstall queued for {n} program(s)',
-    'nav.packages': 'Packages', 'nav.classes': 'Classes',
+    'nav.packages': 'Packages', 'nav.classes': 'Classes', 'nav.fleetai': 'Ask AI',
+    'fa.title': 'Ask AI about the fleet', 'fa.sub': 'Natural-language questions over every station’s specs and live usage',
+    'fa.ph': 'e.g. Which stations have a weak CPU or low memory?', 'fa.ask': 'Ask', 'fa.asking': 'Thinking…',
+    'fa.presets': 'Quick questions', 'fa.answer': 'Answer', 'fa.model': 'Answered by {m} over {n} station(s)',
+    'fa.off': 'The local AI endpoint is not enabled. An administrator can set it up in Settings. The insights below still work without it.',
+    'fa.insights': 'Fleet insights', 'fa.insights.sub': 'Computed directly from inventory — no AI needed', 'fa.insights.none': 'No stations reporting yet.',
+    'fa.stations': 'stations', 'fa.allgood': 'None',
+    'fa.f.weak_cpu': 'Weak CPU (≤2 cores)', 'fa.f.low_ram': 'Low memory (<4 GB)', 'fa.f.low_disk': 'Low disk (<10 GB / <10% free)',
+    'fa.f.slow_nic': 'Slow network card (<1 Gbps)', 'fa.f.high_cpu': 'High CPU (≥90%)', 'fa.f.high_mem': 'High memory (≥90%)',
+    'fa.f.high_disk': 'High disk use (≥90%)', 'fa.f.offline': 'Offline',
+    'fa.q.weak': 'Which stations have a weak CPU or low memory?', 'fa.q.disk': 'Which stations are low on disk space?',
+    'fa.q.nic': 'Which stations have a slow network card (under 1 Gbps)?', 'fa.q.busy': 'Which stations have high CPU, memory or disk usage right now?',
+    'fa.q.upgrade': 'Which stations should be upgraded or replaced first, and why?',
     'cl.title': 'Classes', 'cl.sub': 'Group stations into a class and promote one to a teacher station the others connect through',
     'cl.new': '＋ New class', 'cl.name': 'Class name', 'cl.lab': 'Lab', 'cl.lab.any': '— any lab —',
     'cl.members': 'Stations', 'cl.members.help': 'Pick the stations in this class.', 'cl.create': 'Create class',
@@ -338,7 +350,19 @@ const I18N = {
     'sw.name': 'שם', 'sw.version': 'גרסה', 'sw.publisher': 'יצרן', 'sw.installed': 'הותקן', 'sw.peruser': 'למשתמש',
     'sw.programs': 'תוכנות', 'sw.collected': 'נאסף', 'sw.notcollected': 'עדיין לא נאסף', 'sw.none': 'אין מה להציג',
     'sw.uninstallsel': 'הסר נבחרות', 'sw.confirm': 'להסיר {n} תוכנות? פעולה זו מריצה את מסיר ההתקנה במחשב.', 'sw.t.queued': 'הסרה נשלחה עבור {n} תוכנות',
-    'nav.packages': 'חבילות', 'nav.classes': 'כיתות',
+    'nav.packages': 'חבילות', 'nav.classes': 'כיתות', 'nav.fleetai': 'שאל AI',
+    'fa.title': 'שאל את ה‑AI על הצי', 'fa.sub': 'שאלות בשפה חופשית על המפרט והשימוש החי של כל עמדה',
+    'fa.ph': 'למשל: לאילו עמדות יש מעבד חלש או זיכרון נמוך?', 'fa.ask': 'שאל', 'fa.asking': 'חושב…',
+    'fa.presets': 'שאלות מהירות', 'fa.answer': 'תשובה', 'fa.model': 'נענה ע״י {m} על פני {n} עמדות',
+    'fa.off': 'נקודת ה‑AI המקומית אינה מופעלת. מנהל יכול להגדיר אותה בהגדרות. התובנות שלמטה עובדות גם בלעדיה.',
+    'fa.insights': 'תובנות צי', 'fa.insights.sub': 'מחושב ישירות מהמלאי — ללא צורך ב‑AI', 'fa.insights.none': 'אין עדיין עמדות מדווחות.',
+    'fa.stations': 'עמדות', 'fa.allgood': 'אין',
+    'fa.f.weak_cpu': 'מעבד חלש (≤2 ליבות)', 'fa.f.low_ram': 'זיכרון נמוך (<4 ג״ב)', 'fa.f.low_disk': 'דיסק נמוך (<10 ג״ב / <10% פנוי)',
+    'fa.f.slow_nic': 'כרטיס רשת איטי (<1 Gbps)', 'fa.f.high_cpu': 'עומס מעבד (≥90%)', 'fa.f.high_mem': 'עומס זיכרון (≥90%)',
+    'fa.f.high_disk': 'עומס דיסק (≥90%)', 'fa.f.offline': 'לא מקוון',
+    'fa.q.weak': 'לאילו עמדות יש מעבד חלש או זיכרון נמוך?', 'fa.q.disk': 'אילו עמדות נמוכות במקום בדיסק?',
+    'fa.q.nic': 'לאילו עמדות יש כרטיס רשת איטי (מתחת ל‑1 Gbps)?', 'fa.q.busy': 'לאילו עמדות יש כעת עומס מעבד, זיכרון או דיסק?',
+    'fa.q.upgrade': 'אילו עמדות כדאי לשדרג או להחליף ראשונות, ולמה?',
     'cl.title': 'כיתות', 'cl.sub': 'קבצו עמדות לכיתה והעלו אחת לעמדת מורה שהשאר מתחברים דרכה',
     'cl.new': '＋ כיתה חדשה', 'cl.name': 'שם הכיתה', 'cl.lab': 'מעבדה', 'cl.lab.any': '— כל מעבדה —',
     'cl.members': 'עמדות', 'cl.members.help': 'בחרו את העמדות בכיתה זו.', 'cl.create': 'צור כיתה',
@@ -829,7 +853,7 @@ function route() {
   const [, name = 'devices', arg] = (location.hash || '#/devices').split('/');
   setNav(name === 'device' ? 'devices' : name);
   const views = { devices: viewDevices, device: () => viewDevice(arg), enroll: viewEnroll, activity: viewActivity,
-    audit: viewAudit, settings: viewSettings, org: viewOrg, users: viewUsers, gateways: viewGateways, licensing: viewLicensing, incidents: viewIncidents, reports: viewReports, images: viewImages, packages: viewPackages, classes: viewClasses };
+    audit: viewAudit, settings: viewSettings, org: viewOrg, users: viewUsers, gateways: viewGateways, licensing: viewLicensing, incidents: viewIncidents, reports: viewReports, images: viewImages, packages: viewPackages, classes: viewClasses, fleetai: viewFleetAI };
   const needs = { org: 'manage_org', users: 'manage_users', gateways: 'manage_gateways', enroll: 'manage_tokens', audit: 'view_audit', licensing: 'view_licensing', incidents: 'view_incidents', reports: 'view_reports', images: 'view_images', packages: 'view_packages' };
   if (needs[name] && !cap(needs[name])) { location.hash = '#/devices'; return; }
   (views[name] || viewDevices)();
@@ -2366,6 +2390,57 @@ function promoteClass(c, done) {
       return r;
     },
   });
+}
+
+async function viewFleetAI() {
+  const PRESETS = [['fa.q.weak', 'weak_cpu'], ['fa.q.disk', 'low_disk'], ['fa.q.nic', 'slow_nic'], ['fa.q.busy', 'high_cpu'], ['fa.q.upgrade', '']];
+  let aiOn = false;
+  try { aiOn = (await api('/api/ai/status')).enabled; } catch { aiOn = false; }
+  view.innerHTML = `<div class="page-head"><div><h1>${t('fa.title')}</h1><p class="sub">${t('fa.sub')}</p></div></div>
+    ${aiOn ? '' : `<div class="banner warn">⚠ ${t('fa.off')}</div>`}
+    <div class="card pad">
+      <div class="row" style="gap:8px;align-items:flex-start">
+        <textarea id="faq" rows="2" style="flex:1;min-height:48px" placeholder="${esc(t('fa.ph'))}" ${aiOn ? '' : 'disabled'}></textarea>
+        <button class="btn primary" id="faask" ${aiOn ? '' : 'disabled'}>${t('fa.ask')}</button>
+      </div>
+      <div class="muted small" style="margin:10px 0 6px">${t('fa.presets')}</div>
+      <div class="chips" id="fapresets">${PRESETS.map(([k], i) => `<button type="button" class="chip" data-i="${i}" ${aiOn ? '' : 'disabled'}>${esc(t(k))}</button>`).join('')}</div>
+      <div id="faanswer"></div>
+    </div>
+    <div class="card pad" style="margin-top:16px">
+      <div class="page-head sub-head"><div><h2>${t('fa.insights')}</h2><p class="sub">${t('fa.insights.sub')}</p></div></div>
+      <div id="fainsights"><div class="muted">${t('common.loading')}</div></div>
+    </div>`;
+
+  const ask = async (q) => {
+    const box = $('#faanswer');
+    box.innerHTML = `<div class="banner">${t('fa.asking')}</div>`;
+    try {
+      const r = await api('/api/fleet/ask', { method: 'POST', body: { question: q } });
+      box.innerHTML = `<div class="muted small" style="margin-top:12px"><b>${t('fa.answer')}</b> · ${t('fa.model').replace('{m}', esc(r.model || 'AI')).replace('{n}', r.considered)}</div>
+        <pre class="aiout-text">${esc(r.answer)}</pre>`;
+    } catch (e) { box.innerHTML = `<div class="banner crit">⚠ ${esc(e.message)}</div>`; }
+  };
+  if (aiOn) {
+    $('#faask').onclick = () => { const q = $('#faq').value.trim(); if (q) ask(q); };
+    $$('#fapresets .chip').forEach((c) => (c.onclick = () => { const q = t(PRESETS[+c.dataset.i][0]); $('#faq').value = q; ask(q); }));
+  }
+
+  // Deterministic insights (work without AI).
+  try {
+    const s = await api('/api/fleet/summary');
+    const FLAGS = ['weak_cpu', 'low_ram', 'low_disk', 'slow_nic', 'high_cpu', 'high_mem', 'high_disk', 'offline'];
+    $('#fainsights').innerHTML = !s.count ? `<div class="empty">${t('fa.insights.none')}</div>`
+      : `<div class="tiles">${FLAGS.map((f) => {
+          const hosts = s.devices.filter((d) => d.flags.includes(f)).map((d) => d.hostname);
+          const n = hosts.length;
+          return `<div class="tile" style="cursor:default">
+            <div class="row" style="justify-content:space-between"><span class="muted small">${esc(t('fa.f.' + f))}</span>
+              <b class="${n ? (f.startsWith('high') || f === 'low_disk' ? 'crit-text' : '') : ''}">${n || t('fa.allgood')}</b></div>
+            ${n ? `<div class="small" style="margin-top:6px;line-height:1.5">${hosts.slice(0, 8).map(esc).join(', ')}${n > 8 ? ` +${n - 8}` : ''}</div>` : ''}</div>`;
+        }).join('')}</div>
+        <p class="muted small" style="margin-top:10px">${s.count} ${t('fa.stations')}</p>`;
+  } catch (e) { $('#fainsights').innerHTML = `<div class="banner crit">⚠ ${esc(e.message)}</div>`; }
 }
 
 async function boot() {
