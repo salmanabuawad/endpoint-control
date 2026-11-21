@@ -190,9 +190,12 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
 * **Screen capture is deliberately omitted.** From a SYSTEM service it is indistinguishable from
   spyware; Windows Defender AMSI blocks it and would break the whole agent. If a deployment truly
   needs it, build a code-signed agent added to the AV allowlist — never obfuscate past AMSI.
-* **Storage is still SQLite** and the dashboard is still vanilla JS. The spec mandates Postgres +
-  React; those are planned migrations. The data model and REST API were designed to make the
-  Postgres move a storage swap. Current scale target (≈50–1000 devices) is comfortable on SQLite/WAL.
+* **Storage is still SQLite** and the dashboard is still vanilla JS (now with **AG Grid Community**,
+  vendored locally under `static/vendor/ag-grid` so it works offline/air-gapped, for the data lists —
+  the Devices and Audit lists use it so far, giving column sort/filter/resize; other lists are being
+  rolled over to the shared `makeGrid` helper). The spec mandates Postgres + React; those are planned
+  migrations. The data model and REST API were designed to make the Postgres move a storage swap.
+  Current scale target (≈50–1000 devices) is comfortable on SQLite/WAL.
 * **Device-page controls** are hidden per role in the UI *and* enforced in the API. Audit is
   currently visible to all admins (not yet per-municipality filtered).
 * **Not yet exercised on real Windows hardware** (need an elevated agent / lab): applying web

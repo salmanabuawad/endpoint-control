@@ -40,6 +40,22 @@ const CATALOG = [
 const ROLE_LABEL = { superadmin: 'Platform owner', municipality_admin: 'Municipality admin', school_manager: 'School manager', teacher: 'Teacher' };
 const cap = (k) => !!(state.me && state.me.capabilities && state.me.capabilities[k]);
 const allowedHas = (c) => !!(state.me && state.me.capabilities && (state.me.capabilities.commands || []).includes(c));
+// ---- AG Grid helpers (lists use ag-grid-community, vendored under /static/vendor) ----
+const gridHtml = (fn) => (p) => { const d = document.createElement('div'); d.style.cssText = 'display:flex;align-items:center;gap:6px;width:100%;overflow:hidden'; d.innerHTML = (p.data ? fn(p.data, p) : '') || ''; return d; };
+function makeGrid(el, opts) {
+  el.classList.add('ag-theme-quartz');
+  return agGrid.createGrid(el, {
+    rowData: opts.rowData || [],
+    columnDefs: opts.columnDefs,
+    enableRtl: (typeof LANG !== 'undefined' && LANG === 'he'),
+    defaultColDef: { sortable: true, filter: true, resizable: true, minWidth: 80, flex: 1 },
+    suppressCellFocus: true, animateRows: false, rowHeight: opts.rowHeight || 44,
+    getRowId: opts.getRowId, rowSelection: opts.rowSelection,
+    suppressRowClickSelection: !!opts.rowSelection,
+    onSelectionChanged: opts.onSelectionChanged, onRowClicked: opts.onRowClicked,
+    overlayNoRowsTemplate: opts.noRows || `<span class="muted">${t('common.loading')}</span>`,
+  });
+}
 const isAdmin = () => ['superadmin', 'municipality_admin'].includes(state.me && state.me.role);
 const roleLabel = (r) => (I18N.en['role.' + r] ? t('role.' + r) : (ROLE_LABEL[r] || r));
 const placeText = (d) => (d.place && d.place.lab ? `${d.place.school ? d.place.school + ' · ' : ''}${d.place.lab}` : '');
@@ -918,31 +934,50 @@ async function viewDevices() {
       ${bulkActs.map((a) => `<button class="btn small" data-act="${a}">${t('act.' + a)}</button>`).join('')}
       <button class="link small" id="bulkclear" style="margin-inline-start:auto">${t('bulk.clear')}</button>
     </div>
-    <div class="card table-wrap"><table class="grid">
-      <thead><tr><th style="width:32px"><input type="checkbox" id="selall" aria-label="Select all"></th><th>${t('col.device')}</th><th>${t('col.user')}</th><th>${t('col.os')}</th><th>${t('col.ip')}</th>
-      <th>${t('col.cpu')}</th><th>${t('col.ram')}</th><th>${t('col.disk')}</th><th class="nowrap">${t('col.lastseen')}</th><th>${t('col.status')}</th></tr></thead>
-      <tbody id="rows"><tr><td colspan="10" class="empty">${t('common.loading')}</td></tr></tbody></table></div>`;
+    <div id="grid" class="appgrid"></div>`;
 
-  $('#q').oninput = (e) => { state.filter.q = e.target.value; renderDevices(); };
+  $('#q').oninput = (e) => { state.filter.q = e.target.value; state.devGrid && state.devGrid.setGridOption('rowData', filtered()); };
   $('#fgroup').onchange = (e) => { state.filter.group = e.target.value; renderDevices(); };
-  $('#selall').onchange = (e) => { filtered().forEach((d) => (e.target.checked ? state.selected.add(d.id) : state.selected.delete(d.id))); renderDevices(); };
-  $('#bulkclear').onclick = () => { state.selected.clear(); renderDevices(); };
+  $('#bulkclear').onclick = () => { state.selected.clear(); state.devGrid && state.devGrid.deselectAll(); renderDevices(); };
   const allowedCmds = new Set(state.me.capabilities.commands || []);
   $$('#bulk [data-act]').forEach((b) => { if (!allowedCmds.has(b.dataset.act)) b.remove(); else b.onclick = () => ACTIONS[b.dataset.act]([...state.selected]); });
   if (state.me.role === 'teacher') renderClassBar();
   if (cap('manage_exams')) renderExamBar();
-  $('#rows').addEventListener('click', (e) => {
-    const cb = e.target.closest('input[type=checkbox]');
-    const tr = e.target.closest('tr[data-id]');
-    if (!tr) return;
-    if (cb) { cb.checked ? state.selected.add(tr.dataset.id) : state.selected.delete(tr.dataset.id); renderDevices(); return; }
-    if (e.target.closest('td.sel')) return;
-    location.hash = `#/device/${tr.dataset.id}`;
+
+  const side = (typeof LANG !== 'undefined' && LANG === 'he') ? 'right' : 'left';
+  const cols = [
+    { headerName: '', checkboxSelection: true, headerCheckboxSelection: true, headerCheckboxSelectionFilteredOnly: true, width: 46, maxWidth: 46, pinned: side, sortable: false, filter: false, resizable: false, suppressMovable: true, lockPosition: true },
+    { headerName: t('col.device'), field: 'hostname', flex: 2.2, minWidth: 220, cellRenderer: gridHtml((d) => `<span class="dot ${d.online ? 'on' : ''}" title="${d.online ? 'Online' : 'Offline'}"></span><span class="host"><a href="#/device/${esc(d.id)}"><b>${deviceIcon(d.chassis)} ${esc(d.hostname)}</b></a><small>${esc(d.model || '')}${placeText(d) ? ' · ' + esc(placeText(d)) : ''}${d.group ? ' · ' + esc(d.group) : ''}</small></span>`) },
+    { headerName: t('col.user'), valueGetter: (p) => (p.data.user || '').split('\\').pop(), cellRenderer: gridHtml((d) => dash((d.user || '').split('\\').pop())) },
+    { headerName: t('col.os'), valueGetter: (p) => p.data.os, cellRenderer: gridHtml((d) => `${dash((d.os || '').replace('Microsoft ', ''))}${d.os_version ? ` <span class="muted">${esc(d.os_version)}</span>` : ''}`) },
+    { headerName: t('col.ip'), valueGetter: (p) => (p.data.ips || [])[0] || '', cellClass: 'mono' },
+    { headerName: t('col.cpu'), valueGetter: (p) => (p.data.online ? p.data.cpu : null), cellRenderer: gridHtml((d) => meter(d.online ? d.cpu : null)), maxWidth: 120, filter: false },
+    { headerName: t('col.ram'), valueGetter: (p) => (p.data.online ? p.data.mem : null), cellRenderer: gridHtml((d) => meter(d.online ? d.mem : null)), maxWidth: 120, filter: false },
+    { headerName: t('col.disk'), valueGetter: (p) => p.data.disk, cellRenderer: gridHtml((d) => meter(d.disk)), maxWidth: 120, filter: false },
+    { headerName: t('col.lastseen'), field: 'last_seen', sort: 'desc', cellRenderer: gridHtml((d) => `<span class="muted small">${ago(d.last_seen)}</span>`), maxWidth: 150 },
+    { headerName: t('col.status'), sortable: false, filter: false, flex: 1.6, minWidth: 150, cellRenderer: gridHtml((d) => deviceStatusPills(d)) },
+  ];
+  state.devGrid = makeGrid($('#grid'), {
+    columnDefs: cols, rowData: [], rowSelection: 'multiple', rowHeight: 56,
+    getRowId: (p) => p.data.id, noRows: `<span class="muted">${t('devices.none')}</span>`,
+    onSelectionChanged: (e) => {
+      state.selected = new Set(e.api.getSelectedRows().map((d) => d.id));
+      $('#bulk').classList.toggle('hidden', !state.selected.size);
+      $('#bulkcount').textContent = `${state.selected.size} ${t('bulk.selected')}`;
+    },
   });
 
   const load = async () => { state.devices = await api('/api/devices'); renderDevices(); };
   await load().catch((e) => toast(e.message, true));
   every(load, 10000);
+}
+
+function deviceStatusPills(d) {
+  return `${d.isolated ? `<span class="pill crit">${t('pill.blocked')}</span>` : ''}${d.busy ? `<span class="pill blue">${t('pill.working')}</span>` : ''}` +
+    `${d.web_filter ? `<span class="pill" title="Web filter: ${d.web_filter} domains blocked">${t('pill.filter')}</span>` : ''}` +
+    `${d.usb && d.usb !== 'allow' ? `<span class="pill" title="USB storage ${esc(USB_LABEL[d.usb])}">🔌 USB ${d.usb === 'block' ? 'off' : 'RO'}</span>` : ''}` +
+    `${d.alerts.filter((a) => a.level !== 'info').slice(0, 2).map((a) => `<span class="pill ${a.level}" title="${esc(alertLabel(a))}">${esc(alertLabel(a))}</span>`).join('')}` +
+    `${!d.isolated && !d.alerts.some((a) => a.level !== 'info') ? `<span class="pill ok">${t('pill.healthy')}</span>` : ''}`;
 }
 
 function filtered() {
@@ -979,32 +1014,7 @@ function renderDevices() {
   gsel.innerHTML = `<option value="">${t('devices.allgroups')}</option>` + groups.map((g) => `<option ${g === state.filter.group ? 'selected' : ''}>${esc(g)}</option>`).join('');
   gsel.classList.toggle('hidden', !groups.length);
 
-  const list = filtered();
-  $('#selall').checked = list.length > 0 && list.every((d) => state.selected.has(d.id));
-  $('#bulk').classList.toggle('hidden', !state.selected.size);
-  $('#bulkcount').textContent = `${state.selected.size} ${t('bulk.selected')}`;
-
-  if (!all.length) {
-    $('#rows').innerHTML = `<tr><td colspan="10" class="empty">${t('devices.none')} <a href="#/enroll">${t('nav.enroll')}</a></td></tr>`;
-    return;
-  }
-  if (!list.length) { $('#rows').innerHTML = `<tr><td colspan="10" class="empty">${t('devices.nomatch')}</td></tr>`; return; }
-  $('#rows').innerHTML = list.map((d) => `
-    <tr class="click" data-id="${esc(d.id)}">
-      <td class="sel"><input type="checkbox" ${state.selected.has(d.id) ? 'checked' : ''} aria-label="Select ${esc(d.hostname)}"></td>
-      <td><div class="row" style="flex-wrap:nowrap"><span class="dot ${d.online ? 'on' : ''}" title="${d.online ? 'Online' : 'Offline'}"></span>
-        <span class="host"><b>${deviceIcon(d.chassis)} ${esc(d.hostname)}</b><small>${esc(d.model || '')}${placeText(d) ? ' · ' + esc(placeText(d)) : ''}${d.group ? ' · ' + esc(d.group) : ''}</small></span></div></td>
-      <td>${dash((d.user || '').split('\\').pop())}</td>
-      <td class="small">${dash(d.os.replace('Microsoft ', ''))}${d.os_version ? ` <span class="muted">${esc(d.os_version)}</span>` : ''}</td>
-      <td class="mono small">${dash((d.ips || [])[0])}</td>
-      <td class="nowrap">${meter(d.online ? d.cpu : null)}</td><td class="nowrap">${meter(d.online ? d.mem : null)}</td><td class="nowrap">${meter(d.disk)}</td>
-      <td class="nowrap small muted">${ago(d.last_seen)}</td>
-      <td><div class="flags">${d.isolated ? `<span class="pill crit">${t('pill.blocked')}</span>` : ''}${d.busy ? `<span class="pill blue">${t('pill.working')}</span>` : ''}
-        ${d.web_filter ? `<span class="pill" title="Web filter: ${d.web_filter} domains blocked">${t('pill.filter')}</span>` : ''}
-        ${d.usb && d.usb !== 'allow' ? `<span class="pill" title="USB storage ${esc(USB_LABEL[d.usb])}">🔌 USB ${d.usb === 'block' ? 'off' : 'RO'}</span>` : ''}
-        ${d.alerts.filter((a) => a.level !== 'info').slice(0, 2).map((a) => `<span class="pill ${a.level}" title="${esc(alertLabel(a))}">${esc(alertLabel(a))}</span>`).join('')}
-        ${!d.isolated && !d.alerts.some((a) => a.level !== 'info') ? `<span class="pill ok">${t('pill.healthy')}</span>` : ''}</div></td>
-    </tr>`).join('');
+  if (state.devGrid) state.devGrid.setGridOption('rowData', filtered());
 }
 
 async function renderClassBar() {
@@ -1501,11 +1511,17 @@ async function viewActivity() {
 }
 
 async function viewAudit() {
-  view.innerHTML = `<div class="page-head"><div><h1>${t('page.audit.title')}</h1><p class="sub">${t('page.audit.sub')}</p></div></div><div class="card" id="aud"><div class="empty">Loading…</div></div>`;
-  const rows = await api('/api/audit?limit=500');
-  $('#aud').innerHTML = rows.length ? `<div class="table-wrap"><table class="grid"><thead><tr><th class="nowrap">Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Details</th><th>IP</th></tr></thead><tbody>${
-    rows.map((r) => `<tr><td class="small nowrap">${fmtDate(r.ts)}</td><td>${esc(r.actor)}</td><td><span class="pill ${/fail|reject/.test(r.action) ? 'crit' : ''}">${esc(r.action)}</span></td><td>${esc(r.target)}</td><td class="small mono muted">${esc(r.details)}</td><td class="small mono">${esc(r.ip)}</td></tr>`).join('')
-  }</tbody></table></div>` : '<div class="empty">Nothing yet</div>';
+  view.innerHTML = `<div class="page-head"><div><h1>${t('page.audit.title')}</h1><p class="sub">${t('page.audit.sub')}</p></div></div><div id="aud" class="appgrid tall"></div>`;
+  const cols = [
+    { headerName: 'Time', field: 'ts', sort: 'desc', maxWidth: 180, valueFormatter: (p) => fmtDate(p.value), cellClass: 'small' },
+    { headerName: 'Actor', field: 'actor', maxWidth: 170 },
+    { headerName: 'Action', field: 'action', maxWidth: 220, cellRenderer: gridHtml((r) => `<span class="pill ${/fail|reject/.test(r.action) ? 'crit' : ''}">${esc(r.action)}</span>`) },
+    { headerName: 'Target', field: 'target' },
+    { headerName: 'Details', field: 'details', flex: 2, cellClass: 'small mono' },
+    { headerName: 'IP', field: 'ip', maxWidth: 150, cellClass: 'mono small' },
+  ];
+  const grid = makeGrid($('#aud'), { columnDefs: cols, rowData: [], noRows: '<span class="muted">Nothing yet</span>' });
+  try { grid.setGridOption('rowData', await api('/api/audit?limit=500')); } catch (e) { toast(e.message, true); }
 }
 
 // ------------------------------------------------------------------ enrollment

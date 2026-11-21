@@ -143,6 +143,30 @@ details summary { cursor: pointer; color: var(--primary); font-size: 12.5px; }
 .banner.warn { background: var(--warn-bg); color: var(--warn); }
 .banner.ok { background: var(--ok-bg); color: var(--ok); }
 .checkrow { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 6px; }
+/* AG Grid: blend the Quartz theme with the app tokens (auto-adapts to dark via the vars). */
+.ag-theme-quartz {
+  --ag-background-color: var(--panel);
+  --ag-foreground-color: var(--text);
+  --ag-border-color: var(--line);
+  --ag-row-border-color: var(--line);
+  --ag-header-background-color: var(--panel-2);
+  --ag-header-foreground-color: var(--muted);
+  --ag-odd-row-background-color: var(--panel);
+  --ag-row-hover-color: color-mix(in srgb, var(--primary) 9%, var(--panel));
+  --ag-selected-row-background-color: color-mix(in srgb, var(--primary) 14%, var(--panel));
+  --ag-control-panel-background-color: var(--panel);
+  --ag-font-family: inherit;
+  --ag-font-size: 13px;
+  --ag-grid-size: 7px;
+  --ag-borders: none;
+  --ag-wrapper-border-radius: var(--radius);
+  --ag-input-focus-border-color: var(--primary);
+}
+.ag-theme-quartz .ag-cell { display: flex; align-items: center; }
+.ag-theme-quartz a { color: var(--text); text-decoration: none; }
+.ag-theme-quartz a:hover { color: var(--primary); }
+.appgrid { width: 100%; height: calc(100vh - 320px); min-height: 320px; }
+.appgrid.tall { height: calc(100vh - 170px); }
 .scrshot { background: #000; border-radius: 8px; min-height: 180px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .scrshot img { max-width: 100%; max-height: 62vh; display: block; }
 .switch { position: relative; display: inline-flex; width: 36px; height: 20px; vertical-align: middle; margin-right: 6px; }
