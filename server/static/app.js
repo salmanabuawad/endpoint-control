@@ -18,6 +18,7 @@ const CMD = {
   update_agent: 'Update agent', distribute_file: 'Distribute file', set_app_policy: 'Application allowlist',
   launch_app: 'Launch app', set_hostname: 'Rename computer', set_local_admin_password: 'Set admin password',
   request_screenshot: 'Screen capture', lock_input: 'Input lock',
+  collect_keys: 'Collect licenses', update_software: 'Update software',
 };
 const USB_LABEL = { allow: 'Allowed', read_only: 'Read-only', block: 'Blocked' };
 const WEB_PRESETS = [
@@ -191,6 +192,11 @@ const I18N = {
     'sw.programs': 'programs', 'sw.collected': 'collected', 'sw.notcollected': 'Not collected yet', 'sw.none': 'Nothing to show',
     'sw.uninstallsel': 'Uninstall selected', 'sw.confirm': 'Uninstall {n} program(s)? This runs their uninstaller on the device.', 'sw.t.queued': 'Uninstall queued for {n} program(s)',
     'nav.packages': 'Packages', 'nav.classes': 'Classes', 'nav.fleetai': 'Ask AI', 'nav.exams': 'Exam schedule',
+    'lk.title': 'Licenses & product keys', 'lk.product': 'Product', 'lk.edition': 'Edition', 'lk.status': 'Activation', 'lk.key': 'Key',
+    'lk.collect': 'Collect from station', 'lk.reveal': 'Reveal keys', 'lk.none': 'No license data collected yet.',
+    'lk.collected': 'Collected {t}', 'lk.never': 'Not collected yet — click “Collect from station”.', 'lk.t.collecting': 'Collecting licenses…',
+    'lk.note': 'Keys are stored so you can restore them after a reimage. They are masked here; “Reveal keys” is admin-only and audited. Windows is reliably collected; most third-party apps do not expose a recoverable key.',
+    'sw.update': 'Update', 'upd.all': '⬆ Update all apps', 'upd.all.t': 'Updating all apps…', 'sw.update.t': 'Update queued for {n}',
     'scr.view': 'View screen', 'scr.freeze': 'Freeze input', 'scr.title': 'Station screen', 'scr.refresh': 'Capture again',
     'scr.asking': 'Asking the station for its screen…', 'scr.timeout': 'No screen received (the station may be offline or no user is signed in).',
     'scr.note': 'The signed-in student sees a brief “your screen was viewed by IT” indicator. One frame per capture.',
@@ -397,6 +403,11 @@ const I18N = {
     'sw.programs': 'תוכנות', 'sw.collected': 'נאסף', 'sw.notcollected': 'עדיין לא נאסף', 'sw.none': 'אין מה להציג',
     'sw.uninstallsel': 'הסר נבחרות', 'sw.confirm': 'להסיר {n} תוכנות? פעולה זו מריצה את מסיר ההתקנה במחשב.', 'sw.t.queued': 'הסרה נשלחה עבור {n} תוכנות',
     'nav.packages': 'חבילות', 'nav.classes': 'כיתות', 'nav.fleetai': 'שאל AI', 'nav.exams': 'מבחנים מתוזמנים',
+    'lk.title': 'רישיונות ומפתחות מוצר', 'lk.product': 'מוצר', 'lk.edition': 'מהדורה', 'lk.status': 'הפעלה', 'lk.key': 'מפתח',
+    'lk.collect': 'אסוף מהעמדה', 'lk.reveal': 'חשוף מפתחות', 'lk.none': 'לא נאספו עדיין נתוני רישיון.',
+    'lk.collected': 'נאסף {t}', 'lk.never': 'טרם נאסף — לחצו ”אסוף מהעמדה”.', 'lk.t.collecting': 'אוסף רישיונות…',
+    'lk.note': 'המפתחות נשמרים כדי לשחזר לאחר התקנה מחדש. הם מוסתרים כאן; ”חשוף מפתחות” למנהלים בלבד ומתועד. Windows נאסף באופן אמין; רוב אפליקציות הצד השלישי אינן חושפות מפתח שניתן לשחזר.',
+    'sw.update': 'עדכן', 'upd.all': '⬆ עדכן את כל האפליקציות', 'upd.all.t': 'מעדכן את כל האפליקציות…', 'sw.update.t': 'העדכון נשלח עבור {n}',
     'scr.view': 'צפה במסך', 'scr.freeze': 'הקפא קלט', 'scr.title': 'מסך העמדה', 'scr.refresh': 'צלם שוב',
     'scr.asking': 'מבקש מהעמדה את המסך…', 'scr.timeout': 'לא התקבל מסך (ייתכן שהעמדה לא מקוונת או שאין משתמש מחובר).',
     'scr.note': 'התלמיד המחובר רואה חיווי קצר “המסך שלך נצפה ע״י IT”. פריים אחד לכל צילום.',
@@ -1118,7 +1129,7 @@ async function viewDevice(id) {
   const TABS = [['commands', 'Activity'], ['updates', 'Windows updates'], ['software', 'Installed software'], ['processes', 'Processes'], ['services', 'Services']];
   const ui = { tab: 'commands', softQ: '', softAt: null, updSig: null, open: new Set(), loaded: {}, busy: {}, sel: new Set(), softSel: new Set(),
     procQ: '', procSort: 'mem', procs: null, procAt: null, svcQ: '', svcFilter: 'all', svcs: null, svcAt: null };
-  view.innerHTML = `<p><a href="#/devices">← All devices</a></p><div id="dhead"></div><div id="dbanner"></div><div class="cards" id="dcards"></div><div id="aicard"></div>
+  view.innerHTML = `<p><a href="#/devices">← All devices</a></p><div id="dhead"></div><div id="dbanner"></div><div class="cards" id="dcards"></div><div id="aicard"></div><div id="liccard"></div>
     <div class="card" style="margin-bottom:16px"><div class="tabs">${TABS.map(([k, l], i) => `<button data-t="${k}" class="${i ? '' : 'on'}">${l}<span class="tcount" id="tc-${k}"></span></button>`).join('')}</div>
       ${TABS.map(([k], i) => `<div id="tab-${k}" class="${i ? 'hidden' : ''}"></div>`).join('')}
     </div>
@@ -1188,6 +1199,34 @@ async function viewDevice(id) {
       } catch (e) { $('#secout').innerHTML = `<div class="banner crit">⚠ ${esc(e.message)}</div>`; }
       finally { b.disabled = false; }
     };
+  }
+
+  async function renderLicenses() {
+    const el = $('#liccard');
+    if (!el) return;
+    if (!cap('run_diagnostics')) { el.innerHTML = ''; return; }
+    const rowsHtml = (lics, revealed) => !lics.length
+      ? `<p class="muted">${t('lk.none')}</p>`
+      : `<table class="grid"><thead><tr><th>${t('lk.product')}</th><th>${t('lk.edition')}</th><th>${t('lk.status')}</th><th>${t('lk.key')}</th></tr></thead>
+        <tbody>${lics.map((l) => `<tr><td><b>${esc(l.product)}</b>${l.source ? `<br><small class="muted">${esc(l.source)}</small>` : ''}</td>
+          <td class="small">${esc(l.edition) || '—'}</td>
+          <td class="small">${l.status ? `<span class="pill ${/activ/i.test(l.status) ? 'ok' : 'warn'}">${esc(l.status)}</span>` : '—'}</td>
+          <td class="mono small">${l.has_key ? esc(l.key) : '<span class="muted">—</span>'}</td></tr>`).join('')}</tbody></table>`;
+    const draw = (data, revealed) => {
+      el.innerHTML = `<div class="card pad"><div class="row" style="justify-content:space-between;align-items:center">
+          <h2>🔑 ${t('lk.title')}</h2><div class="row" style="gap:6px">
+            <button class="link small" id="lkcollect">${t('lk.collect')}</button>
+            ${(data.licenses || []).some((l) => l.has_key) && !revealed ? `<button class="btn small" id="lkreveal">${t('lk.reveal')}</button>` : ''}</div></div>
+        <div class="muted small" style="margin-bottom:8px">${data.collected_at ? t('lk.collected').replace('{t}', ago(data.collected_at)) : t('lk.never')}</div>
+        ${rowsHtml(data.licenses || [], revealed)}
+        <p class="note">${t('lk.note')}</p></div>`;
+      $('#lkcollect').onclick = () => queue([id], 'collect_keys').then(() => toast(t('lk.t.collecting'))).catch((e) => toast(e.message, true));
+      if ($('#lkreveal')) $('#lkreveal').onclick = async () => {
+        try { draw(await api(`/api/devices/${id}/licenses/reveal`, { method: 'POST' }), true); } catch (e) { toast(e.message, true); }
+      };
+    };
+    try { draw(await api(`/api/devices/${id}/licenses`), false); }
+    catch (e) { el.innerHTML = `<div class="card pad"><div class="banner crit">⚠ ${esc(e.message)}</div></div>`; }
   }
 
   const KIND = { processes: 'list_processes', services: 'list_services' };
@@ -1304,16 +1343,18 @@ async function viewDevice(id) {
 
   function renderSoftware() {
     const canUn = (state.me.capabilities.commands || []).includes('uninstall_software');
+    const canUpd = (state.me.capabilities.commands || []).includes('update_software');
     const sw = (dev.software || []).filter((s) => !ui.softQ || `${s.name} ${s.publisher}`.toLowerCase().includes(ui.softQ));
     const names = new Set((dev.software || []).map((s) => s.name));
     [...ui.softSel].forEach((n) => { if (!names.has(n)) ui.softSel.delete(n); });
     $('#softmeta').textContent = dev.software_at ? `${dev.software.length} ${t('sw.programs')} · ${t('sw.collected')} ${ago(dev.software_at)}` : t('sw.notcollected');
-    const cols = canUn ? 5 : 4;
-    const head = `<tr>${canUn ? '<th style="width:30px"><input type="checkbox" id="swall" aria-label="select all"></th>' : ''}<th>${t('sw.name')}</th><th>${t('sw.version')}</th><th>${t('sw.publisher')}</th><th>${t('sw.installed')}</th></tr>`;
-    const rows = sw.map((s) => `<tr>${canUn ? `<td class="sel"><input type="checkbox" data-sw="${esc(s.name)}" ${ui.softSel.has(s.name) ? 'checked' : ''}></td>` : ''}<td>${esc(s.name)}${s.scope === 'user' ? ` <span class="pill">${t('sw.peruser')}</span>` : ''}</td><td class="mono small">${dash(s.version)}</td><td class="small">${dash(s.publisher)}</td><td class="small muted">${dash(s.installed)}</td></tr>`).join('')
+    const cols = (canUn ? 5 : 4) + (canUpd ? 1 : 0);
+    const head = `<tr>${canUn ? '<th style="width:30px"><input type="checkbox" id="swall" aria-label="select all"></th>' : ''}<th>${t('sw.name')}</th><th>${t('sw.version')}</th><th>${t('sw.publisher')}</th><th>${t('sw.installed')}</th>${canUpd ? '<th></th>' : ''}</tr>`;
+    const rows = sw.map((s) => `<tr>${canUn ? `<td class="sel"><input type="checkbox" data-sw="${esc(s.name)}" ${ui.softSel.has(s.name) ? 'checked' : ''}></td>` : ''}<td>${esc(s.name)}${s.scope === 'user' ? ` <span class="pill">${t('sw.peruser')}</span>` : ''}</td><td class="mono small">${dash(s.version)}</td><td class="small">${dash(s.publisher)}</td><td class="small muted">${dash(s.installed)}</td>${canUpd ? `<td class="nowrap"><button class="link small" data-upd="${esc(s.name)}">${t('sw.update')}</button></td>` : ''}</tr>`).join('')
       || `<tr><td colspan="${cols}" class="empty">${t('sw.none')}</td></tr>`;
     const bulk = (canUn && ui.softSel.size) ? `<div class="bulkbar" style="margin-bottom:10px"><b>${ui.softSel.size}</b><button class="btn small danger" id="swuninstall">🗑 ${t('sw.uninstallsel')}</button><button class="link small" id="swclear" style="margin-inline-start:auto">${t('bulk.clear')}</button></div>` : '';
     $('#softlist').innerHTML = bulk + `<table class="grid"><thead>${head}</thead><tbody>${rows}</tbody></table>`;
+    $$('#softlist [data-upd]').forEach((b) => (b.onclick = () => queue([id], 'update_software', { name: b.dataset.upd }).then(() => toast(t('sw.update.t').replace('{n}', b.dataset.upd))).catch((e) => toast(e.message, true))));
     if (!canUn) return;
     const all = $('#swall');
     if (all) { all.checked = sw.length > 0 && sw.every((s) => ui.softSel.has(s.name)); all.onchange = () => { sw.forEach((s) => (all.checked ? ui.softSel.add(s.name) : ui.softSel.delete(s.name))); renderSoftware(); }; }
@@ -1393,6 +1434,7 @@ async function viewDevice(id) {
         <button class="btn" data-act="lock_session">🔒 Lock</button>
         <button class="btn" data-act="run_script">›_ Script</button>
         <button class="btn" data-act="defender_scan">🛡 Scan</button>
+        ${allowedHas('update_software') ? `<button class="btn" id="updall">${t('upd.all')}</button>` : ''}
         <button class="btn" data-act="reboot">↻ Reboot</button>
         <button class="btn" data-act="refresh_inventory" title="Collect hardware & software inventory now">⟳</button>
       </div></div>`;
@@ -1405,6 +1447,10 @@ async function viewDevice(id) {
     if ($('#viewscreen')) $('#viewscreen').onclick = () => viewScreenModal(id, dev.hostname);
     if ($('#freezeinput')) $('#freezeinput').onclick = () => freezeInputModal(id);
     if ($('#bcast')) $('#bcast').onclick = () => broadcastModal(id, dev.hostname, dev.lab_id);
+    if ($('#updall')) $('#updall').onclick = () => modal({
+      title: t('upd.all'), submit: t('upd.all'), body: `${targetLine([id])}<p class="note">Runs <code>winget upgrade --all</code> on the device — updates every app with a known upgrade. Can take a while.</p>`,
+      onSubmit: () => queue([id], 'update_software', { all: true }).then(() => toast(t('upd.all.t'))),
+    });
     if ($('#placelab')) $('#placelab').onclick = async () => {
       let org; try { org = await api('/api/org'); } catch (e) { toast(e.message, true); return; }
       const { labs } = orgFlat(org);
@@ -1489,6 +1535,7 @@ async function viewDevice(id) {
       onSubmit: async () => { await api(`/api/devices/${id}`, { method: 'DELETE' }); toast('Device forgotten'); location.hash = '#/devices'; },
     });
     renderAI();
+    renderLicenses();
 
     $$('#tab-commands details[open]').forEach((d) => ui.open.add(d.dataset.id));
     $('#tab-commands').innerHTML = commandTable(dev.commands, false, ui.open);

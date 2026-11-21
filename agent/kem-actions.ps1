@@ -1,7 +1,7 @@
 # KEM agent - action library (dot-sourced by kem-agent.ps1, install.ps1 and background jobs).
 # Windows PowerShell 5.1, runs as SYSTEM.
 
-$script:KemVersion  = '1.9.0'
+$script:KemVersion  = '1.10.0'
 $script:KemTaskName = 'KEM Agent'
 $script:KemGatewayTask = 'KEM Gateway Relay'   # scheduled task when this station is a teacher station
 $script:KemAdminUser = 'kemadmin'   # install-created managed local admin (interactive logon denied)
@@ -1377,6 +1377,63 @@ function Send-KemSecurity([string]$Server) {
     }
 }
 
+function Get-KemLicenses {
+    # Windows product key / edition / activation. The OEM (firmware) key is the full 25-char key used
+    # to re-activate this hardware; retail/VL installs expose only the last 5 chars via the OS API.
+    $list = @()
+    $oem = ''
+    try { $oem = "$((Get-CimInstance -ClassName SoftwareLicensingService -ErrorAction Stop).OA3xOriginalProductKey)".Trim() } catch { }
+    $edition = ''; $status = ''; $partial = ''
+    try {
+        $p = Get-CimInstance -ClassName SoftwareLicensingProduct -Filter "ApplicationID='55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL" -ErrorAction Stop | Select-Object -First 1
+        if ($p) {
+            $edition = "$($p.Name)"; $partial = "$($p.PartialProductKey)"
+            $status = switch ([int]$p.LicenseStatus) { 1 { 'Activated' } 0 { 'Unlicensed' } 2 { 'Grace' } 3 { 'Out-of-tolerance grace' } 5 { 'Notification' } default { "status $($p.LicenseStatus)" } }
+        }
+    } catch { }
+    if ($oem) {
+        $list += @{ product = 'Windows'; edition = $edition; status = $status; source = 'firmware (OEM)'; key = $oem }
+    } elseif ($partial) {
+        $list += @{ product = 'Windows'; edition = $edition; status = $status; source = 'installed (partial)'; key = "*****-*****-*****-*****-$partial" }
+    } else {
+        $list += @{ product = 'Windows'; edition = $edition; status = $status; source = ''; key = '' }
+    }
+    return $list
+}
+
+function Send-KemLicenses([string]$Server) {
+    $cfg = Get-KemConfig
+    if (-not $cfg) { return @{ status = 'failed'; output = 'No agent config.' } }
+    try {
+        $lic = Get-KemLicenses
+        Invoke-KemApi -Server $Server -Path '/api/agent/licenses' -Body @{ licenses = $lic } -Headers (Get-KemAuthHeaders $cfg) -TimeoutSec 60 | Out-Null
+        return @{ status = 'success'; output = "Collected $(@($lic).Count) license record(s)." }
+    } catch {
+        return @{ status = 'failed'; output = "License collection failed: $($_.Exception.Message)" }
+    }
+}
+
+function Update-KemSoftware($P) {
+    # winget upgrade for one package (by id) or everything (--all).
+    try { $wg = Get-KemWinget } catch { return @{ status = 'failed'; output = "$($_.Exception.Message)" } }
+    try {
+        if ([bool]$P.all) {
+            $out = & $wg upgrade --all --accept-source-agreements --accept-package-agreements --silent 2>&1 | Out-String
+            return @{ status = 'success'; output = ("Upgrade all:`n" + $out).Trim() }
+        }
+        if ("$($P.package_id)") {
+            $id = "$($P.package_id)"
+            $out = & $wg upgrade --id $id --exact --accept-source-agreements --accept-package-agreements --silent 2>&1 | Out-String
+            return @{ status = 'success'; output = ("Upgrade ${id}:`n" + $out).Trim() }
+        }
+        $name = "$($P.name)"
+        $out = & $wg upgrade --name $name --accept-source-agreements --accept-package-agreements --silent 2>&1 | Out-String
+        return @{ status = 'success'; output = ("Upgrade ${name}:`n" + $out).Trim() }
+    } catch {
+        return @{ status = 'failed'; output = "Upgrade failed: $($_.Exception.Message)" }
+    }
+}
+
 function Invoke-KemBroadcastSource([string]$Server) {
     # Called each main-loop tick: if this station is the broadcast source, capture+upload a frame when due.
     $s = Get-KemState 'broadcast_src'
@@ -1460,6 +1517,8 @@ function Invoke-KemCommand($Command, [string]$Server) {
         'show_alert'             { return Show-KemAlert $p }
         'clear_alert'            { return Clear-KemAlert }
         'security_scan'          { return Send-KemSecurity $Server }
+        'collect_keys'           { return Send-KemLicenses $Server }
+        'update_software'        { return Update-KemSoftware $p }
         default              { return @{ status = 'failed'; output = "Unsupported command type '$($Command.type)' for this agent version." } }
     }
 }

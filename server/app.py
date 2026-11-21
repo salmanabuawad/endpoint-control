@@ -176,6 +176,9 @@ MIGRATIONS = [
     ("devices", "security_at", "REAL"),
     ("devices", "security_analysis", "TEXT"),
     ("devices", "security_analysis_at", "REAL"),
+    # License/product-key backup (keys stored for restore; masked in the UI, revealed only to admins).
+    ("devices", "licenses", "TEXT"),
+    ("devices", "licenses_at", "REAL"),
 ]
 
 COMMAND_TYPES = {
@@ -204,6 +207,8 @@ COMMAND_TYPES = {
     "show_alert", "clear_alert",
     # security: collect a privacy-safe security snapshot for AI analysis
     "security_scan",
+    # license/product-key backup, and per-app update/reinstall
+    "collect_keys", "update_software",
 }
 # Destructive commands: one device at a time, admin must type the hostname.
 CONFIRM_TYPES = {"reset_device", "uninstall_agent", "set_hostname"}
@@ -1325,6 +1330,17 @@ def validate_params(ctype: str, p: Any) -> dict:
         return {}
     if ctype == "security_scan":
         return {}
+    if ctype == "collect_keys":
+        return {}
+    if ctype == "update_software":
+        if p.get("all"):
+            return {"all": True}
+        if p.get("package_id") not in (None, ""):
+            return {"package_id": _winget_id(p)}
+        name = clean(p.get("name"), 200)
+        if not name:
+            raise HTTPException(400, "Give a winget id, a program name, or all=true")
+        return {"name": name}
     raise HTTPException(400, "Unsupported command")
 
 
@@ -1934,6 +1950,70 @@ def security_analyze(device_id: str, request: Request, user: dict = Depends(requ
         audit(con, user["username"], client_ip(request), "security_analyze", row["hostname"],
               {"model": cfg["model"], "had_snapshot": bool(snap)})
     return {"analysis": text, "at": t, "model": cfg["model"], "has_snapshot": bool(snap), "context_sent": ctx}
+
+
+# ---- license / product-key backup ----
+# Keys are stored so they can be restored after a reimage, masked in the UI, and revealed only to an
+# admin/school-manager on an audited request. Note: Windows product/edition/activation is reliably
+# collectible; most third-party apps do not expose a recoverable key, so the list may be Windows-only.
+MAX_LICENSES = 100_000
+
+
+def mask_key(k) -> str:
+    k = str(k or "")
+    if not k:
+        return ""
+    if "-" in k:
+        g = k.split("-")
+        return "-".join(["•" * len(x) for x in g[:-1]] + [g[-1]])
+    return ("•" * (len(k) - 4) + k[-4:]) if len(k) > 4 else "•" * len(k)
+
+
+def serialize_licenses(row, reveal: bool = False) -> dict:
+    items = jload(row["licenses"], [])
+    out = []
+    for it in items if isinstance(items, list) else []:
+        if not isinstance(it, dict):
+            continue
+        key = str(it.get("key") or "")
+        out.append({"product": it.get("product") or "", "edition": it.get("edition") or "",
+                    "status": it.get("status") or "", "source": it.get("source") or "",
+                    "has_key": bool(key), "key": key if reveal else mask_key(key)})
+    return {"collected_at": row["licenses_at"], "licenses": out}
+
+
+@app.post("/api/agent/licenses")
+def agent_upload_licenses(body: dict = Body(...), dev: dict = Depends(agent_device)):
+    items = body.get("licenses")
+    if not isinstance(items, list):
+        raise HTTPException(400, "licenses list required")
+    clean_items = [{"product": clean(x.get("product"), 120), "edition": clean(x.get("edition"), 80),
+                    "status": clean(x.get("status"), 40), "source": clean(x.get("source"), 40),
+                    "key": clean(x.get("key"), 64)}
+                   for x in items[:200] if isinstance(x, dict)]
+    blob = json.dumps(clean_items, ensure_ascii=False)[:MAX_LICENSES]
+    with db() as con:
+        con.execute("UPDATE devices SET licenses=?, licenses_at=? WHERE id=?", (blob, now(), dev["id"]))
+    return AgentJSON({"ok": True})
+
+
+@app.get("/api/devices/{device_id}/licenses")
+def get_licenses(device_id: str, user: dict = Depends(require_diagnostics)):
+    with db() as con:
+        row = con.execute("SELECT * FROM devices WHERE id=?", (device_id,)).fetchone()
+        if not row or not device_in_scope(con, user, row["lab_id"]):
+            raise HTTPException(404, "Device not found")
+        return serialize_licenses(row, reveal=False)
+
+
+@app.post("/api/devices/{device_id}/licenses/reveal")
+def reveal_licenses(device_id: str, request: Request, user: dict = Depends(require_diagnostics)):
+    with db() as con:
+        row = con.execute("SELECT * FROM devices WHERE id=?", (device_id,)).fetchone()
+        if not row or not device_in_scope(con, user, row["lab_id"]):
+            raise HTTPException(404, "Device not found")
+        audit(con, user["username"], client_ip(request), "licenses_revealed", row["hostname"], {})
+        return serialize_licenses(row, reveal=True)
 
 
 # ---------------------------------------------------------------- classroom control: screen view + input lock
