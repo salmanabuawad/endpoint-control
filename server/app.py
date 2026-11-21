@@ -262,7 +262,7 @@ SCOPE_FOR_ROLE = {"superadmin": "global", "municipality_admin": "municipality",
 TEACHER_COMMANDS = {
     "lock_session", "send_message", "reboot", "block_internet", "unblock_internet",
     "usb_storage", "set_web_filter", "list_processes", "list_services", "launch_app",
-    "request_screenshot", "lock_input",
+    "request_screenshot", "lock_input", "set_hostname",
 }
 # A school manager may do everything except destructive recovery and raw script execution,
 # which stay with municipality admins (or require explicit delegation - a later phase).
@@ -1011,6 +1011,13 @@ def serialize_device(row, full: bool = False) -> dict:
     upd = jload(row["updates"], {})
     online = bool(row["last_seen"] and now() - row["last_seen"] < ONLINE_SECONDS)
     cpu, mem, disk = device_metrics(tel)
+    mem_gb = round((tel.get("mem_total_mb") or 0) / 1024, 1) or None
+    sysdrive = str(tel.get("system_drive", "C:")).upper()
+    disk_gb = disk_free_gb = None
+    for d in tel.get("disks") or []:
+        if isinstance(d, dict) and d.get("size_gb") and (str(d.get("drive", "")).upper().startswith(sysdrive) or disk_gb is None):
+            disk_gb, disk_free_gb = d.get("size_gb"), d.get("free_gb")
+    primary_mac = next((a.get("mac") for a in (inv.get("adapters") or []) if isinstance(a, dict) and a.get("mac")), "")
     out = {
         "id": row["id"], "hostname": row["hostname"], "group": row["group_name"] or "",
         "notes": row["notes"] or "", "enrolled": row["enrolled"], "last_seen": row["last_seen"],
@@ -1019,6 +1026,8 @@ def serialize_device(row, full: bool = False) -> dict:
         "ips": tel.get("ips") or [], "os": inv.get("os_name") or "", "os_version": inv.get("display_version") or "",
         "model": " ".join(x for x in [inv.get("manufacturer"), inv.get("model")] if x),
         "chassis": inv.get("chassis") or "", "cpu": cpu, "mem": mem, "disk": disk,
+        "mem_gb": mem_gb, "disk_gb": disk_gb, "disk_free_gb": disk_free_gb, "mac": primary_mac,
+        "cpu_name": inv.get("cpu_name") or "", "cores": inv.get("cores"),
         "busy": tel.get("busy"), "alerts": device_alerts(row, tel, inv, online, upd),
         "updates": update_summary(upd, row["updates_at"]),
         "web_filter": tel.get("web_filter") or 0, "usb": tel.get("usb_mode") or "",

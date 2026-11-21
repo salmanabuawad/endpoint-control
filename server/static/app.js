@@ -971,9 +971,12 @@ async function viewDevices() {
     { headerName: t('col.user'), valueGetter: (p) => (p.data.user || '').split('\\').pop(), cellRenderer: gridHtml((d) => dash((d.user || '').split('\\').pop())) },
     { headerName: t('col.os'), valueGetter: (p) => p.data.os, cellRenderer: gridHtml((d) => `${dash((d.os || '').replace('Microsoft ', ''))}${d.os_version ? ` <span class="muted">${esc(d.os_version)}</span>` : ''}`) },
     { headerName: t('col.ip'), valueGetter: (p) => (p.data.ips || [])[0] || '', cellClass: 'mono' },
-    { headerName: t('col.cpu'), valueGetter: (p) => (p.data.online ? p.data.cpu : null), cellRenderer: gridHtml((d) => meter(d.online ? d.cpu : null)), maxWidth: 120, filter: false },
-    { headerName: t('col.ram'), valueGetter: (p) => (p.data.online ? p.data.mem : null), cellRenderer: gridHtml((d) => meter(d.online ? d.mem : null)), maxWidth: 120, filter: false },
-    { headerName: t('col.disk'), valueGetter: (p) => p.data.disk, cellRenderer: gridHtml((d) => meter(d.disk)), maxWidth: 120, filter: false },
+    { headerName: t('col.cpu'), valueGetter: (p) => p.data.cpu, maxWidth: 150, filter: false,
+      cellRenderer: gridHtml((d) => `<span title="${d.cpu_name ? esc(d.cpu_name) + (d.cores ? ' · ' + d.cores + ' cores' : '') : ''}">${meter(d.cpu)}</span>`) },
+    { headerName: t('col.ram'), valueGetter: (p) => p.data.mem, maxWidth: 160, filter: false,
+      cellRenderer: gridHtml((d) => `<span title="${d.mem_gb ? d.mem_gb + ' GB total' : ''}">${meter(d.mem)}${d.mem_gb ? ` <span class="muted small">${d.mem_gb}GB</span>` : ''}</span>`) },
+    { headerName: t('col.disk'), valueGetter: (p) => p.data.disk, maxWidth: 170, filter: false,
+      cellRenderer: gridHtml((d) => `<span title="${d.disk_gb ? (d.disk_free_gb != null ? d.disk_free_gb + ' GB free of ' : '') + d.disk_gb + ' GB' : ''}">${meter(d.disk)}${d.disk_gb ? ` <span class="muted small">${d.disk_gb}GB</span>` : ''}</span>`) },
     { headerName: t('col.lastseen'), field: 'last_seen', sort: 'desc', cellRenderer: gridHtml((d) => `<span class="muted small">${ago(d.last_seen)}</span>`), maxWidth: 150 },
     { headerName: t('col.status'), sortable: false, filter: false, flex: 1.6, minWidth: 150, cellRenderer: gridHtml((d) => deviceStatusPills(d)) },
   ];
@@ -1436,6 +1439,7 @@ async function viewDevice(id) {
         <dt>Model</dt><dd>${dash(dev.model)}</dd><dt>Serial</dt><dd class="mono">${dash(inv.serial)}</dd>
         <dt>CPU</dt><dd>${dash(inv.cpu_name)}${inv.cores ? ` (${inv.cores} cores)` : ''}</dd>
         <dt>Memory</dt><dd>${inv.ram_gb ? inv.ram_gb + ' GB' : '—'}</dd>
+        <dt>MAC address</dt><dd class="mono">${dash((inv.adapters && inv.adapters[0] && inv.adapters[0].mac) || dev.mac)}</dd>
         <dt>Logged-in user</dt><dd>${dash(dev.user)}</dd><dt>Domain</dt><dd>${dash(inv.domain)}</dd>
         <dt>Uptime since</dt><dd>${fmtDate(tel.boot_time)}</dd>
         ${inv.battery_pct != null ? `<dt>Battery</dt><dd>${inv.battery_pct}%</dd>` : ''}
