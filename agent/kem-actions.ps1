@@ -1,7 +1,7 @@
 # KEM agent - action library (dot-sourced by kem-agent.ps1, install.ps1 and background jobs).
 # Windows PowerShell 5.1, runs as SYSTEM.
 
-$script:KemVersion  = '1.5.0'
+$script:KemVersion  = '1.6.0'
 $script:KemTaskName = 'KEM Agent'
 $script:KemGatewayTask = 'KEM Gateway Relay'   # scheduled task when this station is a teacher station
 $script:KemAdminUser = 'kemadmin'   # install-created managed local admin (interactive logon denied)
@@ -53,13 +53,43 @@ function Protect-KemDataDir {
     & icacls.exe $script:KemDataDir /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' | Out-Null
 }
 
+function Get-KemHexBytes([byte[]]$Bytes) {
+    $sb = New-Object System.Text.StringBuilder ($Bytes.Length * 2)
+    foreach ($b in $Bytes) { [void]$sb.Append($b.ToString('x2')) }
+    return $sb.ToString()
+}
+function Get-KemSha256Hex([string]$Text) {
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try { return (Get-KemHexBytes $sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($Text))) } finally { $sha.Dispose() }
+}
+function Get-KemSha256HexBytes([byte[]]$Bytes) {
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try { return (Get-KemHexBytes $sha.ComputeHash($Bytes)) } finally { $sha.Dispose() }
+}
+function Get-KemHmacHex([string]$Key, [string]$Message) {
+    $h = New-Object System.Security.Cryptography.HMACSHA256
+    $h.Key = [Text.Encoding]::UTF8.GetBytes($Key)
+    try { return (Get-KemHexBytes $h.ComputeHash([Text.Encoding]::UTF8.GetBytes($Message))) } finally { $h.Dispose() }
+}
+
 function Invoke-KemApi {
     param([string]$Server, [string]$Path, $Body, [hashtable]$Headers = @{}, [int]$TimeoutSec = 60)
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $json = $Body | ConvertTo-Json -Depth 8 -Compress
     $bytes = [Text.Encoding]::UTF8.GetBytes($json)
+    # Sign the request with the device secret-derived key so the raw secret never travels on the wire
+    # (HMAC over timestamp + nonce + method + path + body hash). Verified by the central server.
+    $h = @{}; foreach ($k in $Headers.Keys) { $h[$k] = $Headers[$k] }
+    if ($h.ContainsKey('X-Device-Secret')) {
+        $key = Get-KemSha256Hex ([string]$h['X-Device-Secret'])
+        $h.Remove('X-Device-Secret')
+        $ts = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+        $nonce = [guid]::NewGuid().ToString('N')
+        $canonical = "$ts`n$nonce`nPOST`n$Path`n$(Get-KemSha256HexBytes $bytes)"
+        $h['X-KEM-Ts'] = "$ts"; $h['X-KEM-Nonce'] = $nonce; $h['X-KEM-Sig'] = (Get-KemHmacHex $key $canonical)
+    }
     return Invoke-RestMethod -Uri ($Server.TrimEnd('/') + $Path) -Method Post -Body $bytes `
-        -ContentType 'application/json; charset=utf-8' -Headers $Headers -TimeoutSec $TimeoutSec -UseBasicParsing
+        -ContentType 'application/json; charset=utf-8' -Headers $h -TimeoutSec $TimeoutSec -UseBasicParsing
 }
 
 function Get-KemAuthHeaders($Config) {

@@ -40,7 +40,8 @@ RELAY_PATHS = {"/api/agent/enroll", "/api/agent/checkin", "/api/agent/report"}
 # Idempotent, secret-authenticated calls we can safely queue and replay if central is down.
 # Enrollment is NOT cacheable: it needs central to mint a per-device secret, so it must stay online.
 CACHEABLE = {"/api/agent/checkin", "/api/agent/report"}
-FORWARD_HEADERS = ("x-device-id", "x-device-secret", "content-type")
+FORWARD_HEADERS = ("x-device-id", "x-device-secret", "content-type",
+                   "x-kem-ts", "x-kem-nonce", "x-kem-sig")  # signed-request headers pass through unchanged
 MAX_SPOOL = 5000  # cap queued calls during a long outage (oldest dropped beyond this)
 
 

@@ -118,6 +118,7 @@ CREATE TABLE IF NOT EXISTS exam_schedules(
 CREATE INDEX IF NOT EXISTS ix_exam_sched_lab ON exam_schedules(lab_id);
 CREATE TABLE IF NOT EXISTS screenshots(
   device_id TEXT PRIMARY KEY, data BLOB, mime TEXT DEFAULT 'image/jpeg', bytes INTEGER DEFAULT 0, captured REAL);
+CREATE TABLE IF NOT EXISTS seen_nonces(nonce TEXT PRIMARY KEY, seen REAL);
 CREATE TABLE IF NOT EXISTS incidents(
   id TEXT PRIMARY KEY, device_id TEXT, lab_id TEXT, title TEXT, detail TEXT DEFAULT '',
   severity TEXT DEFAULT 'warning', status TEXT DEFAULT 'open', source TEXT DEFAULT 'manual',
@@ -681,6 +682,8 @@ def monitor_loop() -> None:
                 run_due_reports(con)
             with db() as con:
                 run_due_exams(con)
+            with db() as con:
+                con.execute("DELETE FROM seen_nonces WHERE seen < ?", (now() - 2 * SIG_WINDOW,))
         except Exception as e:  # noqa: BLE001 - keep the monitor alive
             print(f"[KEM] monitor error: {e}")
         _wake.wait(60)
@@ -849,12 +852,48 @@ def scope_label(con, user: dict) -> str:
     return row["name"] if row else "(deleted)"
 
 
-def agent_device(request: Request) -> dict:
+# Agent requests are signed (HMAC-SHA256) so the device secret never travels on the wire and
+# requests can't be forged, tampered with, or replayed - including over the plaintext LAN hop to a
+# teacher-station relay. The HMAC key is the device's secret_hash (which the agent derives from its
+# secret and the server already stores), so the raw secret is never transmitted once an agent is
+# updated. Un-updated agents fall back to the legacy X-Device-Secret check.
+SIG_WINDOW = 300  # seconds of clock skew allowed on a signed request
+
+
+def _agent_signature_ok(request: Request, secret_hash: str, raw_body: bytes, sig: str) -> bool:
+    try:
+        ts = int(request.headers.get("x-kem-ts", ""))
+    except ValueError:
+        return False
+    nonce = request.headers.get("x-kem-nonce", "")
+    if not nonce or len(nonce) > 128 or abs(now() - ts) > SIG_WINDOW:
+        return False
+    canonical = f"{ts}\n{nonce}\n{request.method.upper()}\n{request.url.path}\n{hashlib.sha256(raw_body).hexdigest()}"
+    expected = hmac.new(secret_hash.encode(), canonical.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, sig):
+        return False
+    with db() as con:  # replay protection: a nonce may be used only once within the window
+        try:
+            con.execute("INSERT INTO seen_nonces(nonce, seen) VALUES(?,?)", (nonce, now()))
+        except sqlite3.IntegrityError:
+            return False
+    return True
+
+
+async def agent_device(request: Request) -> dict:
     did = request.headers.get("x-device-id", "")
-    secret = request.headers.get("x-device-secret", "")
     with db() as con:
         row = con.execute("SELECT id, hostname, secret_hash FROM devices WHERE id=?", (did,)).fetchone()
-    if not row or not secret or not hmac.compare_digest(row["secret_hash"], sha256(secret)):
+    if not row:
+        raise HTTPException(401, "Unknown device")
+    sig = request.headers.get("x-kem-sig", "")
+    if sig:
+        raw = await request.body()
+        if not _agent_signature_ok(request, row["secret_hash"], raw, sig):
+            raise HTTPException(401, "Bad request signature")
+        return dict(row)
+    secret = request.headers.get("x-device-secret", "")  # legacy fallback (agent not yet updated)
+    if not secret or not hmac.compare_digest(row["secret_hash"], sha256(secret)):
         raise HTTPException(401, "Unknown device or bad secret")
     return dict(row)
 
