@@ -1149,11 +1149,17 @@ async function viewDevice(id) {
     if (!el) return;
     if (!cap('run_diagnostics')) { el.innerHTML = ''; return; }
     const has = dev.ai_diagnosis;
+    const hasSec = dev.security_analysis;
     el.innerHTML = `<div class="card pad"><div class="row" style="justify-content:space-between;align-items:center">
         <h2>AI diagnosis</h2><button class="btn small" id="airun">${has ? 'Re-run' : 'Run AI diagnosis'}</button></div>
       <div id="aiout">${has
         ? `<div class="muted small">${ago(dev.ai_diagnosis_at)} · last run</div><pre class="aiout-text">${esc(dev.ai_diagnosis)}</pre>`
-        : '<p class="muted">Ask a local model to review this device\'s health and suggest fixes. Only health data is sent — never the signed-in user, IP or serial. Configure the endpoint in Settings.</p>'}</div></div>`;
+        : '<p class="muted">Ask a local model to review this device\'s health and suggest fixes. Only health data is sent — never the signed-in user, IP or serial. Configure the endpoint in Settings.</p>'}</div></div>
+      <div class="card pad" style="margin-top:14px"><div class="row" style="justify-content:space-between;align-items:center">
+        <h2>🛡 Security analysis</h2><div class="row" style="gap:6px"><button class="link small" id="secscan">Collect fresh data</button><button class="btn small" id="secrun">${hasSec ? 'Re-run' : 'Analyze security'}</button></div></div>
+      <div id="secout">${hasSec
+        ? `<div class="muted small">${ago(dev.security_analysis_at)} · last run${dev.security_at ? ` · snapshot ${ago(dev.security_at)}` : ''}</div><pre class="aiout-text">${esc(dev.security_analysis)}</pre>`
+        : '<p class="muted">A local model reviews Defender status, recent threat detections and aggregate security-event counts (failed logons, lockouts, new services, log clears) for signs of compromise, malware or attacks. No usernames, IPs or personal data are sent. "Collect fresh data" asks the station for a new snapshot first.</p>'}</div></div>`;
     $('#airun').onclick = async () => {
       const b = $('#airun'); b.disabled = true;
       $('#aiout').innerHTML = '<div class="muted"><span class="spin"></span> Asking the model…</div>';
@@ -1164,6 +1170,19 @@ async function viewDevice(id) {
           <details class="help"><summary>Exactly what was sent to the model</summary><pre class="aiout-text">${esc(JSON.stringify(r.context_sent, null, 2))}</pre></details>
           <p class="note">Suggestions only — review before acting. KEM never runs anything automatically.</p>`;
       } catch (e) { $('#aiout').innerHTML = `<div class="banner crit">⚠ ${esc(e.message)}</div>`; }
+      finally { b.disabled = false; }
+    };
+    if ($('#secscan')) $('#secscan').onclick = () => queue([id], 'security_scan').catch((e) => toast(e.message, true));
+    if ($('#secrun')) $('#secrun').onclick = async () => {
+      const b = $('#secrun'); b.disabled = true;
+      $('#secout').innerHTML = '<div class="muted"><span class="spin"></span> Analyzing…</div>';
+      try {
+        const r = await api(`/api/devices/${id}/security-analyze`, { method: 'POST' });
+        dev.security_analysis = r.analysis; dev.security_analysis_at = r.at;
+        $('#secout').innerHTML = `<div class="muted small">just now · ${esc(r.model)}${r.has_snapshot ? '' : ' · no agent snapshot yet'}</div><pre class="aiout-text">${esc(r.analysis)}</pre>
+          <details class="help"><summary>Exactly what was sent to the model</summary><pre class="aiout-text">${esc(JSON.stringify(r.context_sent, null, 2))}</pre></details>
+          <p class="note">Assessment only — review before acting.</p>`;
+      } catch (e) { $('#secout').innerHTML = `<div class="banner crit">⚠ ${esc(e.message)}</div>`; }
       finally { b.disabled = false; }
     };
   }

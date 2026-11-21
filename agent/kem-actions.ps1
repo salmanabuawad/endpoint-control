@@ -1,7 +1,7 @@
 # KEM agent - action library (dot-sourced by kem-agent.ps1, install.ps1 and background jobs).
 # Windows PowerShell 5.1, runs as SYSTEM.
 
-$script:KemVersion  = '1.8.0'
+$script:KemVersion  = '1.9.0'
 $script:KemTaskName = 'KEM Agent'
 $script:KemGatewayTask = 'KEM Gateway Relay'   # scheduled task when this station is a teacher station
 $script:KemAdminUser = 'kemadmin'   # install-created managed local admin (interactive logon denied)
@@ -1340,6 +1340,43 @@ function Clear-KemAlert {
     return @{ status = 'success'; output = 'Alert cleared.' }
 }
 
+function Get-KemSecurity {
+    # A privacy-safe security snapshot: Defender status + recent threat names, and AGGREGATE counts of
+    # security events (no usernames, IPs or personal data).
+    $out = @{ collected = (Get-KemUnixTime) }
+    try {
+        $m = Get-MpComputerStatus -ErrorAction Stop
+        $out.defender = @{ realtime = [bool]$m.RealTimeProtectionEnabled; antivirus = [bool]$m.AntivirusEnabled;
+            signature_age_days = [int]$m.AntivirusSignatureAge; tamper_protection = [bool]$m.IsTamperProtected;
+            behavior_monitor = [bool]$m.BehaviorMonitorEnabled }
+    } catch { $out.defender = $null }
+    try {
+        $out.threats = @(Get-MpThreatDetection -ErrorAction Stop | Sort-Object InitialDetectionTime -Descending |
+            Select-Object -First 25 | ForEach-Object { @{ name = "$($_.ThreatName)"; action_ok = [bool]$_.ActionSuccess } })
+    } catch { $out.threats = @() }
+    $labels = @{ '4625' = 'failed_logons'; '4740' = 'account_lockouts'; '4720' = 'new_local_accounts';
+        '4728' = 'added_to_global_group'; '4732' = 'added_to_local_group'; '7045' = 'new_services'; '1102' = 'security_log_cleared' }
+    $counts = @{}
+    try {
+        $ev = Get-WinEvent -FilterHashtable @{ LogName = 'Security'; Id = 4625, 4740, 4720, 4728, 4732, 7045, 1102; StartTime = (Get-Date).AddDays(-7) } -ErrorAction Stop
+        foreach ($g in ($ev | Group-Object Id)) { $counts[$labels["$($g.Name)"]] = $g.Count }
+    } catch { }
+    $out.event_counts_7d = $counts
+    return $out
+}
+
+function Send-KemSecurity([string]$Server) {
+    $cfg = Get-KemConfig
+    if (-not $cfg) { return @{ status = 'failed'; output = 'No agent config.' } }
+    try {
+        $snap = Get-KemSecurity
+        Invoke-KemApi -Server $Server -Path '/api/agent/security' -Body @{ snapshot = $snap } -Headers (Get-KemAuthHeaders $cfg) -TimeoutSec 60 | Out-Null
+        return @{ status = 'success'; output = "Security snapshot collected ($(@($snap.threats).Count) threat record(s), $(@($snap.event_counts_7d.Keys).Count) event type(s))." }
+    } catch {
+        return @{ status = 'failed'; output = "Security scan failed: $($_.Exception.Message)" }
+    }
+}
+
 function Invoke-KemBroadcastSource([string]$Server) {
     # Called each main-loop tick: if this station is the broadcast source, capture+upload a frame when due.
     $s = Get-KemState 'broadcast_src'
@@ -1422,6 +1459,7 @@ function Invoke-KemCommand($Command, [string]$Server) {
         'stop_broadcast'         { return Stop-KemBroadcast }
         'show_alert'             { return Show-KemAlert $p }
         'clear_alert'            { return Clear-KemAlert }
+        'security_scan'          { return Send-KemSecurity $Server }
         default              { return @{ status = 'failed'; output = "Unsupported command type '$($Command.type)' for this agent version." } }
     }
 }

@@ -171,6 +171,11 @@ MIGRATIONS = [
     ("labs", "baseline_package_id", "TEXT"),
     ("labs", "baseline_remove_extras", "INTEGER DEFAULT 0"),
     ("labs", "baseline_auto", "INTEGER DEFAULT 0"),
+    # AI security analysis: a PII-stripped security snapshot + the AI's written assessment.
+    ("devices", "security", "TEXT"),
+    ("devices", "security_at", "REAL"),
+    ("devices", "security_analysis", "TEXT"),
+    ("devices", "security_analysis_at", "REAL"),
 ]
 
 COMMAND_TYPES = {
@@ -197,6 +202,8 @@ COMMAND_TYPES = {
     "broadcast_capture", "show_broadcast", "stop_broadcast",
     # sticky class alert (persistent banner until cleared)
     "show_alert", "clear_alert",
+    # security: collect a privacy-safe security snapshot for AI analysis
+    "security_scan",
 }
 # Destructive commands: one device at a time, admin must type the hostname.
 CONFIRM_TYPES = {"reset_device", "uninstall_agent", "set_hostname"}
@@ -1022,7 +1029,9 @@ def serialize_device(row, full: bool = False) -> dict:
         out.update({"telemetry": tel, "inventory": inv, "inventory_at": row["inventory_at"],
                     "software": jload(row["software"], []), "software_at": row["software_at"],
                     "update_list": upd.get("updates") or [],
-                    "ai_diagnosis": row["ai_diagnosis"], "ai_diagnosis_at": row["ai_diagnosis_at"]})
+                    "ai_diagnosis": row["ai_diagnosis"], "ai_diagnosis_at": row["ai_diagnosis_at"],
+                    "security_at": row["security_at"], "security_analysis": row["security_analysis"],
+                    "security_analysis_at": row["security_analysis_at"]})
     return out
 
 
@@ -1304,6 +1313,8 @@ def validate_params(ctype: str, p: Any) -> dict:
             raise HTTPException(400, "Alert text must be 1-1000 characters")
         return {"title": clean(p.get("title"), 80) or "Message from your teacher", "text": text}
     if ctype == "clear_alert":
+        return {}
+    if ctype == "security_scan":
         return {}
     raise HTTPException(400, "Unsupported command")
 
@@ -1858,6 +1869,62 @@ def diagnose_device(device_id: str, request: Request, user: dict = Depends(requi
         audit(con, user["username"], client_ip(request), "ai_diagnose", row["hostname"],
               {"model": cfg["model"], "chars": len(text)})
     return {"diagnosis": text, "at": t, "model": cfg["model"], "context_sent": ctx}
+
+
+# ---- AI security analysis: assess a PII-stripped security snapshot for signs of compromise ----
+SECURITY_SYSTEM_PROMPT = (
+    "You are a security analyst for a school IT team. You receive one Windows endpoint's privacy-safe "
+    "security snapshot as JSON: Defender status and recent threat names, AGGREGATE counts of security "
+    "events (failed logons, account lockouts, new local accounts, new services, security-log clears), "
+    "firewall state, missing security updates and health flags. No usernames, IPs or personal data are "
+    "included. Assess the likelihood of compromise, malware, brute-force or other attacks, and risky "
+    "misconfiguration; note any phishing/credential-theft indicators the data suggests. Rate overall "
+    "risk as LOW, MEDIUM or HIGH on the first line, then give concise, prioritised actions for a "
+    "technician. Use only the data provided - do not invent details. If it looks clean, say so plainly."
+)
+MAX_SECURITY = 200_000  # chars of the uploaded snapshot JSON
+
+
+@app.post("/api/agent/security")
+def agent_upload_security(body: dict = Body(...), dev: dict = Depends(agent_device)):
+    snap = body.get("snapshot")
+    if not isinstance(snap, dict):
+        raise HTTPException(400, "snapshot object required")
+    blob = json.dumps(snap, ensure_ascii=False)[:MAX_SECURITY]
+    with db() as con:
+        con.execute("UPDATE devices SET security=?, security_at=? WHERE id=?", (blob, now(), dev["id"]))
+    return AgentJSON({"ok": True})
+
+
+@app.post("/api/devices/{device_id}/security-analyze")
+def security_analyze(device_id: str, request: Request, user: dict = Depends(require_diagnostics)):
+    with db() as con:
+        row = con.execute("SELECT * FROM devices WHERE id=?", (device_id,)).fetchone()
+        if not row or not device_in_scope(con, user, row["lab_id"]):
+            raise HTTPException(404, "Device not found")
+        cfg = ai_config(con)
+        if not cfg["enabled"]:
+            raise HTTPException(400, "AI is not enabled - configure the local AI endpoint in Settings")
+        d = serialize_device(row, full=True)
+        snap = jload(row["security"], None)
+    inv = d.get("inventory") or {}
+    ctx = {
+        "hostname": d.get("hostname"), "os": d.get("os"),
+        "defender": inv.get("defender"), "firewall": inv.get("firewall"), "bitlocker": inv.get("bitlocker"),
+        "missing_updates": d.get("updates"), "pending_reboot": inv.get("pending_reboot"),
+        "health_alerts": [a.get("text") for a in (d.get("alerts") or [])],
+        "security_snapshot": snap, "snapshot_collected_at": row["security_at"],
+    }
+    if not snap:
+        ctx["note"] = "No agent security snapshot yet (run a security scan); assessing from health/inventory only."
+    user_msg = "Assess this endpoint's security posture.\n\n" + json.dumps(ctx, ensure_ascii=False, indent=2)
+    text = ai_chat(cfg, SECURITY_SYSTEM_PROMPT, user_msg)
+    t = now()
+    with db() as con:
+        con.execute("UPDATE devices SET security_analysis=?, security_analysis_at=? WHERE id=?", (text, t, device_id))
+        audit(con, user["username"], client_ip(request), "security_analyze", row["hostname"],
+              {"model": cfg["model"], "had_snapshot": bool(snap)})
+    return {"analysis": text, "at": t, "model": cfg["model"], "has_snapshot": bool(snap), "context_sent": ctx}
 
 
 # ---------------------------------------------------------------- classroom control: screen view + input lock
