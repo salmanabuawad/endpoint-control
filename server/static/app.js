@@ -172,7 +172,19 @@ const I18N = {
     'sw.name': 'Name', 'sw.version': 'Version', 'sw.publisher': 'Publisher', 'sw.installed': 'Installed', 'sw.peruser': 'per-user',
     'sw.programs': 'programs', 'sw.collected': 'collected', 'sw.notcollected': 'Not collected yet', 'sw.none': 'Nothing to show',
     'sw.uninstallsel': 'Uninstall selected', 'sw.confirm': 'Uninstall {n} program(s)? This runs their uninstaller on the device.', 'sw.t.queued': 'Uninstall queued for {n} program(s)',
-    'nav.packages': 'Packages', 'nav.classes': 'Classes', 'nav.fleetai': 'Ask AI',
+    'nav.packages': 'Packages', 'nav.classes': 'Classes', 'nav.fleetai': 'Ask AI', 'nav.exams': 'Exam schedule',
+    'es.title': 'Scheduled exams', 'es.sub': 'Lock a lab into exam mode automatically at a set time, and lift it when the window ends',
+    'es.new': '＋ New schedule', 'es.name': 'Exam name', 'es.lab': 'Lab', 'es.when': 'When', 'es.locks': 'Locks',
+    'es.cadence': 'Repeat', 'es.once': 'Once', 'es.daily': 'Every day', 'es.weekly': 'Every week',
+    'es.date': 'Date', 'es.weekday': 'Day', 'es.time': 'Start time', 'es.duration': 'Duration (minutes)',
+    'es.internet': 'Block internet', 'es.usb': 'Block USB', 'es.lan': 'Keep local network',
+    'es.create': 'Create schedule', 'es.save': 'Save', 'es.col.exam': 'Exam', 'es.col.lab': 'Lab',
+    'es.col.when': 'When', 'es.col.next': 'Next run', 'es.col.status': 'Status', 'es.none': 'No scheduled exams yet.',
+    'es.on': 'On', 'es.off': 'Off', 'es.active': 'Running now', 'es.enabled': 'Scheduled', 'es.disabled': 'Paused',
+    'es.del': 'delete', 'es.edit': 'Edit', 'es.confirm.del': 'Delete this scheduled exam?',
+    'es.t.created': 'Exam scheduled', 'es.t.saved': 'Schedule updated', 'es.t.deleted': 'Schedule deleted',
+    'es.nolabs': 'Create a lab first.', 'es.for': 'for {d} min', 'es.locks.none': 'no locks',
+    'es.wd.0': 'Monday', 'es.wd.1': 'Tuesday', 'es.wd.2': 'Wednesday', 'es.wd.3': 'Thursday', 'es.wd.4': 'Friday', 'es.wd.5': 'Saturday', 'es.wd.6': 'Sunday',
     'fa.title': 'Ask AI about the fleet', 'fa.sub': 'Natural-language questions over every station’s specs and live usage',
     'fa.ph': 'e.g. Which stations have a weak CPU or low memory?', 'fa.ask': 'Ask', 'fa.asking': 'Thinking…',
     'fa.presets': 'Quick questions', 'fa.answer': 'Answer', 'fa.model': 'Answered by {m} over {n} station(s)',
@@ -350,7 +362,19 @@ const I18N = {
     'sw.name': 'שם', 'sw.version': 'גרסה', 'sw.publisher': 'יצרן', 'sw.installed': 'הותקן', 'sw.peruser': 'למשתמש',
     'sw.programs': 'תוכנות', 'sw.collected': 'נאסף', 'sw.notcollected': 'עדיין לא נאסף', 'sw.none': 'אין מה להציג',
     'sw.uninstallsel': 'הסר נבחרות', 'sw.confirm': 'להסיר {n} תוכנות? פעולה זו מריצה את מסיר ההתקנה במחשב.', 'sw.t.queued': 'הסרה נשלחה עבור {n} תוכנות',
-    'nav.packages': 'חבילות', 'nav.classes': 'כיתות', 'nav.fleetai': 'שאל AI',
+    'nav.packages': 'חבילות', 'nav.classes': 'כיתות', 'nav.fleetai': 'שאל AI', 'nav.exams': 'מבחנים מתוזמנים',
+    'es.title': 'מבחנים מתוזמנים', 'es.sub': 'נעלו מעבדה למצב מבחן אוטומטית בשעה קבועה, ושחררו אותה בתום החלון',
+    'es.new': '＋ תזמון חדש', 'es.name': 'שם המבחן', 'es.lab': 'מעבדה', 'es.when': 'מתי', 'es.locks': 'נעילות',
+    'es.cadence': 'חזרה', 'es.once': 'פעם אחת', 'es.daily': 'כל יום', 'es.weekly': 'כל שבוע',
+    'es.date': 'תאריך', 'es.weekday': 'יום', 'es.time': 'שעת התחלה', 'es.duration': 'משך (דקות)',
+    'es.internet': 'חסום אינטרנט', 'es.usb': 'חסום USB', 'es.lan': 'שמור רשת מקומית',
+    'es.create': 'צור תזמון', 'es.save': 'שמור', 'es.col.exam': 'מבחן', 'es.col.lab': 'מעבדה',
+    'es.col.when': 'מתי', 'es.col.next': 'הרצה הבאה', 'es.col.status': 'מצב', 'es.none': 'אין עדיין מבחנים מתוזמנים.',
+    'es.on': 'פעיל', 'es.off': 'כבוי', 'es.active': 'רץ כעת', 'es.enabled': 'מתוזמן', 'es.disabled': 'מושהה',
+    'es.del': 'מחק', 'es.edit': 'עריכה', 'es.confirm.del': 'למחוק את המבחן המתוזמן?',
+    'es.t.created': 'המבחן תוזמן', 'es.t.saved': 'התזמון עודכן', 'es.t.deleted': 'התזמון נמחק',
+    'es.nolabs': 'צרו מעבדה תחילה.', 'es.for': 'ל‑{d} דק׳', 'es.locks.none': 'ללא נעילות',
+    'es.wd.0': 'שני', 'es.wd.1': 'שלישי', 'es.wd.2': 'רביעי', 'es.wd.3': 'חמישי', 'es.wd.4': 'שישי', 'es.wd.5': 'שבת', 'es.wd.6': 'ראשון',
     'fa.title': 'שאל את ה‑AI על הצי', 'fa.sub': 'שאלות בשפה חופשית על המפרט והשימוש החי של כל עמדה',
     'fa.ph': 'למשל: לאילו עמדות יש מעבד חלש או זיכרון נמוך?', 'fa.ask': 'שאל', 'fa.asking': 'חושב…',
     'fa.presets': 'שאלות מהירות', 'fa.answer': 'תשובה', 'fa.model': 'נענה ע״י {m} על פני {n} עמדות',
@@ -853,7 +877,7 @@ function route() {
   const [, name = 'devices', arg] = (location.hash || '#/devices').split('/');
   setNav(name === 'device' ? 'devices' : name);
   const views = { devices: viewDevices, device: () => viewDevice(arg), enroll: viewEnroll, activity: viewActivity,
-    audit: viewAudit, settings: viewSettings, org: viewOrg, users: viewUsers, gateways: viewGateways, licensing: viewLicensing, incidents: viewIncidents, reports: viewReports, images: viewImages, packages: viewPackages, classes: viewClasses, fleetai: viewFleetAI };
+    audit: viewAudit, settings: viewSettings, org: viewOrg, users: viewUsers, gateways: viewGateways, licensing: viewLicensing, incidents: viewIncidents, reports: viewReports, images: viewImages, packages: viewPackages, classes: viewClasses, fleetai: viewFleetAI, exams: viewExamSchedules };
   const needs = { org: 'manage_org', users: 'manage_users', gateways: 'manage_gateways', enroll: 'manage_tokens', audit: 'view_audit', licensing: 'view_licensing', incidents: 'view_incidents', reports: 'view_reports', images: 'view_images', packages: 'view_packages' };
   if (needs[name] && !cap(needs[name])) { location.hash = '#/devices'; return; }
   (views[name] || viewDevices)();
@@ -2390,6 +2414,97 @@ function promoteClass(c, done) {
       return r;
     },
   });
+}
+
+function examWhen(s) {
+  const hm = `${String(s.start_hour).padStart(2, '0')}:${String(s.start_min).padStart(2, '0')}`;
+  if (s.cadence === 'daily') return `${t('es.daily')} · ${hm}`;
+  if (s.cadence === 'weekly') return `${t('es.wd.' + s.weekday)} · ${hm}`;
+  return `${s.start_date} · ${hm}`;
+}
+function examLocks(s) {
+  const l = [s.lock_internet ? t('exam.internet') : null, s.lock_usb ? t('exam.usb') : null,
+    (s.web_filter && s.web_filter.length) ? t('exam.locks.sites').replace('{n}', s.web_filter.length) : null].filter(Boolean);
+  return l.join(' · ') || t('es.locks.none');
+}
+
+async function viewExamSchedules() {
+  view.innerHTML = `<div class="page-head"><div><h1>${t('es.title')}</h1><p class="sub">${t('es.sub')}</p></div>
+      <button class="btn primary" id="newes">${t('es.new')}</button></div>
+    <div class="card table-wrap"><table class="grid"><thead><tr>
+      <th>${t('es.col.exam')}</th><th>${t('es.col.lab')}</th><th>${t('es.col.when')}</th><th>${t('es.col.next')}</th><th>${t('es.col.status')}</th><th></th></tr></thead>
+      <tbody id="esrows"><tr><td colspan="6" class="empty">${t('common.loading')}</td></tr></tbody></table></div>`;
+  const load = async () => {
+    let rows; try { rows = await api('/api/exam-schedules'); } catch (e) { toast(e.message, true); return; }
+    $('#esrows').innerHTML = rows.length ? rows.map((s) => `<tr>
+      <td><b>${esc(s.name)}</b><br><small class="muted">${esc(examLocks(s))} · ${t('es.for').replace('{d}', s.duration_min)}</small></td>
+      <td class="small">${esc(s.lab_name || '')}</td>
+      <td class="small">${esc(examWhen(s))}</td>
+      <td class="small">${s.active || !s.next_start ? '—' : esc(fmtDate(s.next_start))}</td>
+      <td>${s.active ? `<span class="pill crit">${t('es.active')}</span>` : s.enabled ? `<span class="pill ok">${t('es.enabled')}</span>` : `<span class="pill">${t('es.disabled')}</span>`}</td>
+      <td class="nowrap">
+        <label class="switch" title="${t('es.on')}/${t('es.off')}"><input type="checkbox" data-toggle="${esc(s.id)}" ${s.enabled ? 'checked' : ''}><span></span></label>
+        <button class="link small" data-edit="${esc(s.id)}">${t('es.edit')}</button>
+        <button class="link small danger-link" data-del="${esc(s.id)}">${t('es.del')}</button></td></tr>`).join('')
+      : `<tr><td colspan="6" class="empty">${t('es.none')}</td></tr>`;
+    $$('#esrows [data-toggle]').forEach((c) => (c.onchange = async () => {
+      try { await api(`/api/exam-schedules/${c.dataset.toggle}`, { method: 'PATCH', body: { enabled: c.checked } }); load(); }
+      catch (e) { toast(e.message, true); c.checked = !c.checked; }
+    }));
+    $$('#esrows [data-edit]').forEach((b) => (b.onclick = () => examScheduleForm(load, rows.find((s) => s.id === b.dataset.edit))));
+    $$('#esrows [data-del]').forEach((b) => (b.onclick = () => modal({
+      title: t('es.title'), submit: t('common.delete'), danger: true, body: `<p class="note">${t('es.confirm.del')}</p>`,
+      onSubmit: async () => { await api(`/api/exam-schedules/${b.dataset.del}`, { method: 'DELETE' }); toast(t('es.t.deleted')); load(); },
+    })));
+  };
+  $('#newes').onclick = () => examScheduleForm(load, null);
+  await load();
+}
+
+async function examScheduleForm(done, s) {
+  let org; try { org = await api('/api/org'); } catch { org = { municipalities: [] }; }
+  const { labs } = orgFlat(org);
+  if (!labs.length) { toast(t('es.nolabs'), true); return; }
+  const cad = s ? s.cadence : 'once';
+  const hm = s ? `${String(s.start_hour).padStart(2, '0')}:${String(s.start_min).padStart(2, '0')}` : '08:00';
+  const today = new Date().toISOString().slice(0, 10);
+  const form = modal({
+    title: s ? t('es.edit') : t('es.new'), submit: s ? t('es.save') : t('es.create'), wide: true,
+    body: `<label>${t('es.name')}<input name="name" maxlength="120" required value="${s ? esc(s.name) : ''}" placeholder="Math final"></label>
+      <label>${t('es.lab')}<select name="lab_id" ${s ? 'disabled' : ''}>${labs.map(([v, l]) => `<option value="${v}" ${s && s.lab_id === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+      <div class="form-2">
+        <label>${t('es.cadence')}<select name="cadence">${['once', 'daily', 'weekly'].map((c) => `<option value="${c}" ${cad === c ? 'selected' : ''}>${t('es.' + c)}</option>`).join('')}</select></label>
+        <label>${t('es.time')}<input type="time" name="time" value="${hm}" required></label>
+      </div>
+      <div class="form-2">
+        <label data-f="date">${t('es.date')}<input type="date" name="start_date" value="${s && s.start_date ? esc(s.start_date) : today}" min="${today}"></label>
+        <label data-f="weekday">${t('es.weekday')}<select name="weekday">${[0, 1, 2, 3, 4, 5, 6].map((w) => `<option value="${w}" ${s && s.weekday === w ? 'selected' : ''}>${t('es.wd.' + w)}</option>`).join('')}</select></label>
+        <label>${t('es.duration')}<input type="number" name="duration_min" min="5" max="1440" value="${s ? s.duration_min : 60}" required></label>
+      </div>
+      <div class="checkrow">
+        <label class="check"><input type="checkbox" name="lock_internet" ${!s || s.lock_internet ? 'checked' : ''}> ${t('es.internet')}</label>
+        <label class="check"><input type="checkbox" name="lock_usb" ${!s || s.lock_usb ? 'checked' : ''}> ${t('es.usb')}</label>
+        <label class="check"><input type="checkbox" name="allow_lan" ${s && s.allow_lan ? 'checked' : ''}> ${t('es.lan')}</label>
+      </div>`,
+    onSubmit: async (f) => {
+      const [h, m] = f.time.value.split(':').map((x) => +x);
+      const body = {
+        lab_id: f.lab_id.value, name: f.name.value, cadence: f.cadence.value,
+        start_hour: h || 0, start_min: m || 0, weekday: +f.weekday.value, start_date: f.start_date.value,
+        duration_min: +f.duration_min.value, lock_internet: f.lock_internet.checked, lock_usb: f.lock_usb.checked,
+        allow_lan: f.allow_lan.checked,
+      };
+      if (s) { await api(`/api/exam-schedules/${s.id}`, { method: 'PATCH', body }); toast(t('es.t.saved')); }
+      else { await api('/api/exam-schedules', { method: 'POST', body }); toast(t('es.t.created')); }
+      done();
+    },
+  });
+  const sync = () => {
+    const c = form.cadence.value;
+    $('[data-f=date]', form).style.display = c === 'once' ? '' : 'none';
+    $('[data-f=weekday]', form).style.display = c === 'weekly' ? '' : 'none';
+  };
+  form.cadence.onchange = sync; sync();
 }
 
 async function viewFleetAI() {

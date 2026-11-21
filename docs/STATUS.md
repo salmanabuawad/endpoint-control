@@ -162,6 +162,7 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
 | 36 | Managed local admin + password | ✅ | install creates a **non-interactive managed admin** account (`kemadmin`): member of Administrators but denied interactive + RDP logon via local security policy (agent runs as SYSTEM, unchanged). `set_local_admin_password` sets/rotates that account's (or another named local account's) password; **password is sent once over TLS, redacted in the dashboard + audit log, and wiped from the command row once applied**; admins only (20 checks) |
 | 37 | Classes & teacher stations | ✅ | group stations into a **class** and promote one member to a **teacher station**: the server mints a gateway identity for it, tells it to run the relay (`become_teacher_station`), and re-homes the other members to it (`set_uplink` → `http://<addr>:<port>`); **Dissolve** sends everyone back to central and stops the relay. The agent keeps the central server as an **automatic fallback** — each cycle it probes the teacher station's `/healthz` and uses central directly if it is down. Gateway secret is redacted + wiped like a password; re-home commands are server-initiated only (never issued directly). Admins + school-managers (29 checks). Device-side relay provisioning needs Python on the teacher PC (pending hardware) |
 | 38 | Fleet AI questions | ✅ | **Ask AI** page: natural-language questions across every in-scope station — "which stations have a weak CPU / low memory / low disk / slow network card", "high CPU/memory/disk usage right now", "which to replace first". A PII-stripped fleet snapshot (specs + live usage, **no user/IP/MAC/serial**) is sent to the admin-configured local AI endpoint. Also a deterministic **Fleet insights** panel (threshold flags per station) that works with no AI. Admins + school-managers, scope-enforced (22 checks incl. a stub-AI round-trip + prompt PII audit) |
+| 39 | Scheduled exams | ✅ | schedule exam mode to **auto-start and auto-end** on a lab on a timetable (once on a date / every day / every week, start time + duration); the 60-second monitor loop starts the exam (reusing the exam-mode locks), reschedules recurring ones, and lifts the locks when the window ends. A manual exam already running in the lab is never clobbered — the slot is skipped and rescheduled. Enable/disable toggle; admins + school-managers; scope-enforced (20 checks via test-only scheduler hooks) |
 
 ## Phases (spec §21)
 
@@ -177,8 +178,8 @@ The multi-tenant + RBAC + gateway **spine** that KEM lacked, built onto the exis
 * **Phase 4 — recovery infrastructure** 🟡🧪: Windows Restore (L1) + factory wipe exist, and the
   **central image catalog + per-lab assignment** (control plane) is built; local recovery image (L2),
   recovery boot env, image-file distribution via the gateway and reimaging pending (need boot media).
-* **Phase 5 — exams & automation** 🟡: examination mode (lock/revert a lab) done; policy-driven
-  automation (scheduled exams, auto-recovery triggers) pending.
+* **Phase 5 — exams & automation** 🟡→: examination mode (lock/revert a lab) **and scheduled exams**
+  (timetable-driven auto-start/auto-end via the monitor loop) done; auto-recovery triggers pending.
 * **Phase 6 — production hardening** 🟡: signed installers/updates & cert rotation pending; the
   agent self-update (checksum + parse verified) and TLS/CSRF/audit are in place.
 

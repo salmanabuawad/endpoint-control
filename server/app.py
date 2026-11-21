@@ -106,6 +106,15 @@ CREATE TABLE IF NOT EXISTS exam_sessions(
   ended REAL, ended_by TEXT DEFAULT '', lock_internet INTEGER DEFAULT 1, lock_usb INTEGER DEFAULT 1,
   allow_lan INTEGER DEFAULT 0, web_filter TEXT DEFAULT '[]', note TEXT DEFAULT '', device_ids TEXT DEFAULT '[]');
 CREATE INDEX IF NOT EXISTS ix_exam_lab ON exam_sessions(lab_id, ended);
+CREATE TABLE IF NOT EXISTS exam_schedules(
+  id TEXT PRIMARY KEY, lab_id TEXT, name TEXT DEFAULT 'Exam', note TEXT DEFAULT '',
+  lock_internet INTEGER DEFAULT 1, lock_usb INTEGER DEFAULT 1, allow_lan INTEGER DEFAULT 0, web_filter TEXT DEFAULT '[]',
+  cadence TEXT DEFAULT 'once', start_hour INTEGER DEFAULT 8, start_min INTEGER DEFAULT 0,
+  weekday INTEGER DEFAULT 0, start_date TEXT DEFAULT '', duration_min INTEGER DEFAULT 60,
+  role TEXT DEFAULT 'superadmin', scope_type TEXT DEFAULT 'global', scope_id TEXT,
+  enabled INTEGER DEFAULT 1, created REAL, created_by TEXT DEFAULT '',
+  next_start REAL, active_exam_id TEXT, end_at REAL, last_start REAL, last_end REAL);
+CREATE INDEX IF NOT EXISTS ix_exam_sched_lab ON exam_schedules(lab_id);
 CREATE TABLE IF NOT EXISTS incidents(
   id TEXT PRIMARY KEY, device_id TEXT, lab_id TEXT, title TEXT, detail TEXT DEFAULT '',
   severity TEXT DEFAULT 'warning', status TEXT DEFAULT 'open', source TEXT DEFAULT 'manual',
@@ -261,6 +270,7 @@ def role_capabilities(role: str) -> dict:
         "view_images": admin or role == "school_manager", "manage_images": admin,
         "view_packages": admin or role == "school_manager", "manage_packages": admin or role == "school_manager",
         "view_classes": admin or role == "school_manager", "manage_classes": admin or role == "school_manager",
+        "manage_exam_schedules": admin or role == "school_manager",
         "view_licensing": admin or role == "school_manager", "manage_licensing": admin,
         "commands": sorted(COMMAND_TYPES) if admin else
                     sorted(COMMAND_TYPES - SCHOOL_MANAGER_BLOCKED) if role == "school_manager" else
@@ -663,6 +673,8 @@ def monitor_loop() -> None:
                 send_queued(con)
             with db() as con:
                 run_due_reports(con)
+            with db() as con:
+                run_due_exams(con)
         except Exception as e:  # noqa: BLE001 - keep the monitor alive
             print(f"[KEM] monitor error: {e}")
         _wake.wait(60)
@@ -2041,6 +2053,58 @@ def next_report_run(cadence: str, hour: int, weekday: int, monthday: int, frm: f
     return cand.timestamp()
 
 
+def next_exam_start(cadence: str, hour: int, minute: int, weekday: int, start_date: str, frm: float):
+    """The next timestamp an exam schedule should fire, or None (once-off in the past / invalid)."""
+    base = dtmod.datetime.fromtimestamp(frm)
+    if cadence == "once":
+        try:
+            d = dtmod.datetime.strptime((start_date or "").strip(), "%Y-%m-%d")
+        except ValueError:
+            return None
+        cand = d.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        return cand.timestamp() if cand > base else None
+    cand = base.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if cadence == "daily":
+        if cand <= base:
+            cand += dtmod.timedelta(days=1)
+    else:  # weekly
+        cand += dtmod.timedelta(days=(weekday - cand.weekday()) % 7)
+        if cand <= base:
+            cand += dtmod.timedelta(days=7)
+    return cand.timestamp()
+
+
+def run_due_exams(con) -> None:
+    """Auto-start exams whose window has arrived and auto-end those whose window has elapsed."""
+    t = now()
+    sysu = {"username": "scheduler", "role": "superadmin"}
+    # 1. End exams whose window elapsed.
+    for s in con.execute("SELECT * FROM exam_schedules WHERE active_exam_id IS NOT NULL AND end_at IS NOT NULL "
+                         "AND end_at<=?", (t,)).fetchall():
+        exam = con.execute("SELECT * FROM exam_sessions WHERE id=?", (s["active_exam_id"],)).fetchone()
+        if exam and exam["ended"] is None:
+            _exam_end(con, sysu, exam)
+            audit(con, "scheduler", "-", "exam_scheduled_end", s["lab_id"], {"schedule": s["name"]})
+        con.execute("UPDATE exam_schedules SET active_exam_id=NULL, end_at=NULL, last_end=? WHERE id=?", (t, s["id"]))
+    # 2. Start exams that are due (and not already running in the lab).
+    for s in con.execute("SELECT * FROM exam_schedules WHERE enabled=1 AND active_exam_id IS NULL "
+                         "AND next_start IS NOT NULL AND next_start<=?", (t,)).fetchall():
+        nxt = next_exam_start(s["cadence"], s["start_hour"], s["start_min"], s["weekday"], s["start_date"], t)
+        still_enabled = 0 if s["cadence"] == "once" else 1
+        if con.execute("SELECT 1 FROM exam_sessions WHERE lab_id=? AND ended IS NULL", (s["lab_id"],)).fetchone():
+            # A manual (or other) exam is already running; skip this slot and reschedule.
+            con.execute("UPDATE exam_schedules SET next_start=?, enabled=? WHERE id=?", (nxt, still_enabled, s["id"]))
+            continue
+        wf = jload(s["web_filter"], [])
+        eid, dids, _ = _exam_begin(con, sysu, s["lab_id"], s["name"], s["note"],
+                                   bool(s["lock_internet"]), bool(s["lock_usb"]), bool(s["allow_lan"]), wf)
+        end_at = t + max(1, int(s["duration_min"] or 60)) * 60
+        con.execute("UPDATE exam_schedules SET active_exam_id=?, end_at=?, last_start=?, next_start=?, enabled=? WHERE id=?",
+                    (eid, end_at, t, nxt, still_enabled, s["id"]))
+        audit(con, "scheduler", "-", "exam_scheduled_start", s["lab_id"],
+              {"schedule": s["name"], "stations": len(dids), "duration_min": s["duration_min"]})
+
+
 def send_report_email(cfg: dict, recipients: list[str], subject: str, text: str, filename: str, csv_text: str) -> None:
     msg = EmailMessage()
     msg["Subject"] = subject
@@ -3271,6 +3335,40 @@ def _exam_lab(con, user: dict, body: dict, require_class: bool) -> str:
     return lab_id
 
 
+def _exam_begin(con, user, lab_id, name, note, lock_internet, lock_usb, allow_lan, wf) -> tuple[str, list, list]:
+    """Lock a lab's stations into exam mode and open the exam session. Returns (exam_id, device_ids, cmd_ids)."""
+    devices = con.execute("SELECT id, hostname FROM devices WHERE lab_id=?", (lab_id,)).fetchall()
+    created: list[int] = []
+    if lock_internet:
+        created += _enqueue(con, user, devices, "block_internet", {"allow_lan": allow_lan})
+    elif wf:
+        created += _enqueue(con, user, devices, "set_web_filter", {"domains": wf})
+    if lock_usb:
+        created += _enqueue(con, user, devices, "usb_storage", {"mode": "block"})
+    eid = uuid.uuid4().hex
+    dids = [d["id"] for d in devices]
+    con.execute(
+        "INSERT INTO exam_sessions(id,lab_id,name,started_by,started,lock_internet,lock_usb,allow_lan,web_filter,note,device_ids)"
+        " VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+        (eid, lab_id, name, user["username"], now(), int(lock_internet), int(lock_usb), int(allow_lan),
+         json.dumps(wf), note, json.dumps(dids)))
+    return eid, dids, created
+
+
+def _exam_end(con, user, row) -> list:
+    """Lift an exam's locks and close the session. Returns the command ids queued."""
+    devices = con.execute("SELECT id, hostname FROM devices WHERE lab_id=?", (row["lab_id"],)).fetchall()
+    created: list[int] = []
+    if row["lock_internet"]:
+        created += _enqueue(con, user, devices, "unblock_internet", {})
+    elif jload(row["web_filter"], []):
+        created += _enqueue(con, user, devices, "set_web_filter", {"domains": []})
+    if row["lock_usb"]:
+        created += _enqueue(con, user, devices, "usb_storage", {"mode": "allow"})
+    con.execute("UPDATE exam_sessions SET ended=?, ended_by=? WHERE id=?", (now(), user["username"], row["id"]))
+    return created
+
+
 @app.get("/api/exams")
 def list_exams(user: dict = Depends(current_user)):
     with db() as con:
@@ -3297,21 +3395,7 @@ def exam_start(request: Request, body: dict = Body(...), user: dict = Depends(cu
         lab_id = _exam_lab(con, user, body, require_class=True)
         if con.execute("SELECT 1 FROM exam_sessions WHERE lab_id=? AND ended IS NULL", (lab_id,)).fetchone():
             raise HTTPException(409, "An exam is already running in this lab — end it first")
-        devices = con.execute("SELECT id, hostname FROM devices WHERE lab_id=?", (lab_id,)).fetchall()
-        created: list[int] = []
-        if lock_internet:
-            created += _enqueue(con, user, devices, "block_internet", {"allow_lan": allow_lan})
-        elif wf:
-            created += _enqueue(con, user, devices, "set_web_filter", {"domains": wf})
-        if lock_usb:
-            created += _enqueue(con, user, devices, "usb_storage", {"mode": "block"})
-        eid = uuid.uuid4().hex
-        dids = [d["id"] for d in devices]
-        con.execute(
-            "INSERT INTO exam_sessions(id,lab_id,name,started_by,started,lock_internet,lock_usb,allow_lan,web_filter,note,device_ids)"
-            " VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-            (eid, lab_id, name, user["username"], now(), int(lock_internet), int(lock_usb), int(allow_lan),
-             json.dumps(wf), note, json.dumps(dids)))
+        eid, dids, created = _exam_begin(con, user, lab_id, name, note, lock_internet, lock_usb, allow_lan, wf)
         audit(con, user["username"], client_ip(request), "exam_started", lab_id,
               {"name": name, "stations": len(dids), "commands": len(created)})
         row = con.execute("SELECT * FROM exam_sessions WHERE id=?", (eid,)).fetchone()
@@ -3331,17 +3415,138 @@ def exam_stop(eid: str, request: Request, user: dict = Depends(current_user)):
             raise HTTPException(403, "Start a class session on this lab to manage its exam")
         if row["ended"] is not None:
             raise HTTPException(400, "This exam already ended")
-        devices = con.execute("SELECT id, hostname FROM devices WHERE lab_id=?", (row["lab_id"],)).fetchall()
-        created: list[int] = []
-        if row["lock_internet"]:
-            created += _enqueue(con, user, devices, "unblock_internet", {})
-        elif jload(row["web_filter"], []):
-            created += _enqueue(con, user, devices, "set_web_filter", {"domains": []})
-        if row["lock_usb"]:
-            created += _enqueue(con, user, devices, "usb_storage", {"mode": "allow"})
-        con.execute("UPDATE exam_sessions SET ended=?, ended_by=? WHERE id=?", (now(), user["username"], eid))
+        created = _exam_end(con, user, row)
+        # If this exam was auto-started by a schedule, clear the schedule's active marker.
+        con.execute("UPDATE exam_schedules SET active_exam_id=NULL, end_at=NULL WHERE active_exam_id=?", (eid,))
         audit(con, user["username"], client_ip(request), "exam_ended", row["lab_id"], {"commands": len(created)})
     return {"ok": True, "commands": len(created)}
+
+
+# ------- scheduled exams: auto-start/auto-end exam mode on a lab on a timetable -------
+
+def require_exam_schedules(request: Request) -> dict:
+    u = _authenticate(request)
+    if u["role"] not in ADMIN_ROLES and u["role"] != "school_manager":
+        raise HTTPException(403, "Not allowed to schedule exams")
+    return u
+
+
+def serialize_exam_schedule(con, row) -> dict:
+    return {"id": row["id"], "lab_id": row["lab_id"], "lab_name": scope_name(con, "lab", row["lab_id"]),
+            "name": row["name"], "note": row["note"] or "",
+            "lock_internet": bool(row["lock_internet"]), "lock_usb": bool(row["lock_usb"]),
+            "allow_lan": bool(row["allow_lan"]), "web_filter": jload(row["web_filter"], []),
+            "cadence": row["cadence"], "start_hour": row["start_hour"], "start_min": row["start_min"],
+            "weekday": row["weekday"], "start_date": row["start_date"] or "", "duration_min": row["duration_min"],
+            "enabled": bool(row["enabled"]), "next_start": row["next_start"],
+            "active": bool(row["active_exam_id"]), "end_at": row["end_at"],
+            "last_start": row["last_start"], "last_end": row["last_end"]}
+
+
+def _validate_exam_schedule(body: dict) -> dict:
+    cadence = body.get("cadence", "once")
+    if cadence not in ("once", "daily", "weekly"):
+        raise HTTPException(400, "cadence must be once, daily or weekly")
+    lock_internet = bool(body.get("lock_internet", True))
+    lock_usb = bool(body.get("lock_usb", True))
+    allow_lan = bool(body.get("allow_lan"))
+    wf = validate_params("set_web_filter", {"domains": body.get("web_filter") or []})["domains"]
+    if not (lock_internet or lock_usb or wf):
+        raise HTTPException(400, "A scheduled exam must lock at least one of internet, USB or web filter")
+    start_date = clean(body.get("start_date"), 10)
+    if cadence == "once":
+        try:
+            dtmod.datetime.strptime(start_date, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(400, "A one-off exam needs a start date (YYYY-MM-DD)")
+    return {"name": clean(body.get("name"), 120) or "Exam", "note": clean(body.get("note"), 300),
+            "lock_internet": int(lock_internet), "lock_usb": int(lock_usb), "allow_lan": int(allow_lan),
+            "web_filter": json.dumps(wf), "cadence": cadence,
+            "start_hour": _int(body, "start_hour", 8, 0, 23), "start_min": _int(body, "start_min", 0, 0, 59),
+            "weekday": _int(body, "weekday", 0, 0, 6), "start_date": start_date,
+            "duration_min": _int(body, "duration_min", 60, 5, 1440)}
+
+
+@app.get("/api/exam-schedules")
+def list_exam_schedules(user: dict = Depends(require_exam_schedules)):
+    with db() as con:
+        allowed = allowed_lab_ids(con, user)
+        rows = con.execute("SELECT * FROM exam_schedules ORDER BY next_start IS NULL, next_start").fetchall()
+        return [serialize_exam_schedule(con, r) for r in rows if allowed is None or r["lab_id"] in allowed]
+
+
+@app.post("/api/exam-schedules")
+def create_exam_schedule(request: Request, body: dict = Body(...), user: dict = Depends(require_exam_schedules)):
+    lab_id = clean(body.get("lab_id"), 64)
+    v = _validate_exam_schedule(body)
+    with db() as con:
+        if not lab_id or not con.execute("SELECT 1 FROM labs WHERE id=?", (lab_id,)).fetchone() or not device_in_scope(con, user, lab_id):
+            raise HTTPException(404, "Lab not found")
+        sid = uuid.uuid4().hex
+        nxt = next_exam_start(v["cadence"], v["start_hour"], v["start_min"], v["weekday"], v["start_date"], now())
+        con.execute(
+            "INSERT INTO exam_schedules(id,lab_id,name,note,lock_internet,lock_usb,allow_lan,web_filter,cadence,"
+            "start_hour,start_min,weekday,start_date,duration_min,role,scope_type,scope_id,enabled,created,created_by,next_start)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?)",
+            (sid, lab_id, v["name"], v["note"], v["lock_internet"], v["lock_usb"], v["allow_lan"], v["web_filter"],
+             v["cadence"], v["start_hour"], v["start_min"], v["weekday"], v["start_date"], v["duration_min"],
+             user["role"], user["scope_type"], user["scope_id"], now(), user["username"], nxt))
+        audit(con, user["username"], client_ip(request), "exam_schedule_created", v["name"], {"lab": lab_id, "cadence": v["cadence"]})
+        return serialize_exam_schedule(con, con.execute("SELECT * FROM exam_schedules WHERE id=?", (sid,)).fetchone())
+
+
+@app.patch("/api/exam-schedules/{sid}")
+def update_exam_schedule(sid: str, request: Request, body: dict = Body(...), user: dict = Depends(require_exam_schedules)):
+    with db() as con:
+        row = con.execute("SELECT * FROM exam_schedules WHERE id=?", (sid,)).fetchone()
+        if not row or not device_in_scope(con, user, row["lab_id"]):
+            raise HTTPException(404, "Schedule not found")
+        if "enabled" in body and len(body) == 1:
+            con.execute("UPDATE exam_schedules SET enabled=? WHERE id=?", (1 if body.get("enabled") else 0, sid))
+        else:
+            v = _validate_exam_schedule(body)
+            nxt = next_exam_start(v["cadence"], v["start_hour"], v["start_min"], v["weekday"], v["start_date"], now())
+            con.execute(
+                "UPDATE exam_schedules SET name=?,note=?,lock_internet=?,lock_usb=?,allow_lan=?,web_filter=?,cadence=?,"
+                "start_hour=?,start_min=?,weekday=?,start_date=?,duration_min=?,enabled=?,next_start=? WHERE id=?",
+                (v["name"], v["note"], v["lock_internet"], v["lock_usb"], v["allow_lan"], v["web_filter"], v["cadence"],
+                 v["start_hour"], v["start_min"], v["weekday"], v["start_date"], v["duration_min"],
+                 1 if body.get("enabled", row["enabled"]) else 0, nxt, sid))
+        audit(con, user["username"], client_ip(request), "exam_schedule_updated", row["name"])
+        return serialize_exam_schedule(con, con.execute("SELECT * FROM exam_schedules WHERE id=?", (sid,)).fetchone())
+
+
+@app.delete("/api/exam-schedules/{sid}")
+def delete_exam_schedule(sid: str, request: Request, user: dict = Depends(require_exam_schedules)):
+    with db() as con:
+        row = con.execute("SELECT * FROM exam_schedules WHERE id=?", (sid,)).fetchone()
+        if not row or not device_in_scope(con, user, row["lab_id"]):
+            raise HTTPException(404, "Schedule not found")
+        con.execute("DELETE FROM exam_schedules WHERE id=?", (sid,))
+        audit(con, user["username"], client_ip(request), "exam_schedule_deleted", row["name"])
+    return {"ok": True}
+
+
+# Test-only hooks to drive the scheduler deterministically. Disabled unless KEM_TEST_HOOKS=1,
+# so they never exist in a real deployment.
+if os.environ.get("KEM_TEST_HOOKS") == "1":
+    @app.post("/api/test/force-exam-due")
+    def _t_force_due(body: dict = Body(...), admin: str = Depends(require_admin)):
+        with db() as con:
+            con.execute("UPDATE exam_schedules SET next_start=? WHERE id=?", (now() - 10, clean(body.get("id"), 64)))
+        return {"ok": True}
+
+    @app.post("/api/test/force-exam-end-due")
+    def _t_force_end(body: dict = Body(...), admin: str = Depends(require_admin)):
+        with db() as con:
+            con.execute("UPDATE exam_schedules SET end_at=? WHERE id=?", (now() - 10, clean(body.get("id"), 64)))
+        return {"ok": True}
+
+    @app.post("/api/test/run-due-exams")
+    def _t_run_due(admin: str = Depends(require_admin)):
+        with db() as con:
+            run_due_exams(con)
+        return {"ok": True}
 
 
 # ---------------------------------------------------------------- incidents
