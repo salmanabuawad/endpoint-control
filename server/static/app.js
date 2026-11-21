@@ -197,6 +197,10 @@ const I18N = {
     'scr.apply': 'Apply', 'scr.freeze.title': 'Freeze keyboard & mouse', 'scr.freeze.lock': 'Lock input',
     'scr.freeze.unlock': 'Unlock input', 'scr.freeze.note': 'Disables the station’s keyboard and mouse until you unlock it.',
     'scr.unlock.note': 'Restores keyboard and mouse control to the student.', 'scr.locked': 'Input lock queued', 'scr.unlocked': 'Input unlock queued',
+    'bc.btn': 'Broadcast', 'bc.title': 'Broadcast screen to the class', 'bc.start': 'Start broadcast', 'bc.stop': 'Stop broadcast',
+    'bc.start.msg': 'Show {host}’s screen full-screen on every other station in this lab.',
+    'bc.lock': 'Lock students’ keyboard & mouse while presenting', 'bc.note': 'Students see a brief capture indicator; stop the broadcast to release their screens.',
+    'bc.running': 'Broadcasting from {host} since', 'bc.t.started': 'Broadcasting to {n} station(s)', 'bc.t.stopped': 'Broadcast stopped',
     'es.title': 'Scheduled exams', 'es.sub': 'Lock a lab into exam mode automatically at a set time, and lift it when the window ends',
     'es.new': '＋ New schedule', 'es.name': 'Exam name', 'es.lab': 'Lab', 'es.when': 'When', 'es.locks': 'Locks',
     'es.cadence': 'Repeat', 'es.once': 'Once', 'es.daily': 'Every day', 'es.weekly': 'Every week',
@@ -393,6 +397,10 @@ const I18N = {
     'scr.apply': 'החל', 'scr.freeze.title': 'הקפאת מקלדת ועכבר', 'scr.freeze.lock': 'נעל קלט',
     'scr.freeze.unlock': 'שחרר קלט', 'scr.freeze.note': 'משבית את המקלדת והעכבר של העמדה עד לשחרור.',
     'scr.unlock.note': 'מחזיר את השליטה במקלדת ובעכבר לתלמיד.', 'scr.locked': 'נעילת הקלט נשלחה', 'scr.unlocked': 'שחרור הקלט נשלח',
+    'bc.btn': 'שידור', 'bc.title': 'שידור מסך לכיתה', 'bc.start': 'התחל שידור', 'bc.stop': 'עצור שידור',
+    'bc.start.msg': 'הצג את המסך של {host} במסך מלא בכל שאר העמדות במעבדה.',
+    'bc.lock': 'נעל מקלדת ועכבר של התלמידים בזמן ההצגה', 'bc.note': 'התלמידים רואים חיווי צילום קצר; עצרו את השידור כדי לשחרר את המסכים.',
+    'bc.running': 'משדר מ‑{host} מאז', 'bc.t.started': 'משדר ל‑{n} עמדות', 'bc.t.stopped': 'השידור הופסק',
     'es.title': 'מבחנים מתוזמנים', 'es.sub': 'נעלו מעבדה למצב מבחן אוטומטית בשעה קבועה, ושחררו אותה בתום החלון',
     'es.new': '＋ תזמון חדש', 'es.name': 'שם המבחן', 'es.lab': 'מעבדה', 'es.when': 'מתי', 'es.locks': 'נעילות',
     'es.cadence': 'חזרה', 'es.once': 'פעם אחת', 'es.daily': 'כל יום', 'es.weekly': 'כל שבוע',
@@ -1345,6 +1353,7 @@ async function viewDevice(id) {
         <button class="btn primary" data-act="install_software">⬇ Install software</button>
         ${allowedHas('request_screenshot') ? `<button class="btn" id="viewscreen">🖥 ${t('scr.view')}</button>` : ''}
         ${allowedHas('lock_input') ? `<button class="btn" id="freezeinput">🧊 ${t('scr.freeze')}</button>` : ''}
+        ${allowedHas('request_screenshot') && dev.lab_id ? `<button class="btn" id="bcast">📡 ${t('bc.btn')}</button>` : ''}
         ${cap('manage_packages') ? `<button class="btn" id="applypkg">📦 ${t('pkg.applybtn')}</button>` : ''}
         <button class="btn" data-act="send_message">💬 Message</button>
         <button class="btn" data-act="lock_session">🔒 Lock</button>
@@ -1361,6 +1370,7 @@ async function viewDevice(id) {
     if ($('#applypkg')) $('#applypkg').onclick = () => applyPackageModal(id);
     if ($('#viewscreen')) $('#viewscreen').onclick = () => viewScreenModal(id, dev.hostname);
     if ($('#freezeinput')) $('#freezeinput').onclick = () => freezeInputModal(id);
+    if ($('#bcast')) $('#bcast').onclick = () => broadcastModal(id, dev.hostname, dev.lab_id);
     if ($('#placelab')) $('#placelab').onclick = async () => {
       let org; try { org = await api('/api/org'); } catch (e) { toast(e.message, true); return; }
       const { labs } = orgFlat(org);
@@ -2346,6 +2356,29 @@ async function applyPackageModal(deviceId) {
   };
   form.pkg.onchange = preview; form.rm.onchange = preview;
   preview();
+}
+
+async function broadcastModal(deviceId, hostname, labId) {
+  let st; try { st = await api(`/api/labs/${labId}/broadcast`); } catch (e) { toast(e.message, true); return; }
+  if (st.active) {
+    modal({
+      title: t('bc.title'), submit: t('bc.stop'), danger: true,
+      body: `<p class="note">${t('bc.running').replace('{host}', esc(st.source_hostname))} ${ago(st.since)}.</p>`,
+      onSubmit: async () => { const r = await api(`/api/labs/${labId}/broadcast/stop`, { method: 'POST', body: {} }); toast(t('bc.t.stopped')); return r; },
+    });
+    return;
+  }
+  modal({
+    title: t('bc.title'), submit: t('bc.start'), danger: true,
+    body: `<p class="note">${t('bc.start.msg').replace('{host}', `<b>${esc(hostname)}</b>`)}</p>
+      <label class="check"><input type="checkbox" name="lock" checked> ${t('bc.lock')}</label>
+      <p class="note">${t('bc.note')}</p>`,
+    onSubmit: async (f) => {
+      const r = await api(`/api/labs/${labId}/broadcast`, { method: 'POST', body: { source_device_id: deviceId, lock_input: f.lock.checked } });
+      toast(t('bc.t.started').replace('{n}', r.viewers));
+      return r;
+    },
+  });
 }
 
 async function viewScreenModal(deviceId, hostname) {

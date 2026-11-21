@@ -119,6 +119,10 @@ CREATE INDEX IF NOT EXISTS ix_exam_sched_lab ON exam_schedules(lab_id);
 CREATE TABLE IF NOT EXISTS screenshots(
   device_id TEXT PRIMARY KEY, data BLOB, mime TEXT DEFAULT 'image/jpeg', bytes INTEGER DEFAULT 0, captured REAL);
 CREATE TABLE IF NOT EXISTS seen_nonces(nonce TEXT PRIMARY KEY, seen REAL);
+CREATE TABLE IF NOT EXISTS broadcasts(
+  id TEXT PRIMARY KEY, lab_id TEXT, source_device_id TEXT, started_by TEXT DEFAULT '',
+  started REAL, ended REAL);
+CREATE INDEX IF NOT EXISTS ix_broadcasts_lab ON broadcasts(lab_id, ended);
 CREATE TABLE IF NOT EXISTS incidents(
   id TEXT PRIMARY KEY, device_id TEXT, lab_id TEXT, title TEXT, detail TEXT DEFAULT '',
   severity TEXT DEFAULT 'warning', status TEXT DEFAULT 'open', source TEXT DEFAULT 'manual',
@@ -189,13 +193,16 @@ COMMAND_TYPES = {
     "set_uplink", "become_teacher_station", "stop_teacher_station",
     # classroom control: see a station's screen, freeze its input
     "request_screenshot", "lock_input",
+    # screen broadcast: a source station streams its screen to the class
+    "broadcast_capture", "show_broadcast", "stop_broadcast",
 }
 # Destructive commands: one device at a time, admin must type the hostname.
 CONFIRM_TYPES = {"reset_device", "uninstall_agent", "set_hostname"}
 # Command params that must never be shown in the dashboard, audit log, or history.
 SENSITIVE_PARAMS = {"password", "gateway_secret"}
 # Server-initiated only: never accepted on the /api/commands endpoint (driven by the class endpoints).
-SERVER_ONLY_TYPES = {"set_uplink", "become_teacher_station", "stop_teacher_station"}
+SERVER_ONLY_TYPES = {"set_uplink", "become_teacher_station", "stop_teacher_station",
+                     "broadcast_capture", "show_broadcast", "stop_broadcast"}
 # Commands whose result payload is kept on the command row (latest few per device).
 DATA_TYPES = {"list_processes", "list_services"}
 UPDATE_TYPES = {"scan_updates", "install_updates"}
@@ -1282,6 +1289,12 @@ def validate_params(ctype: str, p: Any) -> dict:
         if mode not in ("lock", "unlock"):
             raise HTTPException(400, "mode must be lock or unlock")
         return {"mode": mode}
+    if ctype == "broadcast_capture":
+        return {"on": bool(p.get("on")), "interval": _int(p, "interval", 2, 1, 30)}
+    if ctype == "show_broadcast":
+        return {"source": clean(p.get("source"), 64), "lock_input": bool(p.get("lock_input", True))}
+    if ctype == "stop_broadcast":
+        return {}
     raise HTTPException(400, "Unsupported command")
 
 
@@ -1888,6 +1901,95 @@ def get_screenshot_meta(device_id: str, user: dict = Depends(current_user)):
             raise HTTPException(404, "Device not found")
         row = con.execute("SELECT bytes, captured FROM screenshots WHERE device_id=?", (device_id,)).fetchone()
     return {"captured": (row["captured"] if row else None), "bytes": (row["bytes"] if row else 0)}
+
+
+# ---- screen broadcast: a source station streams its screen to the rest of its lab ----
+
+def _broadcast_lab_check(con, user, lab_id):
+    if not con.execute("SELECT 1 FROM labs WHERE id=?", (lab_id,)).fetchone():
+        raise HTTPException(404, "Lab not found")
+    if not device_in_scope(con, user, lab_id):
+        raise HTTPException(403, "That lab is outside your scope")
+    if not role_can_issue(user["role"], "request_screenshot"):
+        raise HTTPException(403, "Your role cannot broadcast")
+    if not has_active_class(con, user, lab_id):
+        raise HTTPException(403, "Start a class session on this lab first")
+
+
+def _broadcast_status(con, lab_id) -> dict:
+    row = con.execute("SELECT * FROM broadcasts WHERE lab_id=? AND ended IS NULL ORDER BY started DESC LIMIT 1",
+                      (lab_id,)).fetchone()
+    if not row:
+        return {"active": False}
+    src = con.execute("SELECT hostname FROM devices WHERE id=?", (row["source_device_id"],)).fetchone()
+    return {"active": True, "source_device_id": row["source_device_id"],
+            "source_hostname": src["hostname"] if src else "", "since": row["started"], "by": row["started_by"]}
+
+
+@app.get("/api/labs/{lab_id}/broadcast")
+def broadcast_status(lab_id: str, user: dict = Depends(current_user)):
+    with db() as con:
+        if not device_in_scope(con, user, lab_id):
+            raise HTTPException(404, "Lab not found")
+        return _broadcast_status(con, lab_id)
+
+
+@app.post("/api/labs/{lab_id}/broadcast")
+def start_broadcast(lab_id: str, request: Request, body: dict = Body(...), user: dict = Depends(current_user)):
+    source = clean(body.get("source_device_id"), 64)
+    lock = bool(body.get("lock_input", True))
+    with db() as con:
+        _broadcast_lab_check(con, user, lab_id)
+        src = con.execute("SELECT id, hostname, lab_id FROM devices WHERE id=?", (source,)).fetchone()
+        if not src or src["lab_id"] != lab_id:
+            raise HTTPException(400, "The broadcasting station must be in this lab")
+        # end any existing broadcast in the lab first
+        con.execute("UPDATE broadcasts SET ended=? WHERE lab_id=? AND ended IS NULL", (now(), lab_id))
+        bid = uuid.uuid4().hex
+        con.execute("INSERT INTO broadcasts(id,lab_id,source_device_id,started_by,started) VALUES(?,?,?,?,?)",
+                    (bid, lab_id, source, user["username"], now()))
+        targets = con.execute("SELECT id, hostname FROM devices WHERE lab_id=? AND id!=?", (lab_id, source)).fetchall()
+        queued = _enqueue(con, user, [{"id": source}], "broadcast_capture", {"on": True, "interval": 2})
+        if targets:
+            queued += _enqueue(con, user, targets, "show_broadcast", {"source": src["hostname"], "lock_input": lock})
+        audit(con, user["username"], client_ip(request), "broadcast_started", lab_id,
+              {"source": src["hostname"], "viewers": len(targets)})
+        return {"ok": True, "viewers": len(targets), "queued": len(queued), **_broadcast_status(con, lab_id)}
+
+
+@app.post("/api/labs/{lab_id}/broadcast/stop")
+def stop_broadcast_api(lab_id: str, request: Request, user: dict = Depends(current_user)):
+    with db() as con:
+        _broadcast_lab_check(con, user, lab_id)
+        row = con.execute("SELECT * FROM broadcasts WHERE lab_id=? AND ended IS NULL ORDER BY started DESC LIMIT 1",
+                          (lab_id,)).fetchone()
+        if not row:
+            raise HTTPException(400, "No broadcast is running in this lab")
+        con.execute("UPDATE broadcasts SET ended=? WHERE id=?", (now(), row["id"]))
+        targets = con.execute("SELECT id, hostname FROM devices WHERE lab_id=? AND id!=?",
+                              (lab_id, row["source_device_id"])).fetchall()
+        queued = _enqueue(con, user, [{"id": row["source_device_id"]}], "broadcast_capture", {"on": False, "interval": 2})
+        if targets:
+            queued += _enqueue(con, user, targets, "stop_broadcast", {})
+        audit(con, user["username"], client_ip(request), "broadcast_stopped", lab_id, {"viewers": len(targets)})
+        return {"ok": True, "queued": len(queued)}
+
+
+@app.post("/api/agent/broadcast-frame")
+def agent_broadcast_frame(dev: dict = Depends(agent_device)):
+    # A student agent polls this (signed) to render the current broadcast frame full-screen.
+    with db() as con:
+        d = con.execute("SELECT lab_id FROM devices WHERE id=?", (dev["id"],)).fetchone()
+        row = con.execute("SELECT source_device_id FROM broadcasts WHERE lab_id=? AND ended IS NULL "
+                          "ORDER BY started DESC LIMIT 1", (d["lab_id"],)).fetchone() if d else None
+        if not row:
+            return Response(status_code=204)
+        shot = con.execute("SELECT data, mime, captured FROM screenshots WHERE device_id=?",
+                           (row["source_device_id"],)).fetchone()
+    if not shot or shot["data"] is None:
+        return Response(status_code=204)
+    return Response(content=shot["data"], media_type=shot["mime"] or "image/jpeg",
+                    headers={"Cache-Control": "no-store", "X-Captured": str(shot["captured"] or 0)})
 
 
 # ---------------------------------------------------------------- fleet AI (ask across all stations)

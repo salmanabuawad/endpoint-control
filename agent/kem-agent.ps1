@@ -78,6 +78,10 @@ while ($true) {
             try { Remove-KemUiTasks } catch { }
         }
 
+        # Screen broadcast: capture (source) and/or pull-and-show frames (viewers), once per tick.
+        try { Invoke-KemBroadcastSource $cfg.server } catch { Write-KemLog "Broadcast source error: $($_.Exception.Message)" 'WARN' }
+        try { Sync-KemBroadcastView $cfg.server $cfg } catch { Write-KemLog "Broadcast view error: $($_.Exception.Message)" 'WARN' }
+
         $tel = Get-KemTelemetry
         if ($jobCmd) { $tel.busy = "$($jobCmd.type)" }
         $body = @{ agent_version = $KemVersion; telemetry = $tel }

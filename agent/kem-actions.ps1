@@ -1,7 +1,7 @@
 # KEM agent - action library (dot-sourced by kem-agent.ps1, install.ps1 and background jobs).
 # Windows PowerShell 5.1, runs as SYSTEM.
 
-$script:KemVersion  = '1.6.0'
+$script:KemVersion  = '1.7.0'
 $script:KemTaskName = 'KEM Agent'
 $script:KemGatewayTask = 'KEM Gateway Relay'   # scheduled task when this station is a teacher station
 $script:KemAdminUser = 'kemadmin'   # install-created managed local admin (interactive logon denied)
@@ -1212,13 +1212,24 @@ function Disable-KemTeacherStation {
     return @{ status = 'success'; output = 'Teacher station stopped; this station no longer relays for the class.' }
 }
 
-function Send-KemScreenshot([string]$Server) {
-    # Capture the signed-in user's desktop (in their session, with a visible indicator) and upload a JPEG.
-    # NOTE: screen capture from a service is AV-sensitive; a production deployment needs a code-signed,
-    # AV-allowlisted agent. This runs the capture in the user session, never covertly.
+function Send-KemScreenshot([string]$Server, [switch]$Quiet) {
+    # Capture the signed-in user's desktop (in their session) and upload a JPEG. A spot-check shows the
+    # user a brief "viewed by IT" indicator; broadcast frames (-Quiet) do not, since the user is
+    # voluntarily presenting their own screen. NOTE: screen capture from a service is AV-sensitive; a
+    # production deployment needs a code-signed, AV-allowlisted agent. Capture runs in the user session.
     $cfg = Get-KemConfig
     if (-not $cfg) { return @{ status = 'failed'; output = 'No agent config.' } }
     $out = Join-Path $env:PUBLIC ('kem-screen-' + [guid]::NewGuid().ToString('N').Substring(0, 8) + '.jpg')
+    $indicator = @'
+  $f = New-Object System.Windows.Forms.Form
+  $f.FormBorderStyle = 'None'; $f.StartPosition = 'Manual'; $f.TopMost = $true; $f.BackColor = 'Black'
+  $f.Size = New-Object System.Drawing.Size 320,36; $f.Location = New-Object System.Drawing.Point 20,20
+  $f.ShowInTaskbar = $false
+  $l = New-Object System.Windows.Forms.Label; $l.Dock = 'Fill'; $l.ForeColor = 'White'
+  $l.TextAlign = 'MiddleCenter'; $l.Text = 'Your screen was viewed by IT'; $f.Controls.Add($l)
+  $t = New-Object System.Windows.Forms.Timer; $t.Interval = 2500; $t.Add_Tick({ $f.Close() }); $t.Start()
+  $f.ShowDialog() | Out-Null
+'@
     $cap = @'
 try {
   Add-Type -AssemblyName System.Windows.Forms, System.Drawing
@@ -1229,18 +1240,12 @@ try {
   $g.Dispose()
   $enc = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' }
   $prm = New-Object System.Drawing.Imaging.EncoderParameters 1
-  $prm.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter ([System.Drawing.Imaging.Encoder]::Quality, [long]60)
+  $prm.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter ([System.Drawing.Imaging.Encoder]::Quality, [long]55)
   $bmp.Save('OUTPATH', $enc, $prm); $bmp.Dispose()
-  $f = New-Object System.Windows.Forms.Form
-  $f.FormBorderStyle = 'None'; $f.StartPosition = 'Manual'; $f.TopMost = $true; $f.BackColor = 'Black'
-  $f.Size = New-Object System.Drawing.Size 320,36; $f.Location = New-Object System.Drawing.Point 20,20
-  $f.ShowInTaskbar = $false
-  $l = New-Object System.Windows.Forms.Label; $l.Dock = 'Fill'; $l.ForeColor = 'White'
-  $l.TextAlign = 'MiddleCenter'; $l.Text = 'Your screen was viewed by IT'; $f.Controls.Add($l)
-  $t = New-Object System.Windows.Forms.Timer; $t.Interval = 2500; $t.Add_Tick({ $f.Close() }); $t.Start()
-  $f.ShowDialog() | Out-Null
+INDICATOR
 } catch { }
 '@
+    $cap = $cap -replace 'INDICATOR', ($(if ($Quiet) { '' } else { $indicator }))
     $r = Invoke-KemAsUser ($cap -replace 'OUTPATH', ($out -replace '\\', '\\')) -TimeoutSec 30
     if (-not (Test-Path $out)) { return @{ status = 'failed'; output = "Capture failed (no active session?): $($r.output)" } }
     try {
@@ -1254,6 +1259,32 @@ try {
     } finally {
         Remove-Item $out -Force -ErrorAction SilentlyContinue
     }
+}
+
+function Set-KemBroadcastSource($P) {
+    # The source (teacher) station: turn periodic screen capture on/off. The agent main loop does the
+    # actual capturing on each tick while this is on.
+    if ([bool]$P.on) {
+        Set-KemState 'broadcast_src' (@{ on = $true; interval = [int]$P.interval })
+        return @{ status = 'success'; output = "Broadcasting this screen (every $([int]$P.interval)s)." }
+    }
+    Set-KemState 'broadcast_src' $null
+    return @{ status = 'success'; output = 'Stopped broadcasting this screen.' }
+}
+
+function Show-KemBroadcast($P) {
+    # A viewer (student) station: mark that a broadcast should be shown full-screen, and (optionally)
+    # lock input so the class watches. The main loop pulls frames and drives the viewer window.
+    Set-KemState 'broadcast_view' (@{ source = "$($P.source)"; lock = [bool]$P.lock_input })
+    if ([bool]$P.lock_input) { Set-KemInputLock @{ mode = 'lock' } | Out-Null }
+    return @{ status = 'success'; output = "Showing broadcast from $($P.source)." }
+}
+
+function Stop-KemBroadcast {
+    Set-KemState 'broadcast_view' $null
+    Set-KemInputLock @{ mode = 'unlock' } | Out-Null
+    Remove-Item (Join-Path $env:PUBLIC 'kem-broadcast.flag') -Force -ErrorAction SilentlyContinue
+    return @{ status = 'success'; output = 'Broadcast viewer closed.' }
 }
 
 function Set-KemInputLock($P) {
@@ -1274,6 +1305,54 @@ while ((Test-Path $flag) -and $n -lt 7200) { [void][Kem.Input]::BlockInput($true
 '@
     Invoke-KemAsUser ($watcher -replace 'SENTINEL', ($sentinel -replace '\\', '\\')) -NoWait
     return @{ status = 'success'; output = 'Keyboard and mouse locked (until unlocked; Ctrl+Alt+Del can still interrupt).' }
+}
+
+function Invoke-KemBroadcastSource([string]$Server) {
+    # Called each main-loop tick: if this station is the broadcast source, capture+upload a frame when due.
+    $s = Get-KemState 'broadcast_src'
+    if (-not $s -or -not $s.on) { return }
+    $iv = [int]$s.interval; if ($iv -lt 1) { $iv = 2 }
+    if ($script:KemNextBroadcast -and (Get-Date) -lt $script:KemNextBroadcast) { return }
+    $script:KemNextBroadcast = (Get-Date).AddSeconds($iv)
+    try { Send-KemScreenshot $Server -Quiet | Out-Null } catch { }
+}
+
+function Sync-KemBroadcastView([string]$Server, $Config) {
+    # Called each tick on a viewer station: pull the latest broadcast frame and keep a full-screen viewer up.
+    $v = Get-KemState 'broadcast_view'
+    $img = Join-Path $env:PUBLIC 'kem-broadcast.jpg'
+    $flag = Join-Path $env:PUBLIC 'kem-broadcast.flag'
+    if (-not $v) { return }
+    # Pull the current frame (signed) into the shared image file.
+    $bytes = [Text.Encoding]::UTF8.GetBytes('{}')
+    $key = Get-KemSha256Hex ([string]$Config.secret)
+    $ts = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds(); $nonce = [guid]::NewGuid().ToString('N')
+    $canonical = "$ts`n$nonce`nPOST`n/api/agent/broadcast-frame`n$(Get-KemSha256HexBytes $bytes)"
+    $h = @{ 'X-Device-Id' = $Config.device_id; 'X-KEM-Ts' = "$ts"; 'X-KEM-Nonce' = $nonce; 'X-KEM-Sig' = (Get-KemHmacHex $key $canonical) }
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $resp = Invoke-WebRequest -Uri ($Server.TrimEnd('/') + '/api/agent/broadcast-frame') -Method Post -Body $bytes `
+            -ContentType 'application/json; charset=utf-8' -Headers $h -TimeoutSec 20 -UseBasicParsing
+        if ($resp.StatusCode -eq 200 -and $resp.Content.Length -gt 0) { [IO.File]::WriteAllBytes($img, $resp.Content) }
+    } catch { }
+    # Ensure the viewer window is running (launch once; it self-closes when the flag is removed).
+    if (-not (Test-Path $flag)) {
+        Set-Content -Path $flag -Value 'on' -Force -ErrorAction SilentlyContinue
+        $viewer = @'
+Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+$img = 'IMGPATH'; $flag = 'FLAGPATH'
+$f = New-Object System.Windows.Forms.Form
+$f.FormBorderStyle = 'None'; $f.WindowState = 'Maximized'; $f.TopMost = $true; $f.BackColor = 'Black'; $f.ShowInTaskbar = $false
+$pb = New-Object System.Windows.Forms.PictureBox; $pb.Dock = 'Fill'; $pb.SizeMode = 'Zoom'; $f.Controls.Add($pb)
+$cap = New-Object System.Windows.Forms.Label; $cap.Dock = 'Top'; $cap.Height = 26; $cap.ForeColor = 'White'
+$cap.TextAlign = 'MiddleCenter'; $cap.Text = 'Your teacher is presenting'; $f.Controls.Add($cap)
+$t = New-Object System.Windows.Forms.Timer; $t.Interval = 800
+$t.Add_Tick({ if (-not (Test-Path $flag)) { $f.Close(); return }; try { if (Test-Path $img) { $b = [IO.File]::ReadAllBytes($img); $ms = New-Object IO.MemoryStream (,$b); $pb.Image = [System.Drawing.Image]::FromStream($ms) } } catch { } })
+$t.Start(); $f.ShowDialog() | Out-Null
+'@
+        $viewer = $viewer -replace 'IMGPATH', ($img -replace '\\', '\\') -replace 'FLAGPATH', ($flag -replace '\\', '\\')
+        try { Invoke-KemAsUser $viewer -NoWait } catch { }
+    }
 }
 
 function Invoke-KemCommand($Command, [string]$Server) {
@@ -1305,6 +1384,9 @@ function Invoke-KemCommand($Command, [string]$Server) {
         'stop_teacher_station'   { return Disable-KemTeacherStation }
         'request_screenshot'     { return Send-KemScreenshot $Server }
         'lock_input'             { return Set-KemInputLock $p }
+        'broadcast_capture'      { return Set-KemBroadcastSource $p }
+        'show_broadcast'         { return Show-KemBroadcast $p }
+        'stop_broadcast'         { return Stop-KemBroadcast }
         default              { return @{ status = 'failed'; output = "Unsupported command type '$($Command.type)' for this agent version." } }
     }
 }
