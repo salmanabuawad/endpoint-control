@@ -1992,6 +1992,8 @@ INVESTIGATION_PROBES = {
     "defender_details": "Microsoft Defender detail: protection state, signature age, scan ages, recent detections",
 }
 INVESTIGATION_MAX_PROBES = 6
+INVESTIGATE_MIN_AGENT = "1.11.0"     # first agent version that can run probes
+INVESTIGATION_ACTIVE = ("updating", "collecting", "analyzing", "thinking")
 INVESTIGATION_ROUNDS = 2
 INVESTIGATION_TIMEOUT = 20 * 60      # a round the station never answers is given up on
 INVESTIGATION_DEFAULT = ["top_processes", "memory_pressure", "disk_space", "system_errors"]
@@ -2071,20 +2073,48 @@ def serialize_investigation(row) -> dict:
     d["steps"] = jload(d.get("steps"), [])
     for s in d["steps"]:
         s["labels"] = {p: INVESTIGATION_PROBES.get(p, p) for p in s.get("probes", [])}
-    d["active"] = d["status"] in ("collecting", "analyzing", "thinking")
+    d["active"] = d["status"] in INVESTIGATION_ACTIVE
     return d
 
 
 _invest_wake = threading.Event()
 
 
-def _start_round(con, inv_id: str, device_id: str, actor: dict, probes: list[str], reason: str,
-                 steps: list, round_no: int) -> None:
-    steps.append({"round": round_no, "probes": probes, "reason": reason, "requested_at": now(),
-                  "collected_at": None, "results": None})
-    cids = _enqueue(con, actor, [{"id": device_id}], "investigate", {"investigation_id": inv_id, "probes": probes})
+def _queue_probes(con, inv_id: str, device_id: str, actor: dict, steps: list, round_no: int) -> None:
+    """Send the latest step's probes to the station."""
+    steps[-1]["requested_at"] = now()
+    cids = _enqueue(con, actor, [{"id": device_id}], "investigate",
+                    {"investigation_id": inv_id, "probes": steps[-1]["probes"]})
     con.execute("UPDATE investigations SET status='collecting', round=?, steps=?, command_id=?, updated=? WHERE id=?",
                 (round_no, json.dumps(steps, ensure_ascii=False), cids[0], now(), inv_id))
+
+
+def _start_round(con, inv_id: str, device_id: str, actor: dict, probes: list[str], reason: str,
+                 steps: list, round_no: int, agent_version: str | None = None) -> None:
+    steps.append({"round": round_no, "probes": probes, "reason": reason, "requested_at": now(),
+                  "collected_at": None, "results": None})
+    if agent_version is not None and vtuple(agent_version) < vtuple(INVESTIGATE_MIN_AGENT):
+        # An older agent can't run probes: update it first; the probes are queued once it checks in
+        # on the new version (resume_investigations_after_update).
+        cids = _enqueue(con, actor, [{"id": device_id}], "update_agent", {})
+        con.execute("UPDATE investigations SET status='updating', round=?, steps=?, command_id=?, updated=? WHERE id=?",
+                    (round_no, json.dumps(steps, ensure_ascii=False), cids[0], now(), inv_id))
+        return
+    _queue_probes(con, inv_id, device_id, actor, steps, round_no)
+
+
+def resume_investigations_after_update(con, device_id: str, agent_version: str) -> None:
+    """A station that was updated for an investigation checked in on a new-enough agent: send its probes."""
+    if vtuple(agent_version) < vtuple(INVESTIGATE_MIN_AGENT):
+        return
+    for inv in con.execute("SELECT * FROM investigations WHERE device_id=? AND status='updating'", (device_id,)).fetchall():
+        actor = {"username": inv["created_by"], "role": inv["created_role"] or "superadmin"}
+        _queue_probes(con, inv["id"], device_id, actor, jload(inv["steps"], []), inv["round"])
+
+
+def investigation_update_failed(con, cid: int, output: str, t: float) -> None:
+    con.execute("UPDATE investigations SET status='failed', error=?, updated=? WHERE command_id=? AND status='updating'",
+                (redact("The agent could not be updated to run the probes: " + (output or "no output"))[:600], t, cid))
 
 
 def investigation_collected(con, cid: int, status: str, data: Any, output: str, t: float) -> None:
@@ -2157,7 +2187,7 @@ def process_investigations() -> None:
     t = now()
     with db() as con:
         con.execute("UPDATE investigations SET status='failed', updated=?, error='The station did not return "
-                    "results within 20 minutes (is it offline?)' WHERE status='collecting' AND updated < ?",
+                    "results within 20 minutes (is it offline?)' WHERE status IN ('updating','collecting') AND updated < ?",
                     (t, t - INVESTIGATION_TIMEOUT))
         # a model call interrupted by a server restart: try it again
         con.execute("UPDATE investigations SET status='analyzing' WHERE status='thinking' AND updated < ?", (t - 300,))
@@ -2214,8 +2244,8 @@ def start_investigation(device_id: str, request: Request, body: dict = Body(...)
         cfg = ai_config(con)
         if not cfg["enabled"]:
             raise HTTPException(400, "AI is not enabled - configure the local AI endpoint in Settings")
-        if con.execute("SELECT 1 FROM investigations WHERE device_id=? AND status IN ('collecting','analyzing','thinking')",
-                       (device_id,)).fetchone():
+        if con.execute("SELECT 1 FROM investigations WHERE device_id=? AND status IN (%s)" % ",".join("?" * len(INVESTIGATION_ACTIVE)),
+                       (device_id, *INVESTIGATION_ACTIVE)).fetchone():
             raise HTTPException(409, "An investigation is already running on this device")
         dev = serialize_device(row, full=True)
     plan_msg = ("Problem reported: " + question + "\n\nCurrent device health:\n"
@@ -2231,7 +2261,7 @@ def start_investigation(device_id: str, request: Request, body: dict = Body(...)
         con.execute("INSERT INTO investigations(id,device_id,question,status,round,steps,model,created,created_by,"
                     "created_role,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                     (iid, device_id, question, "collecting", 1, "[]", cfg["model"], t, user["username"], user["role"], t))
-        _start_round(con, iid, device_id, user, probes, reason, [], 1)
+        _start_round(con, iid, device_id, user, probes, reason, [], 1, agent_version=row["agent_version"] or "")
         audit(con, user["username"], client_ip(request), "investigation_started", row["hostname"],
               {"question": question[:120], "probes": probes, "model": cfg["model"]})
         return serialize_investigation(con.execute("SELECT * FROM investigations WHERE id=?", (iid,)).fetchone())
@@ -2254,7 +2284,7 @@ def cancel_investigation(inv_id: str, request: Request, user: dict = Depends(req
         if not inv:
             raise HTTPException(404, "Investigation not found")
         row = _device_for_investigation(con, user, inv["device_id"])
-        if inv["status"] not in ("collecting", "analyzing", "thinking"):
+        if inv["status"] not in INVESTIGATION_ACTIVE:
             raise HTTPException(400, "This investigation is not running")
         con.execute("UPDATE investigations SET status='failed', error=?, updated=? WHERE id=?",
                     (f"Cancelled by {user['username']}", now(), inv_id))
@@ -4652,6 +4682,8 @@ def apply_result(con, device_id: str, r: Any, t: float) -> None:
                         (device_id, cmd["type"], device_id, cmd["type"]))
     elif cmd["type"] == "investigate":
         investigation_collected(con, cid, status, data, output, t)
+    elif cmd["type"] == "update_agent" and status == "failed":
+        investigation_update_failed(con, cid, output, t)
     if status == "failed" and cmd["created_by"] != "auto":
         host = con.execute("SELECT hostname FROM devices WHERE id=?", (device_id,)).fetchone()
         first = next((ln for ln in output.splitlines() if ln.strip()), "no output")[:300]
@@ -4712,6 +4744,7 @@ def agent_checkin(request: Request, body: dict = Body(...), dev: dict = Depends(
             cpu, mem, disk = device_metrics(tel)
             con.execute("INSERT INTO metrics VALUES(?,?,?,?,?)", (dev["id"], t, cpu, mem, disk))
             con.execute("DELETE FROM metrics WHERE device_id=? AND ts<?", (dev["id"], t - METRIC_RETENTION))
+        resume_investigations_after_update(con, dev["id"], sets["agent_version"])
         rows = con.execute("SELECT id, type, params FROM commands WHERE device_id=? AND status='queued' ORDER BY id",
                            (dev["id"],)).fetchall()
         for c in rows:

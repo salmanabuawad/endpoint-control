@@ -1203,7 +1203,7 @@ async function viewDevice(id) {
 
   // AI-driven investigation: the model picks read-only probes from a fixed catalog, the station runs them,
   // the model explains. Drawn once, then polls on its own while an investigation is running.
-  const INV_STATUS = { collecting: ['warn', 'Collecting on the station'], analyzing: ['warn', 'Analyzing'],
+  const INV_STATUS = { updating: ['warn', 'Updating the agent first'], collecting: ['warn', 'Collecting on the station'], analyzing: ['warn', 'Analyzing'],
     thinking: ['warn', 'Analyzing'], done: ['ok', 'Done'], failed: ['crit', 'Failed'] };
   async function renderInvestigations() {
     const el = $('#invcard');
