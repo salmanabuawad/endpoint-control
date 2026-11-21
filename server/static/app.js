@@ -174,6 +174,14 @@ const I18N = {
     'pkg.previewhint': 'Pick a package to preview the plan.', 'pkg.note': 'Preview first. Installs/removals run on the device as the agent processes them.',
     'pkg.install': 'Install', 'pkg.remove': 'Remove', 'pkg.keep': 'Keep', 'pkg.protected': 'Protected',
     'pkg.t.applied': 'Queued {n} action(s)', 'pkg.none.apply': 'No packages defined — create one first.', 'pkg.badline': 'Bad line (use Label | match | winget:Id or url:…): ',
+    'pkg.bl.title': 'Lab baselines', 'pkg.bl.sub': 'Set a package as a lab’s standard — new stations auto-install it, and you can see which stations have drifted.',
+    'pkg.bl.lab': 'Lab', 'pkg.bl.pkg': 'Baseline', 'pkg.bl.none': '— none —', 'pkg.bl.remove': 'Remove extras',
+    'pkg.bl.auto': 'Auto on enroll', 'pkg.bl.auto.help': 'Installs the set (never removes) the first time a station registers.',
+    'pkg.bl.col.status': 'Status', 'pkg.bl.apply': 'Apply to all', 'pkg.bl.saved': 'Baseline updated', 'pkg.bl.nolabs': 'No labs yet.',
+    'pkg.bl.compliant': 'All compliant', 'pkg.bl.drift': '{d} of {n} drifted', 'pkg.bl.empty': 'No stations',
+    'pkg.bl.applytitle': 'Apply baseline to the lab', 'pkg.bl.applybtn': 'Update drifted stations',
+    'pkg.bl.willfix': '{n} station(s) will be updated:', 'pkg.bl.allok': 'All stations already match the baseline.',
+    'pkg.bl.queued': 'Queued updates for {n} station(s)', 'pkg.bl.ok': 'OK',
   },
   he: {
     'app.title': 'KEM · ניהול עמדות',
@@ -307,6 +315,14 @@ const I18N = {
     'pkg.previewhint': 'בחרו חבילה כדי לצפות בתוכנית.', 'pkg.note': 'צפו תחילה. ההתקנות וההסרות ירוצו במחשב כשהסוכן יעבד אותן.',
     'pkg.install': 'התקנה', 'pkg.remove': 'הסרה', 'pkg.keep': 'שמירה', 'pkg.protected': 'מוגן',
     'pkg.t.applied': 'נשלחו {n} פעולות', 'pkg.none.apply': 'לא הוגדרו חבילות — צרו אחת תחילה.', 'pkg.badline': 'שורה שגויה (השתמשו ב‑תווית | התאמה | winget:Id או url:…): ',
+    'pkg.bl.title': 'בסיס מעבדה', 'pkg.bl.sub': 'הגדירו חבילה כסטנדרט של מעבדה — עמדות חדשות יתקינו אותה אוטומטית, ותוכלו לראות אילו עמדות סטו.',
+    'pkg.bl.lab': 'מעבדה', 'pkg.bl.pkg': 'בסיס', 'pkg.bl.none': '— ללא —', 'pkg.bl.remove': 'הסר עודפים',
+    'pkg.bl.auto': 'אוטומטי בהרשמה', 'pkg.bl.auto.help': 'מתקין את המערך (לעולם לא מסיר) בפעם הראשונה שעמדה נרשמת.',
+    'pkg.bl.col.status': 'מצב', 'pkg.bl.apply': 'החל על כולן', 'pkg.bl.saved': 'הבסיס עודכן', 'pkg.bl.nolabs': 'אין עדיין מעבדות.',
+    'pkg.bl.compliant': 'כולן תואמות', 'pkg.bl.drift': '{d} מתוך {n} סטו', 'pkg.bl.empty': 'אין עמדות',
+    'pkg.bl.applytitle': 'החלת הבסיס על המעבדה', 'pkg.bl.applybtn': 'עדכן עמדות שסטו',
+    'pkg.bl.willfix': '{n} עמדות יעודכנו:', 'pkg.bl.allok': 'כל העמדות כבר תואמות לבסיס.',
+    'pkg.bl.queued': 'נשלחו עדכונים ל‑{n} עמדות', 'pkg.bl.ok': 'אישור',
   },
 };
 
@@ -2024,6 +2040,72 @@ async function viewPackages() {
   };
   if (manage) $('#newpkg').onclick = () => packageForm(load);
   await load();
+  if (manage) await loadBaselines();
+}
+
+async function loadBaselines() {
+  let labs, pkgs;
+  try { [labs, pkgs] = await Promise.all([api('/api/lab-baselines'), api('/api/packages')]); }
+  catch (e) { toast(e.message, true); return; }
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.style.marginTop = '18px';
+  const opts = (sel) => `<option value="">${t('pkg.bl.none')}</option>` +
+    pkgs.map((p) => `<option value="${esc(p.id)}"${p.id === sel ? ' selected' : ''}>${esc(p.name)}</option>`).join('');
+  const statusCell = (l) => !l.package_id ? '<span class="muted">—</span>'
+    : l.drifted ? `<span class="pill warn" title="${t('pkg.bl.drift').replace('{d}', l.drifted).replace('{n}', l.total)}">${l.drifted}/${l.total}</span>`
+    : l.total ? `<span class="pill ok">${t('pkg.bl.compliant')}</span>` : `<span class="muted">${t('pkg.bl.empty')}</span>`;
+  card.innerHTML = `<div class="page-head sub-head"><div><h2>${t('pkg.bl.title')}</h2><p class="sub">${t('pkg.bl.sub')}</p></div></div>
+    <div class="table-wrap"><table class="grid"><thead><tr>
+      <th>${t('pkg.bl.lab')}</th><th>${t('pkg.bl.pkg')}</th><th class="center">${t('pkg.bl.remove')}</th>
+      <th class="center" title="${t('pkg.bl.auto.help')}">${t('pkg.bl.auto')}</th><th>${t('pkg.bl.col.status')}</th><th></th></tr></thead>
+      <tbody>${labs.length ? labs.map((l) => `<tr data-lab="${esc(l.lab_id)}">
+        <td><b>${esc(l.lab)}</b><br><small class="muted">${esc(l.school)}</small></td>
+        <td><select class="bl-pkg" data-lab="${esc(l.lab_id)}">${opts(l.package_id)}</select></td>
+        <td class="center"><input type="checkbox" class="bl-rm" data-lab="${esc(l.lab_id)}"${l.remove_extras ? ' checked' : ''}></td>
+        <td class="center"><input type="checkbox" class="bl-auto" data-lab="${esc(l.lab_id)}"${l.auto ? ' checked' : ''}></td>
+        <td class="bl-status">${statusCell(l)}</td>
+        <td class="nowrap">${l.package_id ? `<button class="btn small bl-apply" data-lab="${esc(l.lab_id)}">${t('pkg.bl.apply')}</button>` : ''}</td>
+      </tr>`).join('') : `<tr><td colspan="6" class="empty">${t('pkg.bl.nolabs')}</td></tr>`}</tbody></table></div>`;
+  view.appendChild(card);
+  const save = async (labId) => {
+    const pkg = card.querySelector(`.bl-pkg[data-lab="${labId}"]`).value;
+    const rm = card.querySelector(`.bl-rm[data-lab="${labId}"]`).checked;
+    const auto = card.querySelector(`.bl-auto[data-lab="${labId}"]`).checked;
+    try {
+      await api(`/api/labs/${labId}/baseline`, { method: 'POST', body: { package_id: pkg, remove_extras: rm, auto } });
+      toast(t('pkg.bl.saved'));
+      await loadBaselines(); card.remove();
+    } catch (e) { toast(e.message, true); }
+  };
+  $$('.bl-pkg', card).forEach((s) => (s.onchange = () => save(s.dataset.lab)));
+  $$('.bl-rm', card).forEach((c) => (c.onchange = () => save(c.dataset.lab)));
+  $$('.bl-auto', card).forEach((c) => (c.onchange = () => save(c.dataset.lab)));
+  $$('.bl-apply', card).forEach((b) => (b.onclick = () => applyBaselineModal(b.dataset.lab, () => { loadBaselines(); card.remove(); })));
+}
+
+async function applyBaselineModal(labId, done) {
+  let r; try { r = await api(`/api/labs/${labId}/apply-baseline`, { method: 'POST', body: { dry_run: true } }); }
+  catch (e) { toast(e.message, true); return; }
+  const drifted = r.stations.filter((s) => !s.compliant);
+  const rows = drifted.map((s) => `<div class="pkgplan" style="margin:6px 0">
+      <b>${esc(s.hostname)}</b>
+      <div><b>${t('pkg.install')}</b> (${s.install.length}): ${s.install.map(esc).join(', ') || '—'}</div>
+      <div class="${s.remove.length ? 'crit-text' : ''}"><b>${t('pkg.remove')}</b> (${s.remove.length}): ${s.remove.map(esc).join(', ') || '—'}</div>
+    </div>`).join('');
+  modal({
+    title: t('pkg.bl.applytitle'), submit: drifted.length ? t('pkg.bl.applybtn') : t('pkg.bl.ok'),
+    danger: r.remove_extras, wide: true,
+    body: `<p class="note"><b>${esc(r.package)}</b></p>` + (drifted.length
+      ? `<p>${t('pkg.bl.willfix').replace('{n}', drifted.length)}</p>${rows}`
+      : `<p class="banner ok">${t('pkg.bl.allok')}</p>`),
+    onSubmit: async () => {
+      if (!drifted.length) return;
+      const a = await api(`/api/labs/${labId}/apply-baseline`, { method: 'POST', body: { dry_run: false } });
+      toast(t('pkg.bl.queued').replace('{n}', drifted.length));
+      if (done) done(); return a;
+    },
+  });
 }
 
 async function packageForm(done) {

@@ -144,6 +144,10 @@ MIGRATIONS = [
     ("devices", "ai_diagnosis", "TEXT"),
     ("devices", "ai_diagnosis_at", "REAL"),
     ("labs", "image_id", "TEXT"),
+    # Lab baseline: a package every station in the lab should match.
+    ("labs", "baseline_package_id", "TEXT"),
+    ("labs", "baseline_remove_extras", "INTEGER DEFAULT 0"),
+    ("labs", "baseline_auto", "INTEGER DEFAULT 0"),
 ]
 
 COMMAND_TYPES = {
@@ -2315,6 +2319,147 @@ def apply_package(device_id: str, request: Request, body: dict = Body(...), user
     return {"dry_run": False, "package": pkg["name"], "queued": len(created), **plan}
 
 
+# ------- lab baselines: a package every station in a lab should match -------
+
+def _lab_baseline_pkg(con, lab_row):
+    """Return the lab's baseline package row, or None."""
+    pid = lab_row["baseline_package_id"] if "baseline_package_id" in lab_row.keys() else None
+    if not pid:
+        return None
+    return con.execute("SELECT * FROM packages WHERE id=?", (pid,)).fetchone()
+
+
+def lab_drift(con, lab_row, pkg_row, remove_extras: bool) -> dict:
+    """Per-station plan of a lab against its baseline, plus compliant/total counts."""
+    devs = con.execute("SELECT id, hostname, software, last_seen FROM devices WHERE lab_id=?",
+                       (lab_row["id"],)).fetchall()
+    stations, compliant = [], 0
+    for d in devs:
+        plan = package_plan(d, pkg_row, remove_extras)
+        ok = not plan["install"] and not plan["remove"]
+        compliant += ok
+        stations.append({
+            "device_id": d["id"], "hostname": d["hostname"], "compliant": ok,
+            "install": [i["label"] for i in plan["install"]],
+            "remove": plan["remove"], "protected": plan["protected"],
+        })
+    return {"total": len(devs), "compliant": compliant,
+            "drifted": len(devs) - compliant, "stations": stations}
+
+
+@app.get("/api/lab-baselines")
+def lab_baselines(user: dict = Depends(require_packages)):
+    with db() as con:
+        allowed = allowed_lab_ids(con, user)
+        rows = con.execute(
+            "SELECT l.*, s.name AS school FROM labs l JOIN schools s ON s.id=l.school_id "
+            "ORDER BY s.name, l.name").fetchall()
+        out = []
+        for r in rows:
+            if allowed is not None and r["id"] not in allowed:
+                continue
+            pkg = _lab_baseline_pkg(con, r)
+            entry = {"lab_id": r["id"], "lab": r["name"], "school": r["school"],
+                     "package_id": r["baseline_package_id"], "package_name": pkg["name"] if pkg else None,
+                     "remove_extras": bool(r["baseline_remove_extras"]), "auto": bool(r["baseline_auto"]),
+                     "total": 0, "drifted": 0}
+            if pkg:
+                d = lab_drift(con, r, pkg, bool(r["baseline_remove_extras"]))
+                entry["total"], entry["drifted"] = d["total"], d["drifted"]
+            out.append(entry)
+    return out
+
+
+@app.post("/api/labs/{lab_id}/baseline")
+def set_lab_baseline(lab_id: str, request: Request, body: dict = Body(...), user: dict = Depends(require_packages)):
+    pid = clean(body.get("package_id"), 64) or None
+    remove_extras = 1 if body.get("remove_extras") else 0
+    auto = 1 if body.get("auto") else 0
+    with db() as con:
+        lab = con.execute("SELECT * FROM labs WHERE id=?", (lab_id,)).fetchone()
+        if not lab or not device_in_scope(con, user, lab_id):
+            raise HTTPException(404, "Lab not found")
+        if pid:
+            pkg = con.execute("SELECT * FROM packages WHERE id=?", (pid,)).fetchone()
+            if not pkg or not entitlement_in_scope(con, user, pkg):
+                raise HTTPException(404, "Package not found")
+        con.execute("UPDATE labs SET baseline_package_id=?, baseline_remove_extras=?, baseline_auto=? WHERE id=?",
+                    (pid, remove_extras, auto, lab_id))
+        audit(con, user["username"], client_ip(request), "lab_baseline_set", lab["name"],
+              {"package_id": pid or "", "remove_extras": remove_extras, "auto": auto})
+    return {"ok": True, "lab_id": lab_id, "package_id": pid,
+            "remove_extras": bool(remove_extras), "auto": bool(auto)}
+
+
+@app.get("/api/labs/{lab_id}/baseline")
+def get_lab_baseline(lab_id: str, user: dict = Depends(require_packages)):
+    with db() as con:
+        lab = con.execute("SELECT * FROM labs WHERE id=?", (lab_id,)).fetchone()
+        if not lab or not device_in_scope(con, user, lab_id):
+            raise HTTPException(404, "Lab not found")
+        pkg = _lab_baseline_pkg(con, lab)
+        if not pkg:
+            return {"lab_id": lab_id, "package_id": None, "total": 0, "compliant": 0,
+                    "drifted": 0, "stations": [], "remove_extras": bool(lab["baseline_remove_extras"]),
+                    "auto": bool(lab["baseline_auto"])}
+        d = lab_drift(con, lab, pkg, bool(lab["baseline_remove_extras"]))
+    return {"lab_id": lab_id, "package_id": pkg["id"], "package_name": pkg["name"],
+            "remove_extras": bool(lab["baseline_remove_extras"]), "auto": bool(lab["baseline_auto"]), **d}
+
+
+@app.post("/api/labs/{lab_id}/apply-baseline")
+def apply_lab_baseline(lab_id: str, request: Request, body: dict = Body(...), user: dict = Depends(require_packages)):
+    dry = body.get("dry_run", True)
+    only = clean(body.get("only"), 64)  # optional: apply to a single drifted station
+    with db() as con:
+        lab = con.execute("SELECT * FROM labs WHERE id=?", (lab_id,)).fetchone()
+        if not lab or not device_in_scope(con, user, lab_id):
+            raise HTTPException(404, "Lab not found")
+        pkg = _lab_baseline_pkg(con, lab)
+        if not pkg:
+            raise HTTPException(400, "This lab has no baseline package")
+        remove_extras = bool(lab["baseline_remove_extras"])
+        d = lab_drift(con, lab, pkg, remove_extras)
+        if dry:
+            return {"dry_run": True, "package": pkg["name"], "remove_extras": remove_extras, **d}
+        queued = 0
+        for st in d["stations"]:
+            if only and st["device_id"] != only:
+                continue
+            if st["compliant"]:
+                continue
+            dev = con.execute("SELECT * FROM devices WHERE id=?", (st["device_id"],)).fetchone()
+            plan = package_plan(dev, pkg, remove_extras)
+            for ins in plan["install"]:
+                queued += len(_enqueue(con, user, [{"id": dev["id"]}], "install_software", ins["install"]))
+            for appname in plan["remove"]:
+                queued += len(_enqueue(con, user, [{"id": dev["id"]}], "uninstall_software", {"name": appname}))
+        audit(con, user["username"], client_ip(request), "lab_baseline_applied", lab["name"],
+              {"package": pkg["name"], "queued": queued, "remove_extras": remove_extras, "only": only or ""})
+    return {"dry_run": False, "package": pkg["name"], "queued": queued, "remove_extras": remove_extras, **d}
+
+
+def _auto_provision_on_enroll(con, device_id: str, lab_id: str) -> None:
+    """When a new station enrolls into a lab with an auto baseline, queue install-only provisioning."""
+    if not lab_id:
+        return
+    lab = con.execute("SELECT * FROM labs WHERE id=?", (lab_id,)).fetchone()
+    if not lab or not lab["baseline_auto"] or not lab["baseline_package_id"]:
+        return
+    pkg = con.execute("SELECT * FROM packages WHERE id=?", (lab["baseline_package_id"],)).fetchone()
+    if not pkg:
+        return
+    sysuser = {"username": "system", "role": "superadmin"}
+    n = 0
+    for it in jload(pkg["items"], []):
+        if it.get("install"):
+            _enqueue(con, sysuser, [{"id": device_id}], "install_software", it["install"])
+            n += 1
+    if n:
+        audit(con, "system", "-", "baseline_auto_provision", lab["name"],
+              {"package": pkg["name"], "device": device_id, "install": n})
+
+
 # ---------------------------------------------------------------- organization (municipality/school/lab)
 
 def _req_name(body: dict, key: str = "name", limit: int = 120) -> str:
@@ -3139,6 +3284,8 @@ def agent_enroll(request: Request, body: dict = Body(...)):
         audit(con, "agent", ip, "device_reenrolled" if existing else "device_enrolled", hostname, {"token": token})
         notify(con, "enrolled", device_id, hostname,
                f"{'Re-enrolled' if existing else 'Enrolled'} with token {token} from {ip}")
+        if not existing:
+            _auto_provision_on_enroll(con, device_id, lab_id)
     return AgentJSON({"device_id": device_id, "secret": secret, "interval": CHECKIN_INTERVAL})
 
 
