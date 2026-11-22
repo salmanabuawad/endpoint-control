@@ -9,7 +9,52 @@ param(
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $ActionsPath = Join-Path $PSScriptRoot 'kem-actions.ps1'
-. $ActionsPath
+
+function Invoke-KemSelfHeal {
+    # Self-contained recovery: if the core action library won't load (e.g. a bad update is blocked by
+    # antivirus), re-download the agent files the server currently advertises and swap them in. Has NO
+    # dependency on kem-actions. Returns $true if it replaced any file. This is what lets a broken agent
+    # recover WITHOUT a manual reinstall - it runs only when the core fails to load, so a healthy agent
+    # still honours the admin's auto-update setting.
+    try {
+        $cfgFile = Join-Path $DataDir 'config.json'
+        if (-not (Test-Path $cfgFile)) { return $false }
+        $cfg = Get-Content $cfgFile -Raw -Encoding UTF8 | ConvertFrom-Json
+        $server = "$($cfg.server)".TrimEnd('/')
+        if (-not $server) { return $false }
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $rel = Invoke-RestMethod -Uri "$server/agent/release.json" -TimeoutSec 60 -UseBasicParsing
+        $names = @($rel.files.PSObject.Properties.Name)
+        if (-not $names.Count) { return $false }
+        $tmp = Join-Path $DataDir 'selfheal'
+        Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Path $tmp -Force | Out-Null
+        foreach ($n in $names) {
+            if ($n -notmatch '^[a-z-]+\.ps1$') { return $false }
+            $f = Join-Path $tmp $n
+            Invoke-WebRequest -Uri "$server/agent/$n" -OutFile $f -UseBasicParsing -TimeoutSec 120
+            $h = (Get-FileHash $f -Algorithm SHA256).Hash.ToLower()
+            if ($h -ne "$($rel.files.$n)".ToLower()) { return $false }
+        }
+        foreach ($n in $names) { Copy-Item (Join-Path $tmp $n) (Join-Path $PSScriptRoot $n) -Force }
+        Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
+        return $true
+    } catch { return $false }
+}
+
+# Load the core library. If it fails to load (most likely an AV block after a bad update), self-heal
+# from the server and try again, so the agent recovers on its own instead of crash-looping forever.
+$loaded = $false
+try { . $ActionsPath; $loaded = [bool](Get-Command Initialize-Kem -ErrorAction SilentlyContinue) } catch { $loaded = $false }
+if (-not $loaded) {
+    if (Invoke-KemSelfHeal) {
+        try { . $ActionsPath; $loaded = [bool](Get-Command Initialize-Kem -ErrorAction SilentlyContinue) } catch { $loaded = $false }
+    }
+}
+if (-not $loaded) {
+    try { Add-Content -Path (Join-Path $DataDir 'agent.log') -Value ("[{0}] KEM core library failed to load; self-heal did not recover it - will retry on next start." -f (Get-Date)) -ErrorAction SilentlyContinue } catch { }
+    exit 2
+}
 Initialize-Kem $DataDir
 
 $cfg = Get-KemConfig

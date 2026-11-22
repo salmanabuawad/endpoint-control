@@ -1385,6 +1385,15 @@ def index():
     return FileResponse(BASE / "static" / "index.html", headers={"Cache-Control": "no-store"})
 
 
+@app.get("/agent/release.json", include_in_schema=False)
+def agent_release_manifest():
+    # Public manifest (version + per-file SHA-256) so the agent LAUNCHER can self-heal without needing
+    # the (possibly unloadable) action library: it re-downloads these files when its core won't load.
+    # No new exposure - the files themselves are already served at /agent/<name>.
+    return Response(content=json.dumps(AGENT_RELEASE), media_type="application/json",
+                    headers={"Cache-Control": "no-store"})
+
+
 @app.get("/agent/{name}", include_in_schema=False)
 def agent_file(name: str):
     if name not in AGENT_FILES:

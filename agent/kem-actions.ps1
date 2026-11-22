@@ -1,7 +1,7 @@
 # KEM agent - action library (dot-sourced by kem-agent.ps1, install.ps1 and background jobs).
 # Windows PowerShell 5.1, runs as SYSTEM.
 
-$script:KemVersion  = '1.11.0'
+$script:KemVersion  = '1.12.0'
 $script:KemTaskName = 'KEM Agent'
 $script:KemGatewayTask = 'KEM Gateway Relay'   # scheduled task when this station is a teacher station
 $script:KemAdminUser = 'kemadmin'   # install-created managed local admin (interactive logon denied)
