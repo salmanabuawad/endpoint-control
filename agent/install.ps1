@@ -20,7 +20,7 @@ $dataDir = Join-Path $env:ProgramData 'KEM'
 New-Item -ItemType Directory -Path $installDir, $dataDir -Force | Out-Null
 
 Write-Host '[1/6] Fetching agent files...'
-foreach ($f in 'kem-agent.ps1', 'kem-actions.ps1', 'uninstall.ps1') {
+foreach ($f in 'kem-agent.ps1', 'kem-actions.ps1', 'kem-classroom.ps1', 'uninstall.ps1') {
     $local = Join-Path $PSScriptRoot $f
     $dest = Join-Path $installDir $f
     if ($PSScriptRoot -and (Test-Path $local) -and ($PSScriptRoot -ne $installDir)) { Copy-Item $local $dest -Force }

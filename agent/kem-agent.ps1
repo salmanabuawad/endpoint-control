@@ -78,9 +78,17 @@ while ($true) {
             try { Remove-KemUiTasks } catch { }
         }
 
-        # Screen broadcast: capture (source) and/or pull-and-show frames (viewers), once per tick.
-        try { Invoke-KemBroadcastSource $cfg.server } catch { Write-KemLog "Broadcast source error: $($_.Exception.Message)" 'WARN' }
-        try { Sync-KemBroadcastView $cfg.server $cfg } catch { Write-KemLog "Broadcast view error: $($_.Exception.Message)" 'WARN' }
+        # Screen broadcast: only touch the AV-sensitive classroom module while a broadcast is active,
+        # so a normal station never loads it (and never risks an AV block at the core level).
+        if ((Get-KemState 'broadcast_src') -or (Get-KemState 'broadcast_view')) {
+            try {
+                if (-not (Get-Command Sync-KemBroadcastView -ErrorAction SilentlyContinue)) { . (Join-Path $PSScriptRoot 'kem-classroom.ps1') }
+                if (Get-Command Sync-KemBroadcastView -ErrorAction SilentlyContinue) {
+                    Invoke-KemBroadcastSource $cfg.server
+                    Sync-KemBroadcastView $cfg.server $cfg
+                }
+            } catch { Write-KemLog "Broadcast error: $($_.Exception.Message)" 'WARN' }
+        }
 
         $tel = Get-KemTelemetry
         if ($jobCmd) { $tel.busy = "$($jobCmd.type)" }

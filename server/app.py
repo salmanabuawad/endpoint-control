@@ -50,7 +50,7 @@ TRUST_PROXY = os.environ.get("KEM_TRUST_PROXY") == "1"
 METRIC_RETENTION = 48 * 3600
 LIVE_INTERVAL = 3      # check-in interval while an admin has the device page open
 _viewing: dict[str, float] = {}
-AGENT_FILES = {"install.ps1", "kem-agent.ps1", "kem-actions.ps1", "uninstall.ps1"}
+AGENT_FILES = {"install.ps1", "kem-agent.ps1", "kem-actions.ps1", "kem-classroom.ps1", "uninstall.ps1"}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);
@@ -156,6 +156,19 @@ CREATE TABLE IF NOT EXISTS investigations(
   model TEXT DEFAULT '', command_id INTEGER, created REAL, created_by TEXT DEFAULT '',
   created_role TEXT DEFAULT '', updated REAL);
 CREATE INDEX IF NOT EXISTS ix_invest_device ON investigations(device_id, created);
+CREATE TABLE IF NOT EXISTS automation_rules(
+  id TEXT PRIMARY KEY, name TEXT, enabled INTEGER DEFAULT 1, scope_type TEXT DEFAULT 'global', scope_id TEXT,
+  trigger TEXT DEFAULT '{}', action TEXT DEFAULT '{}', mode TEXT DEFAULT 'auto', cooldown_min INTEGER DEFAULT 60,
+  max_per_day INTEGER DEFAULT 3, role TEXT DEFAULT 'superadmin', owner_scope_type TEXT DEFAULT 'global',
+  owner_scope_id TEXT, next_run REAL, last_fired REAL, created REAL, created_by TEXT DEFAULT '', updated REAL);
+CREATE TABLE IF NOT EXISTS automation_state(
+  rule_id TEXT, device_id TEXT, last_fired REAL, fired_day TEXT DEFAULT '', fired_count INTEGER DEFAULT 0,
+  PRIMARY KEY(rule_id, device_id));
+CREATE TABLE IF NOT EXISTS automation_events(
+  id TEXT PRIMARY KEY, rule_id TEXT, rule_name TEXT, device_id TEXT, hostname TEXT, lab_id TEXT,
+  trigger_text TEXT DEFAULT '', action_text TEXT DEFAULT '', action TEXT DEFAULT '{}', status TEXT,
+  note TEXT DEFAULT '', command_id INTEGER, created REAL, decided_by TEXT DEFAULT '', decided_at REAL);
+CREATE INDEX IF NOT EXISTS ix_autoev_status ON automation_events(status, created);
 """
 # Columns added after v1.0 (ALTER TABLE on existing databases).
 MIGRATIONS = [
@@ -254,7 +267,7 @@ DEFAULT_SETTINGS = {
     "notify_webhook": "", "notify_email": "", "smtp_host": "", "smtp_port": "587", "smtp_user": "",
     "smtp_pass": "", "smtp_from": "", "smtp_security": "starttls",
     "notify_events": json.dumps(["enrolled", "alert", "offline", "command_failed"]),
-    "notify_offline_hours": "0", "auto_update_scan": "1", "auto_update_agent": "1", "public_url": "",
+    "notify_offline_hours": "0", "auto_update_scan": "1", "auto_update_agent": "0", "public_url": "",
     # Local AI diagnostics (OpenAI-compatible endpoint: Ollama, llama.cpp, LM Studio, ...).
     "ai_enabled": "0", "ai_base_url": "", "ai_model": "", "ai_api_key": "",
 }
@@ -308,6 +321,7 @@ def role_capabilities(role: str) -> dict:
         "view_packages": admin or role == "school_manager", "manage_packages": admin or role == "school_manager",
         "view_classes": admin or role == "school_manager", "manage_classes": admin or role == "school_manager",
         "manage_exam_schedules": admin or role == "school_manager",
+        "manage_automation": admin or role == "school_manager",
         "view_licensing": admin or role == "school_manager", "manage_licensing": admin,
         "commands": sorted(COMMAND_TYPES) if admin else
                     sorted(COMMAND_TYPES - SCHOOL_MANAGER_BLOCKED) if role == "school_manager" else
@@ -489,7 +503,7 @@ def _agent_release() -> dict:
     text = (AGENT_DIR / "kem-actions.ps1").read_text(encoding="ascii", errors="replace")
     m = re.search(r"\$script:KemVersion\s*=\s*'([^']+)'", text)
     files = {n: hashlib.sha256((AGENT_DIR / n).read_bytes()).hexdigest()
-             for n in ("kem-agent.ps1", "kem-actions.ps1", "uninstall.ps1")}
+             for n in ("kem-agent.ps1", "kem-actions.ps1", "kem-classroom.ps1", "uninstall.ps1")}
     return {"version": m.group(1) if m else "0", "files": files}
 
 
@@ -712,6 +726,8 @@ def monitor_loop() -> None:
                 run_due_reports(con)
             with db() as con:
                 run_due_exams(con)
+            with db() as con:
+                run_automation(con)
             with db() as con:
                 con.execute("DELETE FROM seen_nonces WHERE seen < ?", (now() - 2 * SIG_WINDOW,))
         except Exception as e:  # noqa: BLE001 - keep the monitor alive
@@ -2236,7 +2252,11 @@ def list_investigations(device_id: str, user: dict = Depends(require_diagnostics
 @app.post("/api/devices/{device_id}/investigations")
 def start_investigation(device_id: str, request: Request, body: dict = Body(...),
                         user: dict = Depends(require_diagnostics)):
-    question = str(body.get("question") or "").strip()
+    return open_investigation(user, device_id, str(body.get("question") or "").strip(), client_ip(request))
+
+
+def open_investigation(user: dict, device_id: str, question: str, ip: str = "") -> dict:
+    """Plan and start an investigation (also used by automation rules). Raises HTTPException on refusal."""
     if not 3 <= len(question) <= 500:
         raise HTTPException(400, "Describe the problem (3-500 characters)")
     with db() as con:
@@ -2262,7 +2282,7 @@ def start_investigation(device_id: str, request: Request, body: dict = Body(...)
                     "created_role,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                     (iid, device_id, question, "collecting", 1, "[]", cfg["model"], t, user["username"], user["role"], t))
         _start_round(con, iid, device_id, user, probes, reason, [], 1, agent_version=row["agent_version"] or "")
-        audit(con, user["username"], client_ip(request), "investigation_started", row["hostname"],
+        audit(con, user["username"], ip, "investigation_started", row["hostname"],
               {"question": question[:120], "probes": probes, "model": cfg["model"]})
         return serialize_investigation(con.execute("SELECT * FROM investigations WHERE id=?", (iid,)).fetchone())
 
@@ -2293,6 +2313,495 @@ def cancel_investigation(inv_id: str, request: Request, user: dict = Depends(req
                         (now(), inv["command_id"]))
         audit(con, user["username"], client_ip(request), "investigation_cancelled", row["hostname"], {})
         return {"ok": True}
+
+
+# ---------------------------------------------------------------- automation & auto-recovery rules
+# "When <trigger> on stations in <scope>, do <action>." Triggers are evaluated by the monitor loop from
+# data the server already has (health alerts, the metrics history, last check-in, a clock). Actions are
+# the existing, already-validated commands (plus notify and AI investigation). Guard rails: a cooldown,
+# a per-station daily cap (stops reboot loops), no re-firing while the same command is still pending,
+# and an approval mode in which an operator must approve each action (forced for destructive recovery).
+
+AUTOMATION_ALERTS = {
+    "low_disk": "Low disk space (under 10% free)", "defender_off": "Defender real-time protection off",
+    "av_sig": "Antivirus signatures older than 7 days", "fw_off": "Firewall turned off",
+    "sec_updates": "Security updates missing", "reboot_pending": "Reboot pending",
+    "offline_3d": "Offline for more than 3 days",
+}
+AUTOMATION_METRICS = {"cpu": "CPU", "mem": "memory", "disk": "disk"}
+# action type -> (label, command type or None, needs approval always)
+AUTOMATION_ACTIONS = {
+    "notify": ("Send a notification (webhook / e-mail)", None, False),
+    "investigate": ("Start an AI investigation", None, False),
+    "defender_scan": ("Run a Defender scan", "defender_scan", False),
+    "security_scan": ("Collect a security snapshot", "security_scan", False),
+    "scan_updates": ("Scan for Windows updates", "scan_updates", False),
+    "install_updates": ("Install Windows updates", "install_updates", False),
+    "refresh_inventory": ("Refresh inventory", "refresh_inventory", False),
+    "restart_service": ("Restart a service", "service_action", False),
+    "start_service": ("Start a service", "service_action", False),
+    "kill_process": ("End a process", "kill_process", False),
+    "reboot": ("Restart the computer", "reboot", False),
+    "quarantine": ("Quarantine: block internet (LAN + KEM stay reachable)", "block_internet", False),
+    "restore_baseline": ("Restore the baseline snapshot", "reset_device", True),
+}
+AUTOMATION_DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+PENDING_TTL = 24 * 3600
+
+
+def _auto_int(v, lo: int, hi: int, name: str) -> int:
+    try:
+        n = int(v)
+    except (TypeError, ValueError):
+        raise HTTPException(400, f"{name} must be a whole number")
+    if not lo <= n <= hi:
+        raise HTTPException(400, f"{name} must be between {lo} and {hi}")
+    return n
+
+
+def validate_trigger(t: Any) -> dict:
+    if not isinstance(t, dict):
+        raise HTTPException(400, "trigger must be an object")
+    kind = t.get("type")
+    if kind == "alert":
+        if t.get("code") not in AUTOMATION_ALERTS:
+            raise HTTPException(400, "Unknown alert")
+        return {"type": "alert", "code": t["code"]}
+    if kind == "metric":
+        if t.get("metric") not in AUTOMATION_METRICS:
+            raise HTTPException(400, "metric must be cpu, mem or disk")
+        return {"type": "metric", "metric": t["metric"], "value": _auto_int(t.get("value"), 10, 100, "Threshold"),
+                "for_min": _auto_int(t.get("for_min"), 5, 1440, "Duration")}
+    if kind == "offline":
+        return {"type": "offline", "minutes": _auto_int(t.get("minutes"), 10, 43200, "Offline minutes")}
+    if kind == "schedule":
+        cadence = t.get("cadence")
+        if cadence not in ("daily", "weekly"):
+            raise HTTPException(400, "cadence must be daily or weekly")
+        return {"type": "schedule", "cadence": cadence, "hour": _auto_int(t.get("hour"), 0, 23, "Hour"),
+                "minute": _auto_int(t.get("minute"), 0, 59, "Minute"), "weekday": _auto_int(t.get("weekday", 0), 0, 6, "Weekday")}
+    raise HTTPException(400, "trigger type must be alert, metric, offline or schedule")
+
+
+def automation_command(a: dict) -> tuple[str | None, dict]:
+    """Map a validated action to (command type, params) - or (None, {}) for notify/investigate."""
+    kind = a["type"]
+    ctype = AUTOMATION_ACTIONS[kind][1]
+    if ctype is None:
+        return None, {}
+    params = {
+        "defender_scan": {"scan_type": a.get("scan_type", "quick")},
+        "install_updates": {"scope": a.get("scope", "security"), "reboot": a.get("reboot", "never")},
+        "restart_service": {"name": a.get("name"), "action": "restart"},
+        "start_service": {"name": a.get("name"), "action": "start"},
+        "kill_process": {"name": a.get("name")},
+        "reboot": {"delay": a.get("delay", 300), "message": a.get("message") or "KEM automation is restarting this computer."},
+        "quarantine": {"allow_lan": True},
+        "restore_baseline": {"mode": "restore_baseline"},
+    }.get(kind, {})
+    return ctype, validate_params(ctype, params)
+
+
+def validate_action(a: Any, role: str) -> dict:
+    if not isinstance(a, dict) or a.get("type") not in AUTOMATION_ACTIONS:
+        raise HTTPException(400, "Unknown action")
+    kind = a["type"]
+    out: dict = {"type": kind}
+    if kind == "notify":
+        out["text"] = clean(a.get("text"), 300)
+    elif kind == "investigate":
+        q = str(a.get("question") or "").strip()
+        if not 3 <= len(q) <= 500:
+            raise HTTPException(400, "Describe what the AI should investigate (3-500 characters)")
+        out["question"] = q
+    elif kind == "defender_scan":
+        out["scan_type"] = a.get("scan_type", "quick")
+    elif kind == "install_updates":
+        out["scope"], out["reboot"] = a.get("scope", "security"), a.get("reboot", "never")
+    elif kind in ("restart_service", "start_service", "kill_process"):
+        out["name"] = clean(a.get("name"), 100)
+    elif kind == "reboot":
+        out["delay"] = _auto_int(a.get("delay", 300), 60, 3600, "Reboot delay")
+        out["message"] = clean(a.get("message"), 200)
+    ctype, params = automation_command(out)  # runs the command's own validation
+    if ctype and not role_can_issue(role, ctype):
+        raise HTTPException(403, "Your role cannot use this action")
+    if kind == "defender_scan":
+        out["scan_type"] = params["scan_type"]
+    if kind in ("restart_service", "start_service", "kill_process"):
+        out["name"] = params["name"]
+    return out
+
+
+def describe_trigger(t: dict) -> str:
+    kind = t.get("type")
+    if kind == "alert":
+        return "Alert: " + AUTOMATION_ALERTS.get(t.get("code"), t.get("code", ""))
+    if kind == "metric":
+        return f"{AUTOMATION_METRICS.get(t['metric'], t['metric'])} at or above {t['value']}% for {t['for_min']} min"
+    if kind == "offline":
+        return f"Offline for {t['minutes']} min"
+    if kind == "schedule":
+        hm = f"{t['hour']:02d}:{t['minute']:02d}"
+        return f"Every day at {hm}" if t["cadence"] == "daily" else f"Every {AUTOMATION_DAYS[t['weekday']]} at {hm}"
+    return "?"
+
+
+def describe_action(a: dict) -> str:
+    base = AUTOMATION_ACTIONS.get(a.get("type"), ("?",))[0]
+    extra = a.get("name") or (a.get("scan_type") if a.get("type") == "defender_scan" else "") \
+        or (a.get("question") if a.get("type") == "investigate" else "")
+    return f"{base}: {extra}" if extra else base
+
+
+def next_schedule_run(t: dict, after: float) -> float:
+    lt = time.localtime(after)
+    base = time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, t["hour"], t["minute"], 0, 0, 0, -1))
+    for day in range(0, 8):
+        cand = base + day * 86400
+        c = time.localtime(cand)
+        cand = time.mktime((c.tm_year, c.tm_mon, c.tm_mday, t["hour"], t["minute"], 0, 0, 0, -1))  # DST-safe
+        if cand > after and (t["cadence"] == "daily" or c.tm_wday == t["weekday"]):
+            return cand
+    return after + 86400
+
+
+def rule_lab_ids(con, st: str, sid) -> set | None:
+    """Labs a rule's scope covers (None = everything, including unassigned stations)."""
+    if st == "global":
+        return None
+    if st == "lab":
+        return {sid}
+    if st == "school":
+        return {r["id"] for r in con.execute("SELECT id FROM labs WHERE school_id=?", (sid,))}
+    return {r["id"] for r in con.execute(
+        "SELECT l.id FROM labs l JOIN schools s ON s.id=l.school_id WHERE s.municipality_id=?", (sid,))}
+
+
+def rule_actor(rule) -> dict:
+    return {"id": "", "username": f"rule:{rule['name']}"[:64], "role": rule["role"],
+            "scope_type": rule["owner_scope_type"], "scope_id": rule["owner_scope_id"]}
+
+
+def rule_devices(con, rule) -> list:
+    labs = rule_lab_ids(con, rule["scope_type"], rule["scope_id"])
+    allowed = allowed_lab_ids(con, rule_actor(rule))  # never beyond the author's own reach
+    out = []
+    for d in con.execute("SELECT * FROM devices").fetchall():
+        if labs is not None and d["lab_id"] not in labs:
+            continue
+        if allowed is not None and d["lab_id"] not in allowed:
+            continue
+        out.append(d)
+    return out
+
+
+def trigger_matches(con, t: dict, d, at: float) -> str | None:
+    """Return a short reason if the trigger condition holds for this device now, else None."""
+    online = bool(d["last_seen"] and at - d["last_seen"] < ONLINE_SECONDS)
+    if t["type"] == "alert":
+        alerts = device_alerts(d, jload(d["telemetry"], {}), jload(d["inventory"], {}), online, jload(d["updates"], {}))
+        hit = next((a for a in alerts if a["code"] == t["code"]), None)
+        return hit["text"] if hit else None
+    if t["type"] == "metric":
+        if not online:
+            return None
+        col = {"cpu": "cpu", "mem": "mem", "disk": "disk"}[t["metric"]]
+        vals = [r[0] for r in con.execute(f"SELECT {col} FROM metrics WHERE device_id=? AND ts>=?",
+                                          (d["id"], at - t["for_min"] * 60)).fetchall()]
+        span = con.execute("SELECT MIN(ts) FROM metrics WHERE device_id=? AND ts>=?",
+                           (d["id"], at - t["for_min"] * 60)).fetchone()[0]
+        # need samples covering most of the window, all at/above the threshold
+        if len(vals) >= 2 and span is not None and at - span >= t["for_min"] * 60 * 0.8 \
+                and all(isinstance(v, (int, float)) and v >= t["value"] for v in vals):
+            return f"{AUTOMATION_METRICS[t['metric']]} {round(min(vals))}-{round(max(vals))}% for {t['for_min']} min"
+        return None
+    if t["type"] == "offline":
+        if d["last_seen"] and at - d["last_seen"] > t["minutes"] * 60:
+            return f"Offline since {time.strftime('%Y-%m-%d %H:%M', time.localtime(d['last_seen']))}"
+        return None
+    return None
+
+
+def _command_open(con, device_id: str, ctype: str) -> bool:
+    return bool(con.execute("SELECT 1 FROM commands WHERE device_id=? AND type=? AND status IN ('queued','sent','running')",
+                            (device_id, ctype)).fetchone())
+
+
+def execute_automation_action(con, actor: dict, d, action: dict, trigger_text: str, rule_name: str) -> tuple[str, str, int | None]:
+    """Carry out one action for one device. Returns (status, note, command_id)."""
+    kind = action["type"]
+    if kind == "notify":
+        if not channels_configured(con):
+            return "skipped", "No notification channel is configured (Settings)", None
+        text = f"Rule '{rule_name}': {trigger_text}" + (f" - {action['text']}" if action.get("text") else "")
+        con.execute("INSERT INTO notifications(ts,event,device_id,hostname,text) VALUES(?,?,?,?,?)",
+                    (now(), "automation", d["id"], d["hostname"], text[:1000]))
+        _wake.set()
+        return "notified", "Notification queued", None
+    if kind == "investigate":
+        question = f"{action['question']} (automatic: {trigger_text})"
+        threading.Thread(target=_automation_investigate, args=(actor, d["id"], question), daemon=True).start()
+        return "started", "AI investigation requested - see the device page", None
+    ctype, params = automation_command(action)
+    cids = _enqueue(con, actor, [d], ctype, params)
+    return "queued", f"{ctype.replace('_', ' ')} queued", cids[0]
+
+
+def _automation_investigate(actor: dict, device_id: str, question: str) -> None:
+    try:
+        open_investigation(actor, device_id, question[:500], "automation")
+    except HTTPException as e:
+        print(f"[KEM] automation investigation on {device_id} not started: {e.detail}")
+
+
+def _record_event(con, rule, d, trigger_text: str, action: dict, status: str, note: str = "", cid=None) -> str:
+    eid = uuid.uuid4().hex
+    con.execute("INSERT INTO automation_events(id,rule_id,rule_name,device_id,hostname,lab_id,trigger_text,action_text,"
+                "action,status,note,command_id,created) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (eid, rule["id"], rule["name"], d["id"], d["hostname"], d["lab_id"], trigger_text[:300],
+                 describe_action(action)[:300], json.dumps(action, ensure_ascii=False), status, note[:500], cid, now()))
+    return eid
+
+
+def fire_rule(con, rule, d, trigger_text: str, at: float, use_cooldown: bool = True) -> str | None:
+    """Apply a rule to one matching device, honouring cooldown, daily cap and pending duplicates."""
+    action = jload(rule["action"], {})
+    st = con.execute("SELECT * FROM automation_state WHERE rule_id=? AND device_id=?", (rule["id"], d["id"])).fetchone()
+    if use_cooldown and st and st["last_fired"] and at - st["last_fired"] < rule["cooldown_min"] * 60:
+        return None
+    day = time.strftime("%Y-%m-%d", time.localtime(at))
+    count = st["fired_count"] if st and st["fired_day"] == day else 0
+    if count >= rule["max_per_day"]:
+        if count == rule["max_per_day"]:  # say so once per day, then stay quiet
+            _record_event(con, rule, d, trigger_text, action, "capped",
+                          f"Daily limit of {rule['max_per_day']} reached - not acting again today")
+            con.execute("UPDATE automation_state SET fired_count=? WHERE rule_id=? AND device_id=?",
+                        (count + 1, rule["id"], d["id"]))
+        return None
+    ctype = AUTOMATION_ACTIONS[action["type"]][1]
+    if ctype and _command_open(con, d["id"], ctype):
+        return None  # the same action is still waiting on this station
+    if con.execute("SELECT 1 FROM automation_events WHERE rule_id=? AND device_id=? AND status='pending'",
+                   (rule["id"], d["id"])).fetchone():
+        return None
+    needs_approval = rule["mode"] == "approve" or AUTOMATION_ACTIONS[action["type"]][2]
+    if needs_approval:
+        status, note, cid = "pending", "Waiting for an operator to approve", None
+    else:
+        status, note, cid = execute_automation_action(con, rule_actor(rule), d, action, trigger_text, rule["name"])
+    con.execute("INSERT INTO automation_state(rule_id,device_id,last_fired,fired_day,fired_count) VALUES(?,?,?,?,?) "
+                "ON CONFLICT(rule_id,device_id) DO UPDATE SET last_fired=excluded.last_fired, "
+                "fired_day=excluded.fired_day, fired_count=excluded.fired_count",
+                (rule["id"], d["id"], at, day, count + 1))
+    con.execute("UPDATE automation_rules SET last_fired=? WHERE id=?", (at, rule["id"]))
+    return _record_event(con, rule, d, trigger_text, action, status, note, cid)
+
+
+def run_automation(con, at: float | None = None) -> int:
+    at = at or now()
+    fired = 0
+    con.execute("UPDATE automation_events SET status='expired', note='Not approved within 24 hours' "
+                "WHERE status='pending' AND created < ?", (at - PENDING_TTL,))
+    for rule in con.execute("SELECT * FROM automation_rules WHERE enabled=1").fetchall():
+        t = jload(rule["trigger"], {})
+        try:
+            if t.get("type") == "schedule":
+                if not rule["next_run"]:
+                    con.execute("UPDATE automation_rules SET next_run=? WHERE id=?", (next_schedule_run(t, at), rule["id"]))
+                    continue
+                if at < rule["next_run"]:
+                    continue
+                con.execute("UPDATE automation_rules SET next_run=? WHERE id=?", (next_schedule_run(t, at), rule["id"]))
+                for d in rule_devices(con, rule):
+                    fired += bool(fire_rule(con, rule, d, describe_trigger(t), at, use_cooldown=False))
+                continue
+            for d in rule_devices(con, rule):
+                why = trigger_matches(con, t, d, at)
+                if why:
+                    fired += bool(fire_rule(con, rule, d, why, at))
+        except Exception as e:  # noqa: BLE001 - one bad rule must not stop the others
+            print(f"[KEM] automation rule {rule['id']} error: {e}")
+    return fired
+
+
+def require_automation(request: Request) -> dict:
+    u = _authenticate(request)
+    if u["role"] not in ADMIN_ROLES and u["role"] != "school_manager":
+        raise HTTPException(403, "Not allowed to manage automation")
+    return u
+
+
+def serialize_rule(con, r) -> dict:
+    d = dict(r)
+    d["trigger"], d["action"] = jload(d["trigger"], {}), jload(d["action"], {})
+    d["enabled"] = bool(d["enabled"])
+    d["trigger_text"], d["action_text"] = describe_trigger(d["trigger"]), describe_action(d["action"])
+    d["scope_name"] = scope_name(con, d["scope_type"], d["scope_id"])
+    d["forced_approval"] = AUTOMATION_ACTIONS.get(d["action"].get("type"), ("", None, False))[2]
+    return d
+
+
+def _rule_body(con, user: dict, body: dict) -> dict:
+    name = clean(body.get("name"), 120)
+    if not name:
+        raise HTTPException(400, "A name is required")
+    mode = body.get("mode", "auto")
+    if mode not in ("auto", "approve"):
+        raise HTTPException(400, "mode must be auto or approve")
+    st = body.get("scope_type", "global")
+    if st == "global" and not sees_unassigned(user):
+        raise HTTPException(403, "Pick a school or lab - only global admins can target everything")
+    if st == "global":
+        sid = None
+    else:
+        st, sid = _image_scope(con, user, body)
+    return {"name": name, "mode": mode, "scope_type": st, "scope_id": sid,
+            "trigger": validate_trigger(body.get("trigger")), "action": validate_action(body.get("action"), user["role"]),
+            "cooldown_min": _auto_int(body.get("cooldown_min", 60), 5, 10080, "Cooldown"),
+            "max_per_day": _auto_int(body.get("max_per_day", 3), 1, 48, "Daily limit")}
+
+
+@app.get("/api/automation/catalog")
+def automation_catalog(user: dict = Depends(require_automation)):
+    acts = {k: {"label": v[0], "approval_required": v[2],
+                "allowed": v[1] is None or role_can_issue(user["role"], v[1])} for k, v in AUTOMATION_ACTIONS.items()}
+    return {"alerts": AUTOMATION_ALERTS, "metrics": AUTOMATION_METRICS, "actions": acts,
+            "global_ok": sees_unassigned(user)}
+
+
+@app.get("/api/automation/rules")
+def list_rules(user: dict = Depends(require_automation)):
+    with db() as con:
+        rows = con.execute("SELECT * FROM automation_rules ORDER BY created DESC").fetchall()
+        return [serialize_rule(con, r) for r in rows if rule_in_reach(con, user, r)]
+
+
+@app.post("/api/automation/rules")
+def create_rule(request: Request, body: dict = Body(...), user: dict = Depends(require_automation)):
+    with db() as con:
+        b = _rule_body(con, user, body)
+        rid, t = uuid.uuid4().hex, now()
+        nxt = next_schedule_run(b["trigger"], t) if b["trigger"]["type"] == "schedule" else None
+        con.execute("INSERT INTO automation_rules(id,name,enabled,scope_type,scope_id,trigger,action,mode,cooldown_min,"
+                    "max_per_day,role,owner_scope_type,owner_scope_id,next_run,created,created_by,updated) "
+                    "VALUES(?,?,1,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (rid, b["name"], b["scope_type"], b["scope_id"], json.dumps(b["trigger"]), json.dumps(b["action"], ensure_ascii=False),
+                     b["mode"], b["cooldown_min"], b["max_per_day"], user["role"], user["scope_type"], user["scope_id"],
+                     nxt, t, user["username"], t))
+        audit(con, user["username"], client_ip(request), "automation_rule_created", b["name"],
+              {"trigger": describe_trigger(b["trigger"]), "action": describe_action(b["action"]), "mode": b["mode"]})
+        return serialize_rule(con, con.execute("SELECT * FROM automation_rules WHERE id=?", (rid,)).fetchone())
+
+
+def rule_in_reach(con, user: dict, r) -> bool:
+    """A rule is visible/editable only to someone whose own reach covers its whole target scope."""
+    if r["scope_type"] == "global":
+        return sees_unassigned(user)
+    return entitlement_in_scope(con, user, r)
+
+
+def _rule_for(con, user: dict, rid: str):
+    row = con.execute("SELECT * FROM automation_rules WHERE id=?", (rid,)).fetchone()
+    if not row or not rule_in_reach(con, user, row):
+        raise HTTPException(404, "Rule not found")
+    return row
+
+
+@app.patch("/api/automation/rules/{rid}")
+def update_rule(rid: str, request: Request, body: dict = Body(...), user: dict = Depends(require_automation)):
+    with db() as con:
+        row = _rule_for(con, user, rid)
+        if set(body) == {"enabled"}:
+            con.execute("UPDATE automation_rules SET enabled=?, updated=? WHERE id=?", (1 if body["enabled"] else 0, now(), rid))
+            audit(con, user["username"], client_ip(request), "automation_rule_" + ("enabled" if body["enabled"] else "disabled"), row["name"])
+        else:
+            b = _rule_body(con, user, body)
+            nxt = next_schedule_run(b["trigger"], now()) if b["trigger"]["type"] == "schedule" else None
+            con.execute("UPDATE automation_rules SET name=?, scope_type=?, scope_id=?, trigger=?, action=?, mode=?, "
+                        "cooldown_min=?, max_per_day=?, role=?, owner_scope_type=?, owner_scope_id=?, next_run=?, updated=? WHERE id=?",
+                        (b["name"], b["scope_type"], b["scope_id"], json.dumps(b["trigger"]), json.dumps(b["action"], ensure_ascii=False),
+                         b["mode"], b["cooldown_min"], b["max_per_day"], user["role"], user["scope_type"], user["scope_id"],
+                         nxt, now(), rid))
+            audit(con, user["username"], client_ip(request), "automation_rule_updated", b["name"],
+                  {"trigger": describe_trigger(b["trigger"]), "action": describe_action(b["action"]), "mode": b["mode"]})
+        return serialize_rule(con, con.execute("SELECT * FROM automation_rules WHERE id=?", (rid,)).fetchone())
+
+
+@app.delete("/api/automation/rules/{rid}")
+def delete_rule(rid: str, request: Request, user: dict = Depends(require_automation)):
+    with db() as con:
+        row = _rule_for(con, user, rid)
+        con.execute("DELETE FROM automation_rules WHERE id=?", (rid,))
+        con.execute("DELETE FROM automation_state WHERE rule_id=?", (rid,))
+        con.execute("UPDATE automation_events SET status='expired', note='Rule deleted' WHERE rule_id=? AND status='pending'", (rid,))
+        audit(con, user["username"], client_ip(request), "automation_rule_deleted", row["name"])
+    return {"ok": True}
+
+
+@app.post("/api/automation/rules/{rid}/preview")
+def preview_rule(rid: str, user: dict = Depends(require_automation)):
+    """Which stations match the trigger right now - nothing is fired."""
+    with db() as con:
+        row = _rule_for(con, user, rid)
+        t, at = jload(row["trigger"], {}), now()
+        devices = rule_devices(con, row)
+        if t.get("type") == "schedule":
+            matches = [{"hostname": d["hostname"], "why": "in scope"} for d in devices]
+            return {"in_scope": len(devices), "matches": matches[:200], "next_run": row["next_run"]}
+        matches = []
+        for d in devices:
+            why = trigger_matches(con, t, d, at)
+            if why:
+                matches.append({"hostname": d["hostname"], "why": why})
+        return {"in_scope": len(devices), "matches": matches[:200]}
+
+
+@app.get("/api/automation/events")
+def list_automation_events(status: str = "", user: dict = Depends(require_automation)):
+    with db() as con:
+        q, args = "SELECT * FROM automation_events", []
+        if status:
+            q += " WHERE status=?"
+            args.append(status)
+        rows = con.execute(q + " ORDER BY created DESC LIMIT 300", args).fetchall()
+        allowed = allowed_lab_ids(con, user)
+        out = []
+        for r in rows:
+            if allowed is not None and r["lab_id"] not in allowed:
+                continue
+            out.append(dict(r) | {"action": jload(r["action"], {})})
+            if len(out) >= 100:
+                break
+        return out
+
+
+@app.post("/api/automation/events/{eid}/{decision}")
+def decide_automation_event(eid: str, decision: str, request: Request, user: dict = Depends(require_automation)):
+    if decision not in ("approve", "reject"):
+        raise HTTPException(404, "Unknown decision")
+    with db() as con:
+        ev = con.execute("SELECT * FROM automation_events WHERE id=?", (eid,)).fetchone()
+        if not ev or not device_in_scope(con, user, ev["lab_id"]):
+            raise HTTPException(404, "Event not found")
+        if ev["status"] != "pending":
+            raise HTTPException(400, "This action is no longer waiting for approval")
+        d = con.execute("SELECT * FROM devices WHERE id=?", (ev["device_id"],)).fetchone()
+        if decision == "reject" or not d:
+            con.execute("UPDATE automation_events SET status='rejected', note=?, decided_by=?, decided_at=? WHERE id=?",
+                        ("Rejected" if d else "Device was removed", user["username"], now(), eid))
+            audit(con, user["username"], client_ip(request), "automation_rejected", ev["hostname"], {"rule": ev["rule_name"]})
+            return {"ok": True, "status": "rejected"}
+        action = jload(ev["action"], {})
+        ctype = AUTOMATION_ACTIONS.get(action.get("type"), ("", None, False))[1]
+        if ctype and not role_can_issue(user["role"], ctype):
+            raise HTTPException(403, "Your role cannot approve this action")
+        status, note, cid = execute_automation_action(con, user, d, action, ev["trigger_text"], ev["rule_name"])
+        con.execute("UPDATE automation_events SET status=?, note=?, command_id=?, decided_by=?, decided_at=? WHERE id=?",
+                    (status, f"Approved by {user['username']} - {note}", cid, user["username"], now(), eid))
+        audit(con, user["username"], client_ip(request), "automation_approved", ev["hostname"],
+              {"rule": ev["rule_name"], "action": ev["action_text"]})
+        return {"ok": True, "status": status}
 
 
 # ---- license / product-key backup ----

@@ -192,6 +192,32 @@ const I18N = {
     'sw.programs': 'programs', 'sw.collected': 'collected', 'sw.notcollected': 'Not collected yet', 'sw.none': 'Nothing to show',
     'sw.uninstallsel': 'Uninstall selected', 'sw.confirm': 'Uninstall {n} program(s)? This runs their uninstaller on the device.', 'sw.t.queued': 'Uninstall queued for {n} program(s)',
     'nav.packages': 'Packages', 'nav.classes': 'Classes', 'nav.fleetai': 'Ask AI', 'nav.exams': 'Exam schedule',
+    'nav.automation': 'Automation',
+    'au.title': 'Automation & recovery', 'au.sub': 'When something happens on a station, act on it automatically — or ask an operator to approve first',
+    'au.new': '+ New rule', 'au.pending': 'Waiting for approval', 'au.pending.none': 'Nothing is waiting for approval.',
+    'au.approve': 'Approve', 'au.reject': 'Reject', 'au.rules': 'Rules', 'au.none': 'No rules yet. Create one to start automating.',
+    'au.col.rule': 'Rule', 'au.col.when': 'When', 'au.col.do': 'Then', 'au.col.scope': 'Stations', 'au.col.last': 'Last fired',
+    'au.events': 'Recent activity', 'au.events.none': 'No rule has fired yet.', 'au.col.time': 'Time', 'au.col.station': 'Station',
+    'au.col.result': 'Result', 'au.mode.auto': 'Automatic', 'au.mode.approve': 'Needs approval', 'au.preview': 'Preview',
+    'au.edit': 'Edit', 'au.del': 'Delete', 'au.confirm.del': 'Delete this rule? Actions it already queued are not undone.',
+    'au.f.name': 'Rule name', 'au.f.scope': 'Applies to', 'au.f.target': 'Which one', 'au.f.trigger': 'When', 'au.f.action': 'Then do',
+    'au.f.mode': 'How', 'au.f.cooldown': 'Wait at least (minutes) before acting again on the same station',
+    'au.f.max': 'At most this many times per station per day',
+    'au.tr.alert': 'A health alert appears', 'au.tr.metric': 'Usage stays high', 'au.tr.offline': 'A station goes offline',
+    'au.tr.schedule': 'On a schedule', 'au.f.alert': 'Alert', 'au.f.metric': 'Resource', 'au.f.value': 'At or above (%)',
+    'au.f.for': 'For at least (minutes)', 'au.f.minutes': 'Offline for (minutes)', 'au.f.cadence': 'Repeat', 'au.f.time': 'Time',
+    'au.f.weekday': 'Day', 'au.f.svc': 'Service name (e.g. Spooler)', 'au.f.proc': 'Process name (e.g. chrome)',
+    'au.f.question': 'What should the AI investigate?', 'au.f.text': 'Extra text for the notification (optional)',
+    'au.f.scan': 'Scan type', 'au.f.updscope': 'Updates', 'au.f.reboot': 'Restart after updates', 'au.f.delay': 'Warn the user (seconds) before restarting',
+    'au.forced': 'This action always needs approval.', 'au.notallowed': '(not allowed for your role)',
+    'au.guard': 'Guard rails: a rule never fires twice inside the wait time, never more than the daily limit per station, and not while the same action is still pending on that station. Approvals expire after 24 hours.',
+    'au.t.created': 'Rule created', 'au.t.saved': 'Rule saved', 'au.t.deleted': 'Rule deleted', 'au.t.approved': 'Approved — action sent',
+    'au.t.rejected': 'Rejected', 'au.prev.title': 'Preview: {name}', 'au.prev.match': '{n} of {total} stations in scope match right now:',
+    'au.prev.sched': '{total} stations in scope. Next run: {when}.', 'au.prev.none': 'No station matches right now ({total} in scope). Nothing would fire.',
+    'au.save': 'Save', 'au.create': 'Create rule', 'au.never': 'never', 'au.quick': 'Quick', 'au.full': 'Full',
+    'au.sec': 'Security only', 'au.all': 'All', 'au.no': 'No', 'au.ifneeded': 'If needed',
+    'au.st.queued': 'Sent', 'au.st.pending': 'Waiting for approval', 'au.st.notified': 'Notified', 'au.st.started': 'Started',
+    'au.st.skipped': 'Skipped', 'au.st.capped': 'Daily limit reached', 'au.st.rejected': 'Rejected', 'au.st.expired': 'Expired',
     'lk.title': 'Licenses & product keys', 'lk.product': 'Product', 'lk.edition': 'Edition', 'lk.status': 'Activation', 'lk.key': 'Key',
     'lk.collect': 'Collect from station', 'lk.reveal': 'Reveal keys', 'lk.none': 'No license data collected yet.',
     'lk.collected': 'Collected {t}', 'lk.never': 'Not collected yet — click “Collect from station”.', 'lk.t.collecting': 'Collecting licenses…',
@@ -403,6 +429,32 @@ const I18N = {
     'sw.programs': 'תוכנות', 'sw.collected': 'נאסף', 'sw.notcollected': 'עדיין לא נאסף', 'sw.none': 'אין מה להציג',
     'sw.uninstallsel': 'הסר נבחרות', 'sw.confirm': 'להסיר {n} תוכנות? פעולה זו מריצה את מסיר ההתקנה במחשב.', 'sw.t.queued': 'הסרה נשלחה עבור {n} תוכנות',
     'nav.packages': 'חבילות', 'nav.classes': 'כיתות', 'nav.fleetai': 'שאל AI', 'nav.exams': 'מבחנים מתוזמנים',
+    'nav.automation': 'אוטומציה',
+    'au.title': 'אוטומציה ושחזור', 'au.sub': 'כאשר משהו קורה בעמדה, פעלו אוטומטית — או בקשו ממפעיל לאשר קודם',
+    'au.new': '+ כלל חדש', 'au.pending': 'ממתין לאישור', 'au.pending.none': 'אין פעולות הממתינות לאישור.',
+    'au.approve': 'אשר', 'au.reject': 'דחה', 'au.rules': 'כללים', 'au.none': 'אין עדיין כללים. צרו כלל כדי להתחיל.',
+    'au.col.rule': 'כלל', 'au.col.when': 'כאשר', 'au.col.do': 'אז', 'au.col.scope': 'עמדות', 'au.col.last': 'הופעל לאחרונה',
+    'au.events': 'פעילות אחרונה', 'au.events.none': 'אף כלל עדיין לא הופעל.', 'au.col.time': 'זמן', 'au.col.station': 'עמדה',
+    'au.col.result': 'תוצאה', 'au.mode.auto': 'אוטומטי', 'au.mode.approve': 'דורש אישור', 'au.preview': 'תצוגה מקדימה',
+    'au.edit': 'עריכה', 'au.del': 'מחיקה', 'au.confirm.del': 'למחוק את הכלל? פעולות שכבר נשלחו לא יבוטלו.',
+    'au.f.name': 'שם הכלל', 'au.f.scope': 'חל על', 'au.f.target': 'איזה', 'au.f.trigger': 'כאשר', 'au.f.action': 'אז בצע',
+    'au.f.mode': 'אופן', 'au.f.cooldown': 'המתן לפחות (דקות) לפני פעולה נוספת באותה עמדה',
+    'au.f.max': 'לכל היותר מספר פעמים זה לעמדה ביום',
+    'au.tr.alert': 'מופיעה התראת תקינות', 'au.tr.metric': 'עומס גבוה מתמשך', 'au.tr.offline': 'עמדה מנותקת',
+    'au.tr.schedule': 'לפי לוח זמנים', 'au.f.alert': 'התראה', 'au.f.metric': 'משאב', 'au.f.value': 'מעל או שווה (%)',
+    'au.f.for': 'לפחות (דקות)', 'au.f.minutes': 'מנותקת במשך (דקות)', 'au.f.cadence': 'חזרה', 'au.f.time': 'שעה',
+    'au.f.weekday': 'יום', 'au.f.svc': 'שם השירות (לדוגמה Spooler)', 'au.f.proc': 'שם התהליך (לדוגמה chrome)',
+    'au.f.question': 'מה ה-AI צריך לחקור?', 'au.f.text': 'טקסט נוסף להתראה (רשות)',
+    'au.f.scan': 'סוג סריקה', 'au.f.updscope': 'עדכונים', 'au.f.reboot': 'הפעלה מחדש לאחר עדכונים', 'au.f.delay': 'התראה למשתמש (שניות) לפני הפעלה מחדש',
+    'au.forced': 'פעולה זו דורשת תמיד אישור.', 'au.notallowed': '(לא מותר לתפקיד שלך)',
+    'au.guard': 'מנגנוני הגנה: כלל לא מופעל פעמיים בתוך זמן ההמתנה, לא יותר מהמגבלה היומית לעמדה, ולא כאשר אותה פעולה עדיין ממתינה בעמדה. אישורים פגים לאחר 24 שעות.',
+    'au.t.created': 'הכלל נוצר', 'au.t.saved': 'הכלל נשמר', 'au.t.deleted': 'הכלל נמחק', 'au.t.approved': 'אושר — הפעולה נשלחה',
+    'au.t.rejected': 'נדחה', 'au.prev.title': 'תצוגה מקדימה: {name}', 'au.prev.match': '{n} מתוך {total} עמדות בתחום תואמות כעת:',
+    'au.prev.sched': '{total} עמדות בתחום. הרצה הבאה: {when}.', 'au.prev.none': 'אף עמדה אינה תואמת כעת ({total} בתחום). שום דבר לא יופעל.',
+    'au.save': 'שמירה', 'au.create': 'צור כלל', 'au.never': 'אף פעם', 'au.quick': 'מהירה', 'au.full': 'מלאה',
+    'au.sec': 'אבטחה בלבד', 'au.all': 'הכול', 'au.no': 'לא', 'au.ifneeded': 'במידת הצורך',
+    'au.st.queued': 'נשלח', 'au.st.pending': 'ממתין לאישור', 'au.st.notified': 'נשלחה התראה', 'au.st.started': 'הופעל',
+    'au.st.skipped': 'דולג', 'au.st.capped': 'הגיע למגבלה היומית', 'au.st.rejected': 'נדחה', 'au.st.expired': 'פג תוקף',
     'lk.title': 'רישיונות ומפתחות מוצר', 'lk.product': 'מוצר', 'lk.edition': 'מהדורה', 'lk.status': 'הפעלה', 'lk.key': 'מפתח',
     'lk.collect': 'אסוף מהעמדה', 'lk.reveal': 'חשוף מפתחות', 'lk.none': 'לא נאספו עדיין נתוני רישיון.',
     'lk.collected': 'נאסף {t}', 'lk.never': 'טרם נאסף — לחצו ”אסוף מהעמדה”.', 'lk.t.collecting': 'אוסף רישיונות…',
@@ -938,7 +990,7 @@ function route() {
   const [, name = 'devices', arg] = (location.hash || '#/devices').split('/');
   setNav(name === 'device' ? 'devices' : name);
   const views = { devices: viewDevices, device: () => viewDevice(arg), enroll: viewEnroll, activity: viewActivity,
-    audit: viewAudit, settings: viewSettings, org: viewOrg, users: viewUsers, gateways: viewGateways, licensing: viewLicensing, incidents: viewIncidents, reports: viewReports, images: viewImages, packages: viewPackages, classes: viewClasses, fleetai: viewFleetAI, exams: viewExamSchedules };
+    audit: viewAudit, settings: viewSettings, org: viewOrg, users: viewUsers, gateways: viewGateways, licensing: viewLicensing, incidents: viewIncidents, reports: viewReports, images: viewImages, packages: viewPackages, classes: viewClasses, fleetai: viewFleetAI, exams: viewExamSchedules, automation: viewAutomation };
   const needs = { org: 'manage_org', users: 'manage_users', gateways: 'manage_gateways', enroll: 'manage_tokens', audit: 'view_audit', licensing: 'view_licensing', incidents: 'view_incidents', reports: 'view_reports', images: 'view_images', packages: 'view_packages' };
   if (needs[name] && !cap(needs[name])) { location.hash = '#/devices'; return; }
   (views[name] || viewDevices)();
@@ -2799,6 +2851,173 @@ async function examScheduleForm(done, s) {
     $('[data-f=weekday]', form).style.display = c === 'weekly' ? '' : 'none';
   };
   form.cadence.onchange = sync; sync();
+}
+
+// ------------------------------------------------------------------ automation & auto-recovery rules
+const AU_STATUS = { queued: 'ok', notified: 'ok', started: 'ok', pending: 'warn', capped: 'warn', skipped: '', rejected: '', expired: '' };
+
+async function viewAutomation() {
+  view.innerHTML = `<div class="page-head"><div><h1>${t('au.title')}</h1><p class="sub">${t('au.sub')}</p></div>
+      <button class="btn primary" id="newrule">${t('au.new')}</button></div>
+    <div class="card pad" id="aupending" style="margin-bottom:16px"></div>
+    <div class="card table-wrap"><table class="grid"><thead><tr>
+      <th>${t('au.col.rule')}</th><th>${t('au.col.when')}</th><th>${t('au.col.do')}</th><th>${t('au.col.scope')}</th><th>${t('au.col.last')}</th><th></th></tr></thead>
+      <tbody id="aurules"><tr><td colspan="6" class="empty">${t('common.loading')}</td></tr></tbody></table></div>
+    <p class="note" style="margin:10px 0 16px">${t('au.guard')}</p>
+    <div class="card pad"><h2>${t('au.events')}</h2><div class="table-wrap" id="auevents"></div></div>`;
+  let catalog;
+  try { catalog = await api('/api/automation/catalog'); } catch (e) { toast(e.message, true); return; }
+
+  const statusPill = (s) => `<span class="pill ${AU_STATUS[s] || ''}">${esc(t('au.st.' + s))}</span>`;
+  const load = async () => {
+    let rules, events;
+    try { [rules, events] = await Promise.all([api('/api/automation/rules'), api('/api/automation/events')]); }
+    catch (e) { toast(e.message, true); return; }
+    $('#aurules').innerHTML = rules.length ? rules.map((r) => `<tr>
+      <td><b>${esc(r.name)}</b><br><small class="muted">${r.mode === 'approve' || r.forced_approval ? '✋ ' + t('au.mode.approve') : '⚡ ' + t('au.mode.auto')}</small></td>
+      <td class="small">${esc(r.trigger_text)}</td>
+      <td class="small">${esc(r.action_text)}</td>
+      <td class="small">${esc(r.scope_name)}</td>
+      <td class="small">${r.last_fired ? ago(r.last_fired) : `<span class="muted">${t('au.never')}</span>`}</td>
+      <td class="nowrap">
+        <label class="switch"><input type="checkbox" data-toggle="${esc(r.id)}" ${r.enabled ? 'checked' : ''}><span></span></label>
+        <button class="link small" data-prev="${esc(r.id)}">${t('au.preview')}</button>
+        <button class="link small" data-edit="${esc(r.id)}">${t('au.edit')}</button>
+        <button class="link small danger-link" data-del="${esc(r.id)}">${t('au.del')}</button></td></tr>`).join('')
+      : `<tr><td colspan="6" class="empty">${t('au.none')}</td></tr>`;
+
+    const pending = events.filter((e) => e.status === 'pending');
+    $('#aupending').innerHTML = `<h2>✋ ${t('au.pending')}${pending.length ? ` <span class="pill warn">${pending.length}</span>` : ''}</h2>
+      ${pending.length ? `<table class="grid" style="margin-top:8px"><tbody>${pending.map((e) => `<tr>
+        <td><a href="#/device/${esc(e.device_id)}"><b>${esc(e.hostname)}</b></a><br><small class="muted">${esc(e.rule_name)} · ${ago(e.created)}</small></td>
+        <td class="small">${esc(e.trigger_text)}</td><td class="small"><b>${esc(e.action_text)}</b></td>
+        <td class="nowrap"><button class="btn primary small" data-approve="${esc(e.id)}">${t('au.approve')}</button>
+          <button class="btn small" data-reject="${esc(e.id)}">${t('au.reject')}</button></td></tr>`).join('')}</tbody></table>`
+        : `<p class="muted small">${t('au.pending.none')}</p>`}`;
+
+    const recent = events.filter((e) => e.status !== 'pending');
+    $('#auevents').innerHTML = recent.length ? `<table class="grid"><thead><tr><th>${t('au.col.time')}</th><th>${t('au.col.station')}</th>
+        <th>${t('au.col.rule')}</th><th>${t('au.col.when')}</th><th>${t('au.col.do')}</th><th>${t('au.col.result')}</th></tr></thead><tbody>
+      ${recent.map((e) => `<tr><td class="small nowrap">${ago(e.created)}</td>
+        <td><a href="#/device/${esc(e.device_id)}">${esc(e.hostname)}</a></td><td class="small">${esc(e.rule_name)}</td>
+        <td class="small">${esc(e.trigger_text)}</td><td class="small">${esc(e.action_text)}</td>
+        <td class="small">${statusPill(e.status)}${e.note ? `<br><small class="muted">${esc(e.note)}</small>` : ''}</td></tr>`).join('')}</tbody></table>`
+      : `<p class="muted small">${t('au.events.none')}</p>`;
+
+    $$('#aurules [data-toggle]').forEach((c) => (c.onchange = async () => {
+      try { await api(`/api/automation/rules/${c.dataset.toggle}`, { method: 'PATCH', body: { enabled: c.checked } }); }
+      catch (e) { toast(e.message, true); c.checked = !c.checked; }
+    }));
+    $$('#aurules [data-edit]').forEach((b) => (b.onclick = () => ruleForm(catalog, load, rules.find((r) => r.id === b.dataset.edit))));
+    $$('#aurules [data-del]').forEach((b) => (b.onclick = () => modal({
+      title: t('au.del'), submit: t('common.delete'), danger: true, body: `<p class="note">${t('au.confirm.del')}</p>`,
+      onSubmit: async () => { await api(`/api/automation/rules/${b.dataset.del}`, { method: 'DELETE' }); toast(t('au.t.deleted')); load(); },
+    })));
+    $$('#aurules [data-prev]').forEach((b) => (b.onclick = async () => {
+      const r = rules.find((x) => x.id === b.dataset.prev);
+      try {
+        const p = await api(`/api/automation/rules/${r.id}/preview`, { method: 'POST' });
+        const sched = r.trigger.type === 'schedule';
+        const head = sched ? t('au.prev.sched').replace('{total}', p.in_scope).replace('{when}', p.next_run ? fmtDate(p.next_run) : '—')
+          : p.matches.length ? t('au.prev.match').replace('{n}', p.matches.length).replace('{total}', p.in_scope)
+            : t('au.prev.none').replace('{total}', p.in_scope);
+        modal({ title: t('au.prev.title').replace('{name}', r.name), submit: 'OK',
+          body: `<p class="note">${esc(head)}</p>${!sched && p.matches.length ? `<table class="grid" style="margin-top:8px"><tbody>${p.matches.map((m) =>
+            `<tr><td><b>${esc(m.hostname)}</b></td><td class="small">${esc(m.why)}</td></tr>`).join('')}</tbody></table>` : ''}`,
+          onSubmit: async () => {} });
+      } catch (e) { toast(e.message, true); }
+    }));
+    const decide = (sel, what, msg) => $$(`#aupending [data-${sel}]`).forEach((b) => (b.onclick = async () => {
+      b.disabled = true;
+      try { await api(`/api/automation/events/${b.dataset[sel]}/${what}`, { method: 'POST' }); toast(t(msg)); load(); }
+      catch (e) { toast(e.message, true); b.disabled = false; }
+    }));
+    decide('approve', 'approve', 'au.t.approved');
+    decide('reject', 'reject', 'au.t.rejected');
+  };
+  $('#newrule').onclick = () => ruleForm(catalog, load, null);
+  await load();
+}
+
+async function ruleForm(catalog, done, r) {
+  let org; try { org = await api('/api/org'); } catch { org = { municipalities: [] }; }
+  const flat = orgFlat(org);
+  const scopes = { municipality: flat.munis, school: flat.schools, lab: flat.labs };
+  const tr = r ? r.trigger : { type: 'alert', code: 'low_disk' };
+  const ac = r ? r.action : { type: 'notify' };
+  const sel = (name, opts, cur) => `<select name="${name}">${opts.map(([v, l]) => `<option value="${esc(v)}" ${String(cur) === String(v) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+  const scopeTypes = ['lab', 'school', 'municipality'].filter((s) => scopes[s].length).concat(catalog.global_ok ? ['global'] : []);
+  const hm = `${String(tr.hour ?? 7).padStart(2, '0')}:${String(tr.minute ?? 0).padStart(2, '0')}`;
+  const form = modal({
+    title: r ? t('au.edit') : t('au.new'), submit: r ? t('au.save') : t('au.create'), wide: true,
+    body: `<label>${t('au.f.name')}<input name="name" maxlength="120" required value="${r ? esc(r.name) : ''}" placeholder="Low disk → clean up"></label>
+      <div class="form-2">
+        <label>${t('au.f.scope')}${sel('scope_type', scopeTypes.map((s) => [s, t('lic.covers.' + s)]), r ? r.scope_type : scopeTypes[0])}</label>
+        <label data-f="scope_id">${t('au.f.target')}<select name="scope_id"></select></label>
+      </div>
+      <h3 style="margin:14px 0 6px">${t('au.f.trigger')}</h3>
+      ${sel('ttype', [['alert', t('au.tr.alert')], ['metric', t('au.tr.metric')], ['offline', t('au.tr.offline')], ['schedule', t('au.tr.schedule')]], tr.type)}
+      <div class="form-2" style="margin-top:8px">
+        <label data-t="alert">${t('au.f.alert')}${sel('code', Object.entries(catalog.alerts), tr.code || 'low_disk')}</label>
+        <label data-t="metric">${t('au.f.metric')}${sel('metric', Object.entries(catalog.metrics), tr.metric || 'cpu')}</label>
+        <label data-t="metric">${t('au.f.value')}<input type="number" name="value" min="10" max="100" value="${tr.value || 90}"></label>
+        <label data-t="metric">${t('au.f.for')}<input type="number" name="for_min" min="5" max="1440" value="${tr.for_min || 15}"></label>
+        <label data-t="offline">${t('au.f.minutes')}<input type="number" name="minutes" min="10" max="43200" value="${tr.minutes || 60}"></label>
+        <label data-t="schedule">${t('au.f.cadence')}${sel('cadence', [['daily', t('es.daily')], ['weekly', t('es.weekly')]], tr.cadence || 'weekly')}</label>
+        <label data-t="schedule">${t('au.f.time')}<input type="time" name="time" value="${hm}"></label>
+        <label data-t="schedule" data-w="1">${t('au.f.weekday')}${sel('weekday', [0, 1, 2, 3, 4, 5, 6].map((w) => [w, t('es.wd.' + w)]), tr.weekday ?? 0)}</label>
+      </div>
+      <h3 style="margin:14px 0 6px">${t('au.f.action')}</h3>
+      ${sel('atype', Object.entries(catalog.actions).map(([k, v]) => [k, v.label + (v.allowed ? '' : ' ' + t('au.notallowed'))]), ac.type)}
+      <div class="form-2" style="margin-top:8px">
+        <label data-a="notify">${t('au.f.text')}<input name="text" maxlength="300" value="${esc(ac.text || '')}"></label>
+        <label data-a="investigate" style="grid-column:1/-1">${t('au.f.question')}<input name="question" maxlength="500" value="${esc(ac.question || '')}" placeholder="Why is this station slow?"></label>
+        <label data-a="defender_scan">${t('au.f.scan')}${sel('scan_type', [['quick', t('au.quick')], ['full', t('au.full')]], ac.scan_type || 'quick')}</label>
+        <label data-a="install_updates">${t('au.f.updscope')}${sel('scope', [['security', t('au.sec')], ['all', t('au.all')]], ac.scope || 'security')}</label>
+        <label data-a="install_updates">${t('au.f.reboot')}${sel('reboot', [['never', t('au.no')], ['if_needed', t('au.ifneeded')]], ac.reboot || 'never')}</label>
+        <label data-a="restart_service start_service">${t('au.f.svc')}<input name="svc" maxlength="100" value="${esc(ac.name || '')}"></label>
+        <label data-a="kill_process">${t('au.f.proc')}<input name="proc" maxlength="100" value="${esc(ac.name || '')}"></label>
+        <label data-a="reboot">${t('au.f.delay')}<input type="number" name="delay" min="60" max="3600" value="${ac.delay || 300}"></label>
+      </div>
+      <p class="note warn" id="auforced" style="margin-top:8px">${t('au.forced')}</p>
+      <h3 style="margin:14px 0 6px">${t('au.f.mode')}</h3>
+      <div class="form-2">
+        <label>${t('au.f.mode')}${sel('mode', [['auto', t('au.mode.auto')], ['approve', t('au.mode.approve')]], r ? r.mode : 'auto')}</label>
+        <label>${t('au.f.cooldown')}<input type="number" name="cooldown_min" min="5" max="10080" value="${r ? r.cooldown_min : 60}"></label>
+        <label>${t('au.f.max')}<input type="number" name="max_per_day" min="1" max="48" value="${r ? r.max_per_day : 3}"></label>
+      </div>`,
+    onSubmit: async (f) => {
+      const ttype = f.ttype.value;
+      const [h, m] = f.time.value.split(':').map((x) => +x);
+      const trigger = { type: ttype, code: f.code.value, metric: f.metric.value, value: +f.value.value, for_min: +f.for_min.value,
+        minutes: +f.minutes.value, cadence: f.cadence.value, hour: h || 0, minute: m || 0, weekday: +f.weekday.value };
+      const atype = f.atype.value;
+      const action = { type: atype, text: f.text.value, question: f.question.value, scan_type: f.scan_type.value, scope: f.scope.value,
+        reboot: f.reboot.value, name: atype === 'kill_process' ? f.proc.value : f.svc.value, delay: +f.delay.value };
+      const body = { name: f.name.value, scope_type: f.scope_type.value, scope_id: f.scope_id.value, trigger, action,
+        mode: f.mode.value, cooldown_min: +f.cooldown_min.value, max_per_day: +f.max_per_day.value };
+      if (r) { await api(`/api/automation/rules/${r.id}`, { method: 'PATCH', body }); toast(t('au.t.saved')); }
+      else { await api('/api/automation/rules', { method: 'POST', body }); toast(t('au.t.created')); }
+      done();
+    },
+  });
+  const sync = () => {
+    const st = form.scope_type.value;
+    $('[data-f=scope_id]', form).style.display = st === 'global' ? 'none' : '';
+    if (st !== 'global') {
+      const cur = form.scope_id.value || (r && r.scope_type === st ? r.scope_id : '');
+      form.scope_id.innerHTML = scopes[st].map(([v, l]) => `<option value="${esc(v)}" ${v === cur ? 'selected' : ''}>${esc(l)}</option>`).join('');
+    }
+    const tt = form.ttype.value;
+    $$('[data-t]', form).forEach((el) => { el.style.display = el.dataset.t === tt && !(el.dataset.w && form.cadence.value !== 'weekly') ? '' : 'none'; });
+    const at = form.atype.value;
+    $$('[data-a]', form).forEach((el) => { el.style.display = el.dataset.a.split(' ').includes(at) ? '' : 'none'; });
+    $('#auforced', form).style.display = catalog.actions[at] && catalog.actions[at].approval_required ? '' : 'none';
+  };
+  let lastScope = form.scope_type.value;
+  form.scope_type.onchange = () => { if (form.scope_type.value !== lastScope) { form.scope_id.value = ''; lastScope = form.scope_type.value; } sync(); };
+  form.ttype.onchange = sync; form.atype.onchange = sync; form.cadence.onchange = sync;
+  sync();
 }
 
 async function viewFleetAI() {
